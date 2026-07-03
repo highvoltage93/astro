@@ -109,6 +109,7 @@ export type TransitPreviewResult = {
   natal: ChartResult;
   transit: ChartResult;
   moonPhase: MoonPhase | null;
+  transitHousePlacements: ChartPoint[];
   transitToNatalAspects: TransitAspect[];
   weekAhead: TransitDayForecast[];
   warnings: Array<{

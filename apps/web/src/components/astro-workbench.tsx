@@ -140,6 +140,21 @@ const moonPhaseLabelsUk: Record<string, string> = {
   "waning-crescent": "Спадний серп"
 };
 
+const houseTopicsUk: Record<number, string> = {
+  1: "тіло, образ, старт",
+  2: "гроші, ресурси, цінності",
+  3: "мислення, навчання, контакти",
+  4: "дім, родина, корені",
+  5: "творчість, діти, романтика",
+  6: "робота, здоров'я, рутина",
+  7: "партнерство, домовленості",
+  8: "кризи, близькість, спільні ресурси",
+  9: "сенс, подорожі, навчання",
+  10: "кар'єра, статус, напрям",
+  11: "друзі, спільноти, плани",
+  12: "підсвідоме, відновлення, тиша"
+};
+
 const transitPhaseLabelsUk: Record<string, string> = {
   applying: "сходиться",
   separating: "розходиться",
@@ -1020,6 +1035,7 @@ function TransitForecastCard({
 }) {
   const moon = preview?.transit.bodies.find((point) => point.key === "moon") ?? null;
   const moonPhase = preview?.moonPhase ?? null;
+  const transitHousePlacements = preview?.transitHousePlacements ?? [];
   const transitPoints = new Map(preview?.transit.bodies.map((point) => [point.key, point]) ?? []);
   const natalPoints = new Map([...(preview?.natal.angles ?? []), ...(preview?.natal.bodies ?? [])].map((point) => [point.key, point]));
 
@@ -1087,6 +1103,31 @@ function TransitForecastCard({
             </div>
 
             <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Транзитні планети в натальних домах</h3>
+              {transitHousePlacements.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {transitHousePlacements.slice(0, 10).map((point) => (
+                    <div className="rounded-lg border px-3 py-2 text-sm" key={`house-transit-${point.key}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {planetGlyphs[point.key] ?? point.key} {point.label}
+                        </span>
+                        <Badge variant="secondary">{point.house ?? "n/a"} дім</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {point.house ? houseTopicsUk[point.house] ?? "тема дому" : "дім не визначено"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Для транзитів по домах потрібен відомий час народження і розраховані натальні доми.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <h3 className="text-sm font-semibold">Найточніші транзити до наталу</h3>
               {preview.transitToNatalAspects.length > 0 ? (
                 <div className="space-y-1">
@@ -1151,7 +1192,11 @@ function TransitForecastCard({
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-semibold">{day.date}</p>
                         <Badge variant="secondary">
-                          {day.moon ? `${signLabelsUk[day.moon.sign] ?? day.moon.sign} ${day.moon.signDegree.toFixed(1)}°` : "Moon n/a"}
+                          {day.moon
+                            ? `${signLabelsUk[day.moon.sign] ?? day.moon.sign} ${day.moon.signDegree.toFixed(1)}°${
+                                day.moon.house ? ` · ${day.moon.house} дім` : ""
+                              }`
+                            : "Moon n/a"}
                         </Badge>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">{formatMoonPhase(day.moonPhase)}</p>

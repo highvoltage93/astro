@@ -406,6 +406,17 @@ const enrichTransitAspects = ({
     .sort((a, b) => b.score - a.score || a.orb - b.orb);
 };
 
+const assignNatalHousesToTransitPoints = (points: ChartPoint[], natalHouses: HouseCusp[]): ChartPoint[] => {
+  if (natalHouses.length === 0) {
+    return [];
+  }
+
+  return points.map((point) => ({
+    ...point,
+    house: findHouse(point.longitude, natalHouses)
+  }));
+};
+
 const calculateBody = ({
   body,
   flags,
@@ -677,6 +688,7 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     ephemerisPath: input.ephemerisPath
   });
   const natalPoints = [...natal.angles, ...natal.bodies];
+  const transitHousePlacements = assignNatalHousesToTransitPoints(transit.bodies, natal.houses);
   const transitToNatalAspects = enrichTransitAspects({
     aspects: calculateAspectsBetween(transit.bodies, natalPoints),
     baseDateTime: baseTransitDateTime,
@@ -694,11 +706,12 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
       houseSystem: natal.settings.houseSystem,
       ephemerisPath: input.ephemerisPath
     });
+    const dayTransitHousePlacements = assignNatalHousesToTransitPoints(dayTransit.bodies, natal.houses);
 
     return {
       date: dayTransitDateTime.toISODate() ?? dayTransitDateTime.toFormat("yyyy-MM-dd"),
       transitDateTime: dayTransit.subject.utcDateTime,
-      moon: dayTransit.bodies.find((body) => body.key === "moon") ?? null,
+      moon: dayTransitHousePlacements.find((body) => body.key === "moon") ?? dayTransit.bodies.find((body) => body.key === "moon") ?? null,
       moonPhase: calculateMoonPhase(dayTransit.bodies),
       strongestAspects: enrichTransitAspects({
         aspects: calculateAspectsBetween(dayTransit.bodies, natalPoints),
@@ -715,6 +728,7 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     natal,
     transit,
     moonPhase: calculateMoonPhase(transit.bodies),
+    transitHousePlacements,
     transitToNatalAspects,
     weekAhead,
     warnings: [...natal.warnings, ...transit.warnings]

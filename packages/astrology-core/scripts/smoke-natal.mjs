@@ -81,6 +81,14 @@ assert.ok(
   transitPreview.moonPhase.illuminatedFraction >= 0 && transitPreview.moonPhase.illuminatedFraction <= 1,
   "Expected Moon illumination to be normalized"
 );
+assert.ok(
+  transitPreview.transitHousePlacements.length > 0,
+  "Expected transit bodies to be placed in natal houses"
+);
+assert.ok(
+  transitPreview.transitHousePlacements.some((point) => point.house !== undefined),
+  "Expected at least one transit house placement"
+);
 assert.equal(transitPreview.weekAhead.length, 7, "Expected 7 day transit forecast");
 assert.ok(
   transitPreview.transitToNatalAspects.length > 0,
@@ -95,6 +103,21 @@ assert.ok(transitPreview.transitToNatalAspects[0].strength, "Expected enriched t
 assert.ok(
   "activeFrom" in transitPreview.transitToNatalAspects[0],
   "Expected enriched transit active window"
+);
+
+const unknownTimeTransitPreview = calculateTransitPreview({
+  transitDateTime: "2026-07-03T12:00:00.000Z",
+  natal: {
+    ...fixture.input,
+    birthTimeKnown: false
+  },
+  ephemerisPath
+});
+
+assert.equal(
+  unknownTimeTransitPreview.transitHousePlacements.length,
+  0,
+  "Unknown time transit preview should omit house placements"
 );
 
 console.log(
