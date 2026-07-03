@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+*.log
+.DS_Store
+
+ephemeris/*.se1
+ephemeris/**/*.se1

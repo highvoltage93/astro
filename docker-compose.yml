@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: astroprocessor-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-astroprocessor}
+      POSTGRES_USER: ${POSTGRES_USER:-astroprocessor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-astroprocessor_dev}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-astroprocessor} -d ${POSTGRES_DB:-astroprocessor}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    container_name: astroprocessor-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-astroprocessor}:${POSTGRES_PASSWORD:-astroprocessor_dev}@postgres:5432/${POSTGRES_DB:-astroprocessor}?schema=public
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      SWISSEPH_EPHE_PATH: ${SWISSEPH_EPHE_PATH:-/app/ephemeris}
+      AI_PROVIDER: ${AI_PROVIDER:-claude}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+    ports:
+      - "${API_PORT:-4000}:4000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/packages/astrology-core/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "pnpm --filter @astroprocessor/astrology-core build &&
+             pnpm --filter @astroprocessor/api prisma:generate &&
+             pnpm --filter @astroprocessor/api db:push &&
+             pnpm --filter @astroprocessor/api dev"
+
+  web:
+    container_name: astroprocessor-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+      - /app/packages/astrology-core/node_modules
+    depends_on:
+      - api
+    command: pnpm --filter @astroprocessor/web dev
+
+volumes:
+  postgres-data:

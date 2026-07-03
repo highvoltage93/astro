@@ -1,0 +1,20 @@
+{
+  "name": "Kyiv natal smoke chart",
+  "purpose": "Smoke test fixture for the Swiss Ephemeris adapter. This is not an Astro.com accuracy reference.",
+  "input": {
+    "birthDate": "1995-04-12",
+    "birthTime": "14:30",
+    "timezone": "Europe/Kyiv",
+    "latitude": 50.4501,
+    "longitude": 30.5234,
+    "houseSystem": "placidus",
+    "zodiac": "tropical"
+  },
+  "expect": {
+    "chartType": "natal",
+    "requiredPointKeys": ["asc", "mc", "sun", "moon", "mercury", "venus", "mars"],
+    "minBodiesWithoutEphemerisFiles": 12,
+    "minBodiesWithEphemerisFiles": 14
+  }
+}
+

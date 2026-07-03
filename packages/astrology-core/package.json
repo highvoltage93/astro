@@ -1,0 +1,23 @@
+{
+  "name": "@astroprocessor/astrology-core",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "ephemeris:download": "node scripts/download-ephemeris.mjs",
+    "smoke:natal": "tsc -p tsconfig.json && node scripts/smoke-natal.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.2",
+    "typescript": "5.5.4"
+  },
+  "dependencies": {
+    "luxon": "^3.7.2",
+    "sweph": "2.10.3-7"
+  }
+}

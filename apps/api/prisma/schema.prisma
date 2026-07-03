@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  CONSULTANT
+  ADMIN
+}
+
+enum BirthProfileVisibility {
+  PRIVATE
+  LINK
+  PUBLIC
+}
+
+enum ChartType {
+  NATAL
+  TRANSIT
+  SYNASTRY
+  PROGRESSION
+  RETURN
+}
+
+enum InterpretationStatus {
+  DRAFT
+  REVIEWED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AiSessionMode {
+  NATAL_SUMMARY
+  CHAT
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  locale        String         @default("uk")
+  role          UserRole       @default(USER)
+  birthProfiles BirthProfile[]
+  aiSessions    AiSession[]
+  auditEvents   AuditEvent[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("users")
+}
+
+model BirthProfile {
+  id              String                 @id @default(cuid())
+  ownerUserId     String?
+  owner           User?                  @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+  displayName     String
+  birthDate       DateTime               @db.Date
+  birthTime       String?
+  birthTimeKnown  Boolean                @default(true)
+  birthplaceName  String
+  countryCode     String?
+  latitude        Float
+  longitude       Float
+  timezone        String
+  utcDateTime     DateTime?
+  source          String                 @default("user")
+  visibility      BirthProfileVisibility @default(PRIVATE)
+  calculations    ChartCalculation[]
+  aiSessions      AiSession[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([ownerUserId])
+  @@index([visibility])
+  @@map("birth_profiles")
+}
+
+model ChartCalculation {
+  id                       String       @id @default(cuid())
+  birthProfileId           String?
+  birthProfile             BirthProfile? @relation(fields: [birthProfileId], references: [id], onDelete: SetNull)
+  chartType                ChartType
+  zodiacType               String       @default("tropical")
+  ayanamsa                 String?
+  houseSystem              String
+  calculationEngineVersion String
+  inputHash                String
+  settingsJson             Json
+  resultJson               Json
+  warningsJson             Json
+  aiSessions               AiSession[]
+  calculatedAt             DateTime     @default(now())
+
+  @@index([birthProfileId])
+  @@index([chartType])
+  @@index([inputHash])
+  @@map("chart_calculations")
+}
+
+model InterpretationItem {
+  id                 String               @id @default(cuid())
+  locale             String
+  interpretationType String
+  factorKey          String
+  school             String               @default("psychological")
+  title              String
+  body               String
+  readingLevel       String               @default("beginner")
+  status             InterpretationStatus @default(DRAFT)
+  version            Int                  @default(1)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@unique([locale, factorKey, school, version])
+  @@index([status])
+  @@map("interpretation_items")
+}
+
+model GlossaryTerm {
+  id        String   @id @default(cuid())
+  locale    String
+  slug      String
+  term      String
+  summary   String
+  body      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([locale, slug])
+  @@map("glossary_terms")
+}
+
+model AiSession {
+  id                 String            @id @default(cuid())
+  userId             String?
+  user               User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  birthProfileId     String?
+  birthProfile       BirthProfile?     @relation(fields: [birthProfileId], references: [id], onDelete: SetNull)
+  chartCalculationId String?
+  chartCalculation   ChartCalculation? @relation(fields: [chartCalculationId], references: [id], onDelete: SetNull)
+  mode               AiSessionMode
+  promptVersion      String
+  safetyStatus       String            @default("pending")
+  messagesJson       Json
+  createdAt          DateTime          @default(now())
+
+  @@index([userId])
+  @@index([birthProfileId])
+  @@map("ai_sessions")
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@map("audit_events")
+}
+
