@@ -1,4 +1,10 @@
-import type { ChartResult, NatalPreviewPayload, SaveBirthProfilePayload, SaveBirthProfileResult } from "./chart-types";
+import type {
+  ChartResult,
+  NatalPreviewPayload,
+  PlaceSearchResponse,
+  SaveBirthProfilePayload,
+  SaveBirthProfileResult
+} from "./chart-types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -32,4 +38,19 @@ export const saveBirthProfile = async (payload: SaveBirthProfilePayload): Promis
   }
 
   return response.json() as Promise<SaveBirthProfileResult>;
+};
+
+export const searchPlaces = async (query: string): Promise<PlaceSearchResponse> => {
+  const params = new URLSearchParams({
+    query,
+    language: "uk",
+    count: "8"
+  });
+  const response = await fetch(`${API_URL}/places/search?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<PlaceSearchResponse>;
 };

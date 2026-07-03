@@ -22,7 +22,7 @@
 | ORM | Prisma or Drizzle | Choose based on team preference; Prisma is faster for MVP |
 | Auth | Auth.js or managed provider | Must support OAuth/email and secure sessions |
 | AI | Claude API behind internal AI service | Never call AI provider directly from frontend |
-| Geocoding | Google Places or OpenCage | Store resolved place snapshot |
+| Geocoding | Open-Meteo Geocoding for MVP | API-keyless provider behind a backend proxy; replaceable with Google/OpenCage later |
 | Timezones | Historical timezone library plus provider validation | This is a critical accuracy dependency |
 | Payments | Stripe first | Add local Ukrainian provider later if needed |
 | Observability | Sentry + structured logs | Include calculation and AI error context with redaction |

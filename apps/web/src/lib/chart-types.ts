@@ -81,3 +81,23 @@ export type SaveBirthProfileResult = {
     calculatedAt: string;
   } | null;
 };
+
+export type PlaceSearchResult = {
+  provider: "open-meteo";
+  providerId: string;
+  name: string;
+  displayName: string;
+  country?: string;
+  countryCode?: string;
+  admin1?: string;
+  admin2?: string;
+  latitude: number;
+  longitude: number;
+  timezone?: string;
+  elevation?: number;
+  population?: number;
+};
+
+export type PlaceSearchResponse = {
+  results: PlaceSearchResult[];
+};

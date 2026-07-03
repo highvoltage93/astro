@@ -4,6 +4,7 @@ import { registerBirthProfileRoutes } from "./birth-profiles/routes";
 import { registerChartRoutes } from "./charts/routes";
 import { env } from "./config/env";
 import { registerHealthRoutes } from "./health/routes";
+import { registerPlaceRoutes } from "./places/routes";
 import { prisma } from "./prisma/client";
 
 const app = Fastify({
@@ -19,6 +20,7 @@ const start = async (): Promise<void> => {
   });
 
   await registerHealthRoutes(app);
+  await registerPlaceRoutes(app);
   await registerBirthProfileRoutes(app);
   await registerChartRoutes(app);
 

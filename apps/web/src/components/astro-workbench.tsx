@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator, RotateCcw, Save, Settings2 } from "lucide-react";
+import { Calculator, MapPin, RotateCcw, Save, Search, Settings2 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { requestNatalPreview, saveBirthProfile } from "@/lib/api";
-import type { Aspect, ChartResult, NatalPreviewPayload } from "@/lib/chart-types";
+import { requestNatalPreview, saveBirthProfile, searchPlaces } from "@/lib/api";
+import type { Aspect, ChartResult, NatalPreviewPayload, PlaceSearchResult } from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
 
 type FormState = {
@@ -20,6 +20,7 @@ type FormState = {
   birthDate: string;
   birthTime: string;
   birthplaceName: string;
+  countryCode: string;
   latitude: string;
   longitude: string;
   timezone: string;
@@ -32,6 +33,7 @@ const initialForm: FormState = {
   birthDate: "1995-04-12",
   birthTime: "14:30",
   birthplaceName: "Kyiv, Ukraine",
+  countryCode: "UA",
   latitude: "50.4501",
   longitude: "30.5234",
   timezone: "Europe/Kyiv",
@@ -82,8 +84,11 @@ export function AstroWorkbench() {
   const [chart, setChart] = useState<ChartResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [placeSearchStatus, setPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [placeError, setPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
 
   const placements = useMemo(() => {
@@ -102,6 +107,65 @@ export function AstroWorkbench() {
     setSaveStatus("idle");
     setSaveError(null);
     setSavedProfileId(null);
+    setChart(null);
+    setStatus("idle");
+
+    if (field === "birthplaceName") {
+      setPlaceResults([]);
+      setPlaceError(null);
+      setPlaceSearchStatus("idle");
+    }
+  };
+
+  const resetForm = (): void => {
+    setForm(initialForm);
+    setChart(null);
+    setStatus("idle");
+    setSaveStatus("idle");
+    setSaveError(null);
+    setSavedProfileId(null);
+    setPlaceResults([]);
+    setPlaceError(null);
+    setPlaceSearchStatus("idle");
+  };
+
+  const searchBirthplace = async (): Promise<void> => {
+    if (form.birthplaceName.trim().length < 2) {
+      setPlaceError("Введи щонайменше 2 символи для пошуку міста.");
+      setPlaceSearchStatus("error");
+      return;
+    }
+
+    setPlaceSearchStatus("loading");
+    setPlaceError(null);
+
+    try {
+      const response = await searchPlaces(form.birthplaceName);
+      setPlaceResults(response.results);
+      setPlaceSearchStatus("ready");
+    } catch (requestError) {
+      setPlaceSearchStatus("error");
+      setPlaceError(requestError instanceof Error ? requestError.message : "Unknown place search error");
+    }
+  };
+
+  const selectBirthplace = (place: PlaceSearchResult): void => {
+    setForm((current) => ({
+      ...current,
+      birthplaceName: place.displayName,
+      countryCode: place.countryCode ?? "",
+      latitude: String(place.latitude),
+      longitude: String(place.longitude),
+      timezone: place.timezone ?? current.timezone
+    }));
+    setChart(null);
+    setStatus("idle");
+    setSaveStatus("idle");
+    setSaveError(null);
+    setSavedProfileId(null);
+    setPlaceResults([]);
+    setPlaceError(null);
+    setPlaceSearchStatus("idle");
   };
 
   const buildNatalPayload = (): NatalPreviewPayload => ({
@@ -138,7 +202,8 @@ export function AstroWorkbench() {
         ...buildNatalPayload(),
         displayName: form.displayName,
         birthTimeKnown: true,
-        birthplaceName: form.birthplaceName
+        birthplaceName: form.birthplaceName,
+        countryCode: form.countryCode || undefined
       });
 
       setSavedProfileId(result.birthProfile.id);
@@ -174,8 +239,13 @@ export function AstroWorkbench() {
           <BirthDataCard
             error={error}
             form={form}
+            placeError={placeError}
+            placeResults={placeResults}
+            placeSearchStatus={placeSearchStatus}
             status={status}
-            onReset={() => setForm(initialForm)}
+            onPlaceSearch={searchBirthplace}
+            onPlaceSelect={selectBirthplace}
+            onReset={resetForm}
             onSubmit={submit}
             onUpdate={updateForm}
           />
@@ -276,14 +346,24 @@ export function AstroWorkbench() {
 function BirthDataCard({
   error,
   form,
+  placeError,
+  placeResults,
+  placeSearchStatus,
   status,
+  onPlaceSearch,
+  onPlaceSelect,
   onReset,
   onSubmit,
   onUpdate
 }: {
   error: string | null;
   form: FormState;
+  placeError: string | null;
+  placeResults: PlaceSearchResult[];
+  placeSearchStatus: "idle" | "loading" | "ready" | "error";
   status: "idle" | "loading" | "ready" | "error";
+  onPlaceSearch: () => Promise<void>;
+  onPlaceSelect: (place: PlaceSearchResult) => void;
   onReset: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onUpdate: (field: keyof FormState, value: string) => void;
@@ -322,9 +402,30 @@ function BirthDataCard({
             </Field>
           </div>
 
-          <Field label="Місце">
-            <Input value={form.birthplaceName} onChange={(event) => onUpdate("birthplaceName", event.target.value)} />
-          </Field>
+          <div className="space-y-2">
+            <Label>Місце</Label>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <Input
+                value={form.birthplaceName}
+                onChange={(event) => onUpdate("birthplaceName", event.target.value)}
+              />
+              <Button
+                variant="secondary"
+                type="button"
+                disabled={placeSearchStatus === "loading"}
+                onClick={onPlaceSearch}
+              >
+                <Search />
+                {placeSearchStatus === "loading" ? "Шукаю" : "Пошук"}
+              </Button>
+            </div>
+            <PlaceSearchPanel
+              error={placeError}
+              results={placeResults}
+              status={placeSearchStatus}
+              onSelect={onPlaceSelect}
+            />
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
             <Field label="Широта">
@@ -395,6 +496,59 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
     <div className="space-y-2">
       <Label>{label}</Label>
       {children}
+    </div>
+  );
+}
+
+function PlaceSearchPanel({
+  error,
+  results,
+  status,
+  onSelect
+}: {
+  error: string | null;
+  results: PlaceSearchResult[];
+  status: "idle" | "loading" | "ready" | "error";
+  onSelect: (place: PlaceSearchResult) => void;
+}) {
+  if (status === "idle" || status === "loading") {
+    return null;
+  }
+
+  if (status === "error") {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+        {error ?? "Не вдалося знайти місце"}
+      </div>
+    );
+  }
+
+  if (results.length === 0) {
+    return (
+      <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
+        Нічого не знайдено. Спробуй уточнити місто або країну.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border bg-background">
+      {results.map((place) => (
+        <button
+          className="grid w-full gap-1 border-b px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          key={`${place.provider}-${place.providerId}`}
+          type="button"
+          onClick={() => onSelect(place)}
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <MapPin className="h-4 w-4 text-primary" />
+            {place.displayName}
+          </span>
+          <span className="pl-6 text-xs text-muted-foreground">
+            {place.timezone ?? "timezone n/a"} · {place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }

@@ -26,6 +26,16 @@ Services:
 
 The API container runs Prisma generate and `prisma db push` on startup for the development database.
 
+## Birthplace Search
+
+The API exposes `GET /places/search?query=Kyiv` as a backend proxy for birthplace lookup. The MVP provider is the Open-Meteo Geocoding API, configured with:
+
+```bash
+GEOCODING_API_URL=https://geocoding-api.open-meteo.com/v1
+```
+
+Search results include display name, country, latitude, longitude, and timezone. The web form uses this to fill birthplace coordinates before calculating a chart.
+
 ## Swiss Ephemeris Files
 
 The calculation adapter uses the `sweph` Node binding. For high precision calculations, download the Swiss Ephemeris files before running the app:
@@ -63,6 +73,7 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - Dockerized web, API, and database.
 - Prisma data model for MVP entities.
 - API health routes.
+- Birthplace search endpoint backed by Open-Meteo Geocoding.
 - Natal chart preview contract backed by the first Swiss Ephemeris adapter.
 - Birth profile persistence endpoint backed by Prisma.
 - First shadcn/ui product workspace for birth data intake, chart preview, and saving.
