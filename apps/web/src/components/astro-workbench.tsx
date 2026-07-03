@@ -140,6 +140,19 @@ const moonPhaseLabelsUk: Record<string, string> = {
   "waning-crescent": "Спадний серп"
 };
 
+const transitPhaseLabelsUk: Record<string, string> = {
+  applying: "сходиться",
+  separating: "розходиться",
+  exact: "точний",
+  stationary: "стаціонарно"
+};
+
+const transitStrengthLabelsUk: Record<string, string> = {
+  high: "сильний",
+  medium: "середній",
+  low: "м'який"
+};
+
 const toDateTimeLocalValue = (date: Date): string => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
 
@@ -150,6 +163,46 @@ const normalizeDegrees = (degrees: number): number => ((degrees % 360) + 360) % 
 
 const formatMoonPhase = (phase: MoonPhase | null): string =>
   phase ? `${moonPhaseLabelsUk[phase.name] ?? phase.name} · ${Math.round(phase.illuminatedFraction * 100)}%` : "n/a";
+
+const formatExactAt = (exactAt: string | null): string => {
+  if (!exactAt) {
+    return "точний час поза вікном прогнозу";
+  }
+
+  return new Intl.DateTimeFormat("uk-UA", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(exactAt));
+};
+
+const formatDateTimeCompact = (dateTime: string | null): string => {
+  if (!dateTime) {
+    return "n/a";
+  }
+
+  return new Intl.DateTimeFormat("uk-UA", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(dateTime));
+};
+
+const formatActiveWindow = ({
+  activeFrom,
+  activeUntil,
+  durationDays
+}: {
+  activeFrom: string | null;
+  activeUntil: string | null;
+  durationDays: number | null;
+}): string => {
+  if (!activeFrom || !activeUntil || durationDays === null) {
+    return "активне вікно поза межами прогнозу";
+  }
+
+  return `${formatDateTimeCompact(activeFrom)} - ${formatDateTimeCompact(activeUntil)} · ${durationDays.toFixed(1)} дн.`;
+};
 
 export function AstroWorkbench() {
   const [form, setForm] = useState<FormState>(initialForm);
@@ -1043,19 +1096,39 @@ function TransitForecastCard({
 
                     return (
                       <div
-                        className="grid gap-1 rounded-lg border px-3 py-2 text-sm sm:grid-cols-[1fr_auto]"
+                        className="grid gap-2 rounded-lg border px-3 py-2 text-sm"
                         key={`transit-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}
                       >
-                        <span className="min-w-0">
-                          <span className="font-medium">
-                            {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {transitPoint?.label ?? aspect.bodyA}
-                          </span>{" "}
-                          {aspectLabels[aspect.type] ?? aspect.type} натальний{" "}
-                          <span className="font-medium">
-                            {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.bodyB}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="min-w-0">
+                            <span className="font-medium">
+                              {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {transitPoint?.label ?? aspect.bodyA}
+                            </span>{" "}
+                            {aspectLabels[aspect.type] ?? aspect.type} натальний{" "}
+                            <span className="font-medium">
+                              {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.bodyB}
+                            </span>
                           </span>
-                        </span>
-                        <strong className="text-astro-coral">{aspect.orb.toFixed(2)}°</strong>
+                          <span className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">{transitPhaseLabelsUk[aspect.phase] ?? aspect.phase}</Badge>
+                            <Badge variant="outline">{transitStrengthLabelsUk[aspect.strength] ?? aspect.strength}</Badge>
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <span>Exact: {formatExactAt(aspect.exactAt)}</span>
+                          <span>
+                            score {aspect.score.toFixed(1)} · orb{" "}
+                            <strong className="text-astro-coral">{aspect.orb.toFixed(2)}°</strong>
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Active:{" "}
+                          {formatActiveWindow({
+                            activeFrom: aspect.activeFrom,
+                            activeUntil: aspect.activeUntil,
+                            durationDays: aspect.durationDays
+                          })}
+                        </p>
                       </div>
                     );
                   })}
@@ -1083,18 +1156,32 @@ function TransitForecastCard({
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">{formatMoonPhase(day.moonPhase)}</p>
                       {strongestAspect ? (
-                        <p className="mt-2 text-sm">
-                          <span className="font-medium">
-                            {planetGlyphs[strongestAspect.bodyA] ?? strongestAspect.bodyA}{" "}
-                            {transitPoint?.label ?? strongestAspect.bodyA}
-                          </span>{" "}
-                          {aspectLabels[strongestAspect.type] ?? strongestAspect.type} натальний{" "}
-                          <span className="font-medium">
-                            {planetGlyphs[strongestAspect.bodyB] ?? strongestAspect.bodyB}{" "}
-                            {natalPoint?.label ?? strongestAspect.bodyB}
-                          </span>{" "}
-                          <strong className="text-astro-coral">{strongestAspect.orb.toFixed(2)}°</strong>
-                        </p>
+                        <div className="mt-2 space-y-1 text-sm">
+                          <p>
+                            <span className="font-medium">
+                              {planetGlyphs[strongestAspect.bodyA] ?? strongestAspect.bodyA}{" "}
+                              {transitPoint?.label ?? strongestAspect.bodyA}
+                            </span>{" "}
+                            {aspectLabels[strongestAspect.type] ?? strongestAspect.type} натальний{" "}
+                            <span className="font-medium">
+                              {planetGlyphs[strongestAspect.bodyB] ?? strongestAspect.bodyB}{" "}
+                              {natalPoint?.label ?? strongestAspect.bodyB}
+                            </span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {transitPhaseLabelsUk[strongestAspect.phase] ?? strongestAspect.phase} · Exact:{" "}
+                            {formatExactAt(strongestAspect.exactAt)} · score {strongestAspect.score.toFixed(1)} · orb{" "}
+                            <strong className="text-astro-coral">{strongestAspect.orb.toFixed(2)}°</strong>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Active:{" "}
+                            {formatActiveWindow({
+                              activeFrom: strongestAspect.activeFrom,
+                              activeUntil: strongestAspect.activeUntil,
+                              durationDays: strongestAspect.durationDays
+                            })}
+                          </p>
+                        </div>
                       ) : (
                         <p className="mt-2 text-sm text-muted-foreground">Без major aspects у поточних орбах.</p>
                       )}

@@ -86,6 +86,16 @@ assert.ok(
   transitPreview.transitToNatalAspects.length > 0,
   "Expected at least one transit-to-natal major aspect"
 );
+assert.ok(transitPreview.transitToNatalAspects[0].phase, "Expected enriched transit aspect phase");
+assert.ok(
+  Number.isFinite(transitPreview.transitToNatalAspects[0].score),
+  "Expected enriched transit aspect score"
+);
+assert.ok(transitPreview.transitToNatalAspects[0].strength, "Expected enriched transit aspect strength");
+assert.ok(
+  "activeFrom" in transitPreview.transitToNatalAspects[0],
+  "Expected enriched transit active window"
+);
 
 console.log(
   JSON.stringify(

@@ -10,9 +10,11 @@ import {
   type HouseSystems
 } from "sweph";
 import { calculateAspectsBetween, calculateMajorAspects } from "./aspects";
-import { ZODIAC_SIGNS } from "./constants";
+import { DEFAULT_MAJOR_ASPECT_ORBS, ZODIAC_SIGNS } from "./constants";
 import type {
   Ayanamsa,
+  Aspect,
+  AspectType,
   CalculationWarning,
   ChartPoint,
   ChartResult,
@@ -20,6 +22,8 @@ import type {
   HouseSystem,
   MoonPhase,
   NatalCalculationInput,
+  TransitAspect,
+  TransitAspectStrength,
   TransitDayForecast,
   TransitCalculationInput,
   TransitPreviewInput,
@@ -64,11 +68,42 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
   { key: "lilith", label: "Lilith", swephId: constants.SE_MEAN_APOG, kind: "calculated" }
 ];
 
+const ASPECT_SCORE_WEIGHTS: Record<AspectType, number> = {
+  conjunction: 1,
+  opposition: 0.95,
+  square: 0.9,
+  trine: 0.75,
+  sextile: 0.65
+};
+
+const TRANSIT_BODY_SCORE_WEIGHTS: Record<string, number> = {
+  sun: 0.72,
+  moon: 0.55,
+  mercury: 0.58,
+  venus: 0.62,
+  mars: 0.7,
+  jupiter: 0.82,
+  saturn: 0.92,
+  uranus: 0.86,
+  neptune: 0.82,
+  pluto: 0.9,
+  "north-node": 0.68,
+  "south-node": 0.68,
+  chiron: 0.72,
+  lilith: 0.55
+};
+
 const normalizeLongitude = (longitude: number): number => ((longitude % 360) + 360) % 360;
 
 const round = (value: number, digits = 6): number => Number(value.toFixed(digits));
 
 const shortestForwardArc = (start: number, end: number): number => normalizeLongitude(end - start);
+
+const signedAngularDistance = (from: number, to: number): number => {
+  const distance = normalizeLongitude(to - from);
+
+  return distance > 180 ? distance - 360 : distance;
+};
 
 const toSign = (longitude: number): { sign: string; signDegree: number } => {
   const normalized = normalizeLongitude(longitude);
@@ -248,6 +283,127 @@ const calculateMoonPhase = (bodies: ChartPoint[]): MoonPhase | null => {
     illuminatedFraction,
     waxing: phaseAngle < 180
   };
+};
+
+const transitAspectTargetDelta = (aspect: Aspect, transitPoint: ChartPoint, natalPoint: ChartPoint): number => {
+  const targetLongitudes =
+    aspect.exactAngle === 0 || aspect.exactAngle === 180
+      ? [normalizeLongitude(natalPoint.longitude + aspect.exactAngle)]
+      : [
+          normalizeLongitude(natalPoint.longitude + aspect.exactAngle),
+          normalizeLongitude(natalPoint.longitude - aspect.exactAngle)
+        ];
+
+  return targetLongitudes
+    .map((targetLongitude) => signedAngularDistance(transitPoint.longitude, targetLongitude))
+    .sort((a, b) => Math.abs(a) - Math.abs(b))[0] ?? 0;
+};
+
+const aspectStrength = (score: number): TransitAspectStrength => {
+  if (score >= 75) {
+    return "high";
+  }
+
+  if (score >= 50) {
+    return "medium";
+  }
+
+  return "low";
+};
+
+const enrichTransitAspect = ({
+  aspect,
+  baseDateTime,
+  natalPointsByKey,
+  transitPointsByKey
+}: {
+  aspect: Aspect;
+  baseDateTime: DateTime;
+  natalPointsByKey: Map<string, ChartPoint>;
+  transitPointsByKey: Map<string, ChartPoint>;
+}): TransitAspect => {
+  const transitPoint = transitPointsByKey.get(aspect.bodyA);
+  const natalPoint = natalPointsByKey.get(aspect.bodyB);
+  const allowedOrb = DEFAULT_MAJOR_ASPECT_ORBS[aspect.type] ?? 8;
+  const closeness = Math.max(0, 1 - aspect.orb / allowedOrb);
+  const aspectWeight = ASPECT_SCORE_WEIGHTS[aspect.type] ?? 0.65;
+  const bodyWeight = transitPoint ? TRANSIT_BODY_SCORE_WEIGHTS[transitPoint.key] ?? 0.55 : 0.55;
+  const score = round((closeness * 0.62 + aspectWeight * 0.23 + bodyWeight * 0.15) * 100, 1);
+
+  if (!transitPoint || !natalPoint || transitPoint.speed === undefined || Math.abs(transitPoint.speed) < 0.0001) {
+    return {
+      ...aspect,
+      phase: "stationary",
+      exactAt: null,
+      daysToExact: null,
+      activeFrom: null,
+      activeUntil: null,
+      durationDays: null,
+      score,
+      strength: aspectStrength(score)
+    };
+  }
+
+  const deltaToExact = transitAspectTargetDelta(aspect, transitPoint, natalPoint);
+  const daysToExact = deltaToExact / transitPoint.speed;
+  const boundaryDays = [
+    (deltaToExact - allowedOrb) / transitPoint.speed,
+    (deltaToExact + allowedOrb) / transitPoint.speed
+  ].sort((a, b) => a - b);
+  const activeFromDays = boundaryDays[0];
+  const activeUntilDays = boundaryDays[1];
+  const activeWindowIsReasonable =
+    activeFromDays !== undefined &&
+    activeUntilDays !== undefined &&
+    Math.abs(activeFromDays) <= 1460 &&
+    Math.abs(activeUntilDays) <= 1460;
+  const phase = Math.abs(daysToExact) < 0.02 ? "exact" : daysToExact > 0 ? "applying" : "separating";
+  const exactAt =
+    Math.abs(daysToExact) <= 730
+      ? baseDateTime.plus({ days: daysToExact }).toISO({ suppressMilliseconds: false })
+      : null;
+
+  return {
+    ...aspect,
+    phase,
+    exactAt,
+    daysToExact: round(daysToExact, 3),
+    activeFrom: activeWindowIsReasonable
+      ? baseDateTime.plus({ days: activeFromDays }).toISO({ suppressMilliseconds: false })
+      : null,
+    activeUntil: activeWindowIsReasonable
+      ? baseDateTime.plus({ days: activeUntilDays }).toISO({ suppressMilliseconds: false })
+      : null,
+    durationDays: activeWindowIsReasonable ? round(activeUntilDays - activeFromDays, 2) : null,
+    score,
+    strength: aspectStrength(score)
+  };
+};
+
+const enrichTransitAspects = ({
+  aspects,
+  baseDateTime,
+  natalPoints,
+  transitPoints
+}: {
+  aspects: Aspect[];
+  baseDateTime: DateTime;
+  natalPoints: ChartPoint[];
+  transitPoints: ChartPoint[];
+}): TransitAspect[] => {
+  const natalPointsByKey = new Map(natalPoints.map((point) => [point.key, point]));
+  const transitPointsByKey = new Map(transitPoints.map((point) => [point.key, point]));
+
+  return aspects
+    .map((aspect) =>
+      enrichTransitAspect({
+        aspect,
+        baseDateTime,
+        natalPointsByKey,
+        transitPointsByKey
+      })
+    )
+    .sort((a, b) => b.score - a.score || a.orb - b.orb);
 };
 
 const calculateBody = ({
@@ -521,7 +677,12 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     ephemerisPath: input.ephemerisPath
   });
   const natalPoints = [...natal.angles, ...natal.bodies];
-  const transitToNatalAspects = calculateAspectsBetween(transit.bodies, natalPoints);
+  const transitToNatalAspects = enrichTransitAspects({
+    aspects: calculateAspectsBetween(transit.bodies, natalPoints),
+    baseDateTime: baseTransitDateTime,
+    natalPoints,
+    transitPoints: transit.bodies
+  });
   const weekAhead: TransitDayForecast[] = Array.from({ length: 7 }, (_, dayIndex) => {
     const dayTransitDateTime = baseTransitDateTime.plus({ days: dayIndex });
     const dayTransit = calculateTransitChart({
@@ -539,7 +700,12 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
       transitDateTime: dayTransit.subject.utcDateTime,
       moon: dayTransit.bodies.find((body) => body.key === "moon") ?? null,
       moonPhase: calculateMoonPhase(dayTransit.bodies),
-      strongestAspects: calculateAspectsBetween(dayTransit.bodies, natalPoints).slice(0, 5)
+      strongestAspects: enrichTransitAspects({
+        aspects: calculateAspectsBetween(dayTransit.bodies, natalPoints),
+        baseDateTime: dayTransitDateTime,
+        natalPoints,
+        transitPoints: dayTransit.bodies
+      }).slice(0, 5)
     };
   });
 

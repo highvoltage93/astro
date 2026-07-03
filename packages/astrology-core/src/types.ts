@@ -44,6 +44,21 @@ export type Aspect = {
   orb: number;
 };
 
+export type TransitAspectPhase = "applying" | "separating" | "exact" | "stationary";
+
+export type TransitAspectStrength = "high" | "medium" | "low";
+
+export type TransitAspect = Aspect & {
+  phase: TransitAspectPhase;
+  exactAt: string | null;
+  daysToExact: number | null;
+  activeFrom: string | null;
+  activeUntil: string | null;
+  durationDays: number | null;
+  score: number;
+  strength: TransitAspectStrength;
+};
+
 export type CalculationWarning = {
   code: string;
   message: string;
@@ -133,7 +148,7 @@ export type TransitDayForecast = {
   transitDateTime: string;
   moon: ChartPoint | null;
   moonPhase: MoonPhase | null;
-  strongestAspects: Aspect[];
+  strongestAspects: TransitAspect[];
 };
 
 export type TransitPreviewResult = {
@@ -142,7 +157,7 @@ export type TransitPreviewResult = {
   natal: ChartResult;
   transit: ChartResult;
   moonPhase: MoonPhase | null;
-  transitToNatalAspects: Aspect[];
+  transitToNatalAspects: TransitAspect[];
   weekAhead: TransitDayForecast[];
   warnings: CalculationWarning[];
 };
