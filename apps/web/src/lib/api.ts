@@ -1,5 +1,6 @@
 import type {
   ChartResult,
+  NatalInterpretationPreview,
   NatalPreviewPayload,
   PlaceSearchResponse,
   SaveBirthProfilePayload,
@@ -22,6 +23,24 @@ export const requestNatalPreview = async (payload: NatalPreviewPayload): Promise
   }
 
   return response.json() as Promise<ChartResult>;
+};
+
+export const requestNatalInterpretation = async (
+  payload: NatalPreviewPayload
+): Promise<NatalInterpretationPreview> => {
+  const response = await fetch(`${API_URL}/interpretations/natal/preview`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<NatalInterpretationPreview>;
 };
 
 export const saveBirthProfile = async (payload: SaveBirthProfilePayload): Promise<SaveBirthProfileResult> => {

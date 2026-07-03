@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator, MapPin, RotateCcw, Save, Search, Settings2 } from "lucide-react";
+import { BookOpenText, Calculator, MapPin, RotateCcw, Save, Search, Settings2 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { requestNatalPreview, saveBirthProfile, searchPlaces } from "@/lib/api";
-import type { Aspect, ChartResult, NatalPreviewPayload, PlaceSearchResult } from "@/lib/chart-types";
+import { requestNatalInterpretation, requestNatalPreview, saveBirthProfile, searchPlaces } from "@/lib/api";
+import type {
+  Aspect,
+  ChartResult,
+  NatalInterpretationPreview,
+  NatalPreviewPayload,
+  PlaceSearchResult
+} from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
 
 type FormState = {
@@ -82,11 +88,13 @@ const aspectLabels: Record<string, string> = {
 export function AstroWorkbench() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [chart, setChart] = useState<ChartResult | null>(null);
+  const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [placeSearchStatus, setPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [interpretationError, setInterpretationError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
@@ -108,6 +116,8 @@ export function AstroWorkbench() {
     setSaveError(null);
     setSavedProfileId(null);
     setChart(null);
+    setInterpretation(null);
+    setInterpretationError(null);
     setStatus("idle");
 
     if (field === "birthplaceName") {
@@ -120,6 +130,8 @@ export function AstroWorkbench() {
   const resetForm = (): void => {
     setForm(initialForm);
     setChart(null);
+    setInterpretation(null);
+    setInterpretationError(null);
     setStatus("idle");
     setSaveStatus("idle");
     setSaveError(null);
@@ -159,6 +171,8 @@ export function AstroWorkbench() {
       timezone: place.timezone ?? current.timezone
     }));
     setChart(null);
+    setInterpretation(null);
+    setInterpretationError(null);
     setStatus("idle");
     setSaveStatus("idle");
     setSaveError(null);
@@ -182,10 +196,32 @@ export function AstroWorkbench() {
     event.preventDefault();
     setStatus("loading");
     setError(null);
+    setInterpretationError(null);
+    setInterpretation(null);
 
     try {
-      const result = await requestNatalPreview(buildNatalPayload());
-      setChart(result);
+      const payload = buildNatalPayload();
+      const [chartResult, interpretationResult] = await Promise.allSettled([
+        requestNatalPreview(payload),
+        requestNatalInterpretation(payload)
+      ]);
+
+      if (chartResult.status === "rejected") {
+        throw chartResult.reason;
+      }
+
+      setChart(chartResult.value);
+
+      if (interpretationResult.status === "fulfilled") {
+        setInterpretation(interpretationResult.value);
+      } else {
+        setInterpretationError(
+          interpretationResult.reason instanceof Error
+            ? interpretationResult.reason.message
+            : "Unable to load interpretation"
+        );
+      }
+
       setStatus("ready");
     } catch (requestError) {
       setStatus("error");
@@ -250,40 +286,44 @@ export function AstroWorkbench() {
             onUpdate={updateForm}
           />
 
-          <Card className="min-w-0">
-            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-              <div className="space-y-1">
-                <CardDescription className="font-semibold uppercase text-primary">
-                  {chart?.settings.houseSystem ?? "placidus"}
-                </CardDescription>
-                <CardTitle>{form.displayName}</CardTitle>
-              </div>
-              <Button
-                size="icon"
-                variant="secondary"
-                type="button"
-                aria-label="Зберегти карту"
-                disabled={saveStatus === "saving"}
-                onClick={saveProfile}
-              >
-                <Save />
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <ChartWheel chart={chart} />
-              <div className="mt-5 grid grid-cols-3 gap-2">
-                <StatusBadge status={chart?.engine.status ?? "idle"} />
-                <Badge variant="secondary" className="justify-center py-2">
-                  {chart ? `${chart.bodies.length} об'єктів` : "0 об'єктів"}
-                </Badge>
-                <Badge variant="secondary" className="justify-center py-2">
-                  {chart ? `${chart.aspects.length} аспектів` : "0 аспектів"}
-                </Badge>
-              </div>
+          <div className="min-w-0 space-y-4">
+            <Card className="min-w-0">
+              <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                <div className="space-y-1">
+                  <CardDescription className="font-semibold uppercase text-primary">
+                    {chart?.settings.houseSystem ?? "placidus"}
+                  </CardDescription>
+                  <CardTitle>{form.displayName}</CardTitle>
+                </div>
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  type="button"
+                  aria-label="Зберегти карту"
+                  disabled={saveStatus === "saving"}
+                  onClick={saveProfile}
+                >
+                  <Save />
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <ChartWheel chart={chart} />
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  <StatusBadge status={chart?.engine.status ?? "idle"} />
+                  <Badge variant="secondary" className="justify-center py-2">
+                    {chart ? `${chart.bodies.length} об'єктів` : "0 об'єктів"}
+                  </Badge>
+                  <Badge variant="secondary" className="justify-center py-2">
+                    {chart ? `${chart.aspects.length} аспектів` : "0 аспектів"}
+                  </Badge>
+                </div>
 
-              <SaveStateMessage error={saveError} profileId={savedProfileId} status={saveStatus} />
-            </CardContent>
-          </Card>
+                <SaveStateMessage error={saveError} profileId={savedProfileId} status={saveStatus} />
+              </CardContent>
+            </Card>
+
+            <InterpretationCard error={interpretationError} interpretation={interpretation} status={status} />
+          </div>
 
           <Card className="min-w-0 xl:sticky xl:top-5">
             <CardHeader>
@@ -497,6 +537,71 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
       <Label>{label}</Label>
       {children}
     </div>
+  );
+}
+
+function InterpretationCard({
+  error,
+  interpretation,
+  status
+}: {
+  error: string | null;
+  interpretation: NatalInterpretationPreview | null;
+  status: "idle" | "loading" | "ready" | "error";
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <BookOpenText className="h-5 w-5" />
+        </div>
+        <div className="space-y-1">
+          <CardDescription className="font-semibold uppercase text-primary">Interpretation</CardDescription>
+          <CardTitle>Базова трактовка</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {status === "loading" ? (
+          <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
+            Готую базові трактування...
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        {!interpretation && status !== "loading" && !error ? (
+          <p className="text-sm text-muted-foreground">Розрахуй карту, щоб побачити перший шар інтерпретації.</p>
+        ) : null}
+
+        {interpretation ? (
+          <>
+            <p className="rounded-lg border bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">
+              {interpretation.summary}
+            </p>
+            <div className="space-y-3">
+              {interpretation.highlights.map((highlight) => (
+                <article className="rounded-lg border p-4" key={highlight.factorKey}>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold">{highlight.title}</h3>
+                    <Badge variant="outline">{highlight.source}</Badge>
+                  </div>
+                  <p className="text-sm leading-6 text-muted-foreground">{highlight.body}</p>
+                </article>
+              ))}
+            </div>
+            {interpretation.missingFactorKeys.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Missing content: {interpretation.missingFactorKeys.join(", ")}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

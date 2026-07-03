@@ -75,6 +75,7 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - API health routes.
 - Birthplace search endpoint backed by Open-Meteo Geocoding.
 - Natal chart preview contract backed by the first Swiss Ephemeris adapter.
+- Natal interpretation preview endpoint backed by seed content for Sun, Moon, Ascendant, and exact aspects.
 - Birth profile persistence endpoint backed by Prisma.
 - First shadcn/ui product workspace for birth data intake, chart preview, and saving.
 

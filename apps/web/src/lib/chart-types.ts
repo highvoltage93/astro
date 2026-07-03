@@ -101,3 +101,17 @@ export type PlaceSearchResult = {
 export type PlaceSearchResponse = {
   results: PlaceSearchResult[];
 };
+
+export type InterpretationHighlight = {
+  factorKey: string;
+  title: string;
+  body: string;
+  source: "seed";
+};
+
+export type NatalInterpretationPreview = {
+  locale: "uk";
+  summary: string;
+  highlights: InterpretationHighlight[];
+  missingFactorKeys: string[];
+};

@@ -90,3 +90,17 @@ export type NatalPreviewInput = {
 };
 
 export type NatalCalculationInput = NatalPreviewInput;
+
+export type InterpretationHighlight = {
+  factorKey: string;
+  title: string;
+  body: string;
+  source: "seed";
+};
+
+export type NatalInterpretationPreview = {
+  locale: "uk";
+  summary: string;
+  highlights: InterpretationHighlight[];
+  missingFactorKeys: string[];
+};

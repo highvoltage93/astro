@@ -1,28 +1,7 @@
 import { calculateNatalChart } from "@astroprocessor/astrology-core";
-import type { HouseSystem } from "@astroprocessor/astrology-core";
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
 import { env } from "../config/env";
-
-const houseSystemValues = [
-  "placidus",
-  "whole-sign",
-  "equal",
-  "koch",
-  "campanus",
-  "regiomontanus",
-  "porphyry"
-] as const satisfies readonly [HouseSystem, ...HouseSystem[]];
-
-const natalPreviewSchema = z.object({
-  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  birthTime: z.string().regex(/^\d{2}:\d{2}$/),
-  timezone: z.string().min(1),
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
-  houseSystem: z.enum(houseSystemValues).optional(),
-  zodiac: z.enum(["tropical", "sidereal"]).optional()
-});
+import { natalPreviewSchema } from "./schemas";
 
 export const registerChartRoutes = async (app: FastifyInstance): Promise<void> => {
   app.post("/charts/natal/preview", async (request, reply) => {

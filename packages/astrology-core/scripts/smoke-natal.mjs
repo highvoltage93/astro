@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 const require = createRequire(import.meta.url);
-const { calculateNatalChart } = require("../dist");
+const { calculateNatalChart, generateNatalInterpretationPreview } = require("../dist");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(__dirname, "../fixtures/smoke-charts/kyiv-natal.json");
@@ -43,6 +43,11 @@ const minBodies = hasFallbackWarnings
 
 assert.ok(chart.bodies.length >= minBodies, `Expected at least ${minBodies} bodies, got ${chart.bodies.length}`);
 
+const interpretation = generateNatalInterpretationPreview(chart);
+
+assert.ok(interpretation.summary.length > 0, "Expected interpretation summary");
+assert.ok(interpretation.highlights.length >= 3, "Expected at least 3 interpretation highlights");
+
 console.log(
   JSON.stringify(
     {
@@ -50,10 +55,10 @@ console.log(
       engine: chart.engine,
       bodies: chart.bodies.length,
       aspects: chart.aspects.length,
+      interpretationHighlights: interpretation.highlights.length,
       warnings: chart.warnings.map((warning) => warning.code)
     },
     null,
     2
   )
 );
-

@@ -323,6 +323,8 @@ sequenceDiagram
 - Interpretation school support.
 - Missing content reporting.
 
+MVP status: the first seed-content preview is implemented in `packages/astrology-core` and exposed through `POST /interpretations/natal/preview`. It covers Sun sign, Moon sign, Ascendant sign, and the most exact major aspects as a controlled non-AI layer.
+
 ### AI Module
 
 - Prompt construction.
