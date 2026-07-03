@@ -13,7 +13,7 @@
   },
   "expect": {
     "chartType": "natal",
-    "requiredPointKeys": ["asc", "mc", "sun", "moon", "mercury", "venus", "mars"],
+    "requiredPointKeys": ["asc", "desc", "ic", "mc", "sun", "moon", "mercury", "venus", "mars"],
     "minBodiesWithoutEphemerisFiles": 12,
     "minBodiesWithEphemerisFiles": 14
   }

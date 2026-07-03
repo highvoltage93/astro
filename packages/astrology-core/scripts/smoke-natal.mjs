@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 const require = createRequire(import.meta.url);
-const { calculateNatalChart, generateNatalInterpretationPreview } = require("../dist");
+const { calculateNatalChart, calculateTransitPreview, generateNatalInterpretationPreview } = require("../dist");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(__dirname, "../fixtures/smoke-charts/kyiv-natal.json");
@@ -67,6 +67,26 @@ assert.ok(
   "Unknown time interpretation should not treat Ascendant as missing content"
 );
 
+const transitPreview = calculateTransitPreview({
+  transitDateTime: "2026-07-03T12:00:00.000Z",
+  natal: fixture.input,
+  ephemerisPath
+});
+
+assert.equal(transitPreview.chartType, "transit");
+assert.equal(transitPreview.transit.chartType, "transit");
+assert.ok(transitPreview.transit.bodies.length >= minBodies, "Expected transit bodies");
+assert.ok(transitPreview.moonPhase, "Expected transit Moon phase");
+assert.ok(
+  transitPreview.moonPhase.illuminatedFraction >= 0 && transitPreview.moonPhase.illuminatedFraction <= 1,
+  "Expected Moon illumination to be normalized"
+);
+assert.equal(transitPreview.weekAhead.length, 7, "Expected 7 day transit forecast");
+assert.ok(
+  transitPreview.transitToNatalAspects.length > 0,
+  "Expected at least one transit-to-natal major aspect"
+);
+
 console.log(
   JSON.stringify(
     {
@@ -74,6 +94,8 @@ console.log(
       engine: chart.engine,
       bodies: chart.bodies.length,
       aspects: chart.aspects.length,
+      transitAspects: transitPreview.transitToNatalAspects.length,
+      moonPhase: transitPreview.moonPhase.name,
       interpretationHighlights: interpretation.highlights.length,
       unknownTimeWarnings: unknownTimeChart.warnings.map((warning) => warning.code),
       warnings: chart.warnings.map((warning) => warning.code)

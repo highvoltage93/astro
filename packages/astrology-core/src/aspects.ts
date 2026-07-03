@@ -45,3 +45,33 @@ export const calculateMajorAspects = (
   return aspects.sort((a, b) => a.orb - b.orb);
 };
 
+export const calculateAspectsBetween = (
+  pointsA: ChartPoint[],
+  pointsB: ChartPoint[],
+  orbs: Partial<Record<AspectType, number>> = DEFAULT_MAJOR_ASPECT_ORBS
+): Aspect[] => {
+  const aspects: Aspect[] = [];
+
+  for (const pointA of pointsA) {
+    for (const pointB of pointsB) {
+      const distance = shortestDistance(pointA.longitude, pointB.longitude);
+
+      for (const [type, exactAngle] of Object.entries(MAJOR_ASPECT_ANGLES) as Array<[AspectType, number]>) {
+        const orb = Math.abs(distance - exactAngle);
+        const allowedOrb = orbs[type] ?? DEFAULT_MAJOR_ASPECT_ORBS[type];
+
+        if (orb <= allowedOrb) {
+          aspects.push({
+            bodyA: pointA.key,
+            bodyB: pointB.key,
+            type,
+            exactAngle,
+            orb: Number(orb.toFixed(2))
+          });
+        }
+      }
+    }
+  }
+
+  return aspects.sort((a, b) => a.orb - b.orb);
+};

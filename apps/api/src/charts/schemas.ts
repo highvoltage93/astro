@@ -21,3 +21,9 @@ export const natalPreviewSchema = z.object({
   houseSystem: z.enum(houseSystemValues).optional(),
   zodiac: z.enum(["tropical", "sidereal"]).optional()
 });
+
+export const transitPreviewSchema = z.object({
+  transitDateTime: z.string().datetime({ offset: true }),
+  natal: natalPreviewSchema,
+  zodiac: z.enum(["tropical", "sidereal"]).optional()
+});

@@ -9,7 +9,7 @@ import {
   type Calc,
   type HouseSystems
 } from "sweph";
-import { calculateMajorAspects } from "./aspects";
+import { calculateAspectsBetween, calculateMajorAspects } from "./aspects";
 import { ZODIAC_SIGNS } from "./constants";
 import type {
   Ayanamsa,
@@ -18,7 +18,12 @@ import type {
   ChartResult,
   HouseCusp,
   HouseSystem,
-  NatalCalculationInput
+  MoonPhase,
+  NatalCalculationInput,
+  TransitDayForecast,
+  TransitCalculationInput,
+  TransitPreviewInput,
+  TransitPreviewResult
 } from "./types";
 
 type BodyDefinition = {
@@ -63,6 +68,8 @@ const normalizeLongitude = (longitude: number): number => ((longitude % 360) + 3
 
 const round = (value: number, digits = 6): number => Number(value.toFixed(digits));
 
+const shortestForwardArc = (start: number, end: number): number => normalizeLongitude(end - start);
+
 const toSign = (longitude: number): { sign: string; signDegree: number } => {
   const normalized = normalizeLongitude(longitude);
   const signIndex = Math.floor(normalized / 30);
@@ -87,6 +94,18 @@ const localBirthTimeToUtc = (input: NatalCalculationInput, birthTime: string): D
   }
 
   return local.toUTC();
+};
+
+const parseTransitDateTime = (dateTime: string): DateTime => {
+  const parsed = DateTime.fromISO(dateTime, {
+    setZone: true
+  });
+
+  if (!parsed.isValid) {
+    throw new Error(parsed.invalidExplanation ?? `Invalid transit date/time: ${dateTime}`);
+  }
+
+  return parsed.toUTC();
 };
 
 const buildJulianDate = (utc: DateTime): { jdEt: number; jdUt: number } => {
@@ -178,6 +197,57 @@ const addCalculationWarning = (
   if (!warnings.some((warning) => warning.code === code && warning.message === message)) {
     warnings.push({ code, message });
   }
+};
+
+const getMoonPhaseName = (phaseAngle: number): MoonPhase["name"] => {
+  if (phaseAngle < 22.5 || phaseAngle >= 337.5) {
+    return "new";
+  }
+
+  if (phaseAngle < 67.5) {
+    return "waxing-crescent";
+  }
+
+  if (phaseAngle < 112.5) {
+    return "first-quarter";
+  }
+
+  if (phaseAngle < 157.5) {
+    return "waxing-gibbous";
+  }
+
+  if (phaseAngle < 202.5) {
+    return "full";
+  }
+
+  if (phaseAngle < 247.5) {
+    return "waning-gibbous";
+  }
+
+  if (phaseAngle < 292.5) {
+    return "last-quarter";
+  }
+
+  return "waning-crescent";
+};
+
+const calculateMoonPhase = (bodies: ChartPoint[]): MoonPhase | null => {
+  const sun = bodies.find((body) => body.key === "sun");
+  const moon = bodies.find((body) => body.key === "moon");
+
+  if (!sun || !moon) {
+    return null;
+  }
+
+  const phaseAngle = round(shortestForwardArc(sun.longitude, moon.longitude), 4);
+  const illuminatedFraction = round((1 - Math.cos((phaseAngle * Math.PI) / 180)) / 2, 4);
+
+  return {
+    name: getMoonPhaseName(phaseAngle),
+    phaseAngle,
+    illuminatedFraction,
+    waxing: phaseAngle < 180
+  };
 };
 
 const calculateBody = ({
@@ -279,6 +349,8 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
 
     const ascendant = houseResult.data.points[0];
     const midheaven = houseResult.data.points[1];
+    const descendant = normalizeLongitude(ascendant + 180);
+    const imumCoeli = normalizeLongitude(midheaven + 180);
     angles = [
       buildPoint({
         key: "asc",
@@ -286,6 +358,20 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
         kind: "angle",
         longitude: ascendant,
         house: 1
+      }),
+      buildPoint({
+        key: "desc",
+        label: "Descendant",
+        kind: "angle",
+        longitude: descendant,
+        house: 7
+      }),
+      buildPoint({
+        key: "ic",
+        label: "Imum Coeli",
+        kind: "angle",
+        longitude: imumCoeli,
+        house: 4
       }),
       buildPoint({
         key: "mc",
@@ -323,6 +409,8 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     );
   }
 
+  const aspectAngles = angles.filter((angle) => angle.key === "asc" || angle.key === "mc");
+
   return {
     chartType: "natal",
     engine: {
@@ -340,7 +428,129 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     angles,
     houses,
     bodies,
-    aspects: calculateMajorAspects([...angles, ...bodies]),
+    aspects: calculateMajorAspects([...aspectAngles, ...bodies]),
     warnings
+  };
+};
+
+export const calculateTransitChart = (input: TransitCalculationInput): ChartResult => {
+  const warnings: CalculationWarning[] = [];
+  const settings = {
+    zodiac: input.zodiac ?? "tropical",
+    ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
+    houseSystem: input.houseSystem ?? "placidus"
+  };
+
+  if (input.ephemerisPath) {
+    set_ephe_path(input.ephemerisPath);
+  } else {
+    addCalculationWarning(
+      warnings,
+      "EPHEMERIS_PATH_NOT_SET",
+      "SWISSEPH_EPHE_PATH is not set. Calculations may fall back to lower-precision Moshier ephemeris."
+    );
+  }
+
+  if (settings.zodiac === "sidereal") {
+    set_sid_mode(AYANAMSA_CODES[settings.ayanamsa ?? "lahiri"], 0, 0);
+  }
+
+  const utc = parseTransitDateTime(input.transitDateTime);
+  const { jdEt } = buildJulianDate(utc);
+  const bodyFlags =
+    constants.SEFLG_SWIEPH | constants.SEFLG_SPEED | (settings.zodiac === "sidereal" ? constants.SEFLG_SIDEREAL : 0);
+  const bodies = BODY_DEFINITIONS.map((body) =>
+    calculateBody({
+      body,
+      flags: bodyFlags,
+      houses: [],
+      jdEt,
+      warnings
+    })
+  ).filter((point): point is ChartPoint => point !== null);
+
+  const northNode = bodies.find((body) => body.key === "north-node");
+
+  if (northNode) {
+    bodies.push(
+      buildPoint({
+        key: "south-node",
+        label: "South Node",
+        kind: "node",
+        longitude: normalizeLongitude(northNode.longitude + 180),
+        speed: northNode.speed
+      })
+    );
+  }
+
+  return {
+    chartType: "transit",
+    engine: {
+      name: "swiss-ephemeris",
+      version: "sweph-2.10.3-7",
+      status: "swiss-ephemeris"
+    },
+    settings,
+    subject: {
+      utcDateTime: utc.toISO({ suppressMilliseconds: false }) ?? utc.toString(),
+      birthTimeKnown: true,
+      latitude: input.latitude,
+      longitude: input.longitude
+    },
+    angles: [],
+    houses: [],
+    bodies,
+    aspects: calculateMajorAspects(bodies),
+    warnings
+  };
+};
+
+export const calculateTransitPreview = (input: TransitPreviewInput): TransitPreviewResult => {
+  const baseTransitDateTime = parseTransitDateTime(input.transitDateTime);
+  const natal = calculateNatalChart({
+    ...input.natal,
+    ephemerisPath: input.ephemerisPath
+  });
+  const transit = calculateTransitChart({
+    transitDateTime: input.transitDateTime,
+    latitude: natal.subject.latitude,
+    longitude: natal.subject.longitude,
+    zodiac: input.zodiac ?? natal.settings.zodiac,
+    ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
+    houseSystem: natal.settings.houseSystem,
+    ephemerisPath: input.ephemerisPath
+  });
+  const natalPoints = [...natal.angles, ...natal.bodies];
+  const transitToNatalAspects = calculateAspectsBetween(transit.bodies, natalPoints);
+  const weekAhead: TransitDayForecast[] = Array.from({ length: 7 }, (_, dayIndex) => {
+    const dayTransitDateTime = baseTransitDateTime.plus({ days: dayIndex });
+    const dayTransit = calculateTransitChart({
+      transitDateTime: dayTransitDateTime.toISO({ suppressMilliseconds: false }) ?? dayTransitDateTime.toString(),
+      latitude: natal.subject.latitude,
+      longitude: natal.subject.longitude,
+      zodiac: input.zodiac ?? natal.settings.zodiac,
+      ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
+      houseSystem: natal.settings.houseSystem,
+      ephemerisPath: input.ephemerisPath
+    });
+
+    return {
+      date: dayTransitDateTime.toISODate() ?? dayTransitDateTime.toFormat("yyyy-MM-dd"),
+      transitDateTime: dayTransit.subject.utcDateTime,
+      moon: dayTransit.bodies.find((body) => body.key === "moon") ?? null,
+      moonPhase: calculateMoonPhase(dayTransit.bodies),
+      strongestAspects: calculateAspectsBetween(dayTransit.bodies, natalPoints).slice(0, 5)
+    };
+  });
+
+  return {
+    chartType: "transit",
+    generatedAt: new Date().toISOString(),
+    natal,
+    transit,
+    moonPhase: calculateMoonPhase(transit.bodies),
+    transitToNatalAspects,
+    weekAhead,
+    warnings: [...natal.warnings, ...transit.warnings]
   };
 };

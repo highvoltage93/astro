@@ -3,6 +3,7 @@
 import {
   BookOpenText,
   Calculator,
+  Activity,
   FolderOpen,
   MapPin,
   RefreshCw,
@@ -29,16 +30,19 @@ import {
   listBirthProfiles,
   requestNatalInterpretation,
   requestNatalPreview,
+  requestTransitPreview,
   saveBirthProfile,
   searchPlaces
 } from "@/lib/api";
 import type {
   Aspect,
   ChartResult,
+  MoonPhase,
   NatalInterpretationPreview,
   NatalPreviewPayload,
   PlaceSearchResult,
-  SavedBirthProfile
+  SavedBirthProfile,
+  TransitPreviewResult
 } from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +99,8 @@ const planetGlyphs: Record<string, string> = {
   chiron: "⚷",
   lilith: "⚸",
   asc: "AC",
+  desc: "DC",
+  ic: "IC",
   mc: "MC"
 };
 
@@ -108,12 +114,52 @@ const aspectLabels: Record<string, string> = {
   sextile: "Секстиль"
 };
 
+const signLabelsUk: Record<string, string> = {
+  aries: "Овен",
+  taurus: "Телець",
+  gemini: "Близнюки",
+  cancer: "Рак",
+  leo: "Лев",
+  virgo: "Діва",
+  libra: "Терези",
+  scorpio: "Скорпіон",
+  sagittarius: "Стрілець",
+  capricorn: "Козеріг",
+  aquarius: "Водолій",
+  pisces: "Риби"
+};
+
+const moonPhaseLabelsUk: Record<string, string> = {
+  new: "Новий Місяць",
+  "waxing-crescent": "Зростаючий серп",
+  "first-quarter": "Перша чверть",
+  "waxing-gibbous": "Зростаючий опуклий",
+  full: "Повня",
+  "waning-gibbous": "Спадний опуклий",
+  "last-quarter": "Остання чверть",
+  "waning-crescent": "Спадний серп"
+};
+
+const toDateTimeLocalValue = (date: Date): string => {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+
+  return local.toISOString().slice(0, 16);
+};
+
+const normalizeDegrees = (degrees: number): number => ((degrees % 360) + 360) % 360;
+
+const formatMoonPhase = (phase: MoonPhase | null): string =>
+  phase ? `${moonPhaseLabelsUk[phase.name] ?? phase.name} · ${Math.round(phase.illuminatedFraction * 100)}%` : "n/a";
+
 export function AstroWorkbench() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [chart, setChart] = useState<ChartResult | null>(null);
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
+  const [transitDateTime, setTransitDateTime] = useState("");
+  const [transitPreview, setTransitPreview] = useState<TransitPreviewResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [transitStatus, setTransitStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [savedProfilesStatus, setSavedProfilesStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeSearchStatus, setPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
@@ -123,6 +169,7 @@ export function AstroWorkbench() {
   const [error, setError] = useState<string | null>(null);
   const [interpretationError, setInterpretationError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [transitError, setTransitError] = useState<string | null>(null);
   const [savedProfilesError, setSavedProfilesError] = useState<string | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
@@ -146,6 +193,9 @@ export function AstroWorkbench() {
     setChart(null);
     setInterpretation(null);
     setInterpretationError(null);
+    setTransitPreview(null);
+    setTransitError(null);
+    setTransitStatus("idle");
     setStatus("idle");
 
     if (field === "birthplaceName") {
@@ -160,6 +210,9 @@ export function AstroWorkbench() {
     setChart(null);
     setInterpretation(null);
     setInterpretationError(null);
+    setTransitPreview(null);
+    setTransitError(null);
+    setTransitStatus("idle");
     setStatus("idle");
     setSaveStatus("idle");
     setSaveError(null);
@@ -201,6 +254,9 @@ export function AstroWorkbench() {
     setChart(null);
     setInterpretation(null);
     setInterpretationError(null);
+    setTransitPreview(null);
+    setTransitError(null);
+    setTransitStatus("idle");
     setStatus("idle");
     setSaveStatus("idle");
     setSaveError(null);
@@ -236,6 +292,7 @@ export function AstroWorkbench() {
   };
 
   useEffect(() => {
+    setTransitDateTime((current) => current || toDateTimeLocalValue(new Date()));
     void refreshSavedProfiles();
   }, []);
 
@@ -264,6 +321,9 @@ export function AstroWorkbench() {
       setChart(calculation?.result ?? null);
       setInterpretation(response.interpretation);
       setInterpretationError(null);
+      setTransitPreview(null);
+      setTransitError(null);
+      setTransitStatus("idle");
       setStatus(calculation ? "ready" : "idle");
       setSaveStatus("saved");
       setSaveError(null);
@@ -367,6 +427,39 @@ export function AstroWorkbench() {
     }
   };
 
+  const calculateTransits = async (): Promise<void> => {
+    if (!transitDateTime) {
+      setTransitStatus("error");
+      setTransitError("Вкажи дату і час транзиту.");
+      return;
+    }
+
+    const selectedTransitDate = new Date(transitDateTime);
+
+    if (Number.isNaN(selectedTransitDate.getTime())) {
+      setTransitStatus("error");
+      setTransitError("Вкажи коректну дату і час транзиту.");
+      return;
+    }
+
+    setTransitStatus("loading");
+    setTransitError(null);
+
+    try {
+      const result = await requestTransitPreview({
+        transitDateTime: selectedTransitDate.toISOString(),
+        natal: buildNatalPayload(),
+        zodiac: form.zodiac
+      });
+
+      setTransitPreview(result);
+      setTransitStatus("ready");
+    } catch (requestError) {
+      setTransitStatus("error");
+      setTransitError(requestError instanceof Error ? requestError.message : "Unknown transit API error");
+    }
+  };
+
   return (
     <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1480px]">
@@ -452,6 +545,14 @@ export function AstroWorkbench() {
             </Card>
 
             <InterpretationCard error={interpretationError} interpretation={interpretation} status={status} />
+            <TransitForecastCard
+              error={transitError}
+              preview={transitPreview}
+              status={transitStatus}
+              transitDateTime={transitDateTime}
+              onCalculate={calculateTransits}
+              onTransitDateTimeChange={setTransitDateTime}
+            />
           </div>
 
           <Card className="min-w-0 xl:sticky xl:top-5">
@@ -849,6 +950,166 @@ function InterpretationCard({
   );
 }
 
+function TransitForecastCard({
+  error,
+  preview,
+  status,
+  transitDateTime,
+  onCalculate,
+  onTransitDateTimeChange
+}: {
+  error: string | null;
+  preview: TransitPreviewResult | null;
+  status: "idle" | "loading" | "ready" | "error";
+  transitDateTime: string;
+  onCalculate: () => Promise<void>;
+  onTransitDateTimeChange: (value: string) => void;
+}) {
+  const moon = preview?.transit.bodies.find((point) => point.key === "moon") ?? null;
+  const moonPhase = preview?.moonPhase ?? null;
+  const transitPoints = new Map(preview?.transit.bodies.map((point) => [point.key, point]) ?? []);
+  const natalPoints = new Map([...(preview?.natal.angles ?? []), ...(preview?.natal.bodies ?? [])].map((point) => [point.key, point]));
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Activity className="h-5 w-5" />
+        </div>
+        <div className="space-y-1">
+          <CardDescription className="font-semibold uppercase text-primary">Forecast</CardDescription>
+          <CardTitle>Транзити</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <Field label="Дата і час прогнозу">
+            <Input
+              type="datetime-local"
+              value={transitDateTime}
+              onChange={(event) => onTransitDateTimeChange(event.target.value)}
+            />
+          </Field>
+          <div className="flex items-end">
+            <Button type="button" disabled={status === "loading"} onClick={onCalculate}>
+              <Activity />
+              {status === "loading" ? "Рахую" : "Порахувати"}
+            </Button>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        {!preview && status !== "loading" && !error ? (
+          <p className="text-sm text-muted-foreground">
+            Порахуй транзити, щоб побачити поточні планети й найточніші аспекти до натальної карти.
+          </p>
+        ) : null}
+
+        {preview ? (
+          <div className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Місяць зараз</p>
+                <p className="mt-1 text-sm font-medium">
+                  {moon ? `${signLabelsUk[moon.sign] ?? moon.sign} ${moon.signDegree.toFixed(2)}°` : "n/a"}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Фаза</p>
+                <p className="mt-1 text-sm font-medium">{formatMoonPhase(moonPhase)}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Транзитів</p>
+                <p className="mt-1 text-sm font-medium">{preview.transit.bodies.length} тіл</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Аспектів</p>
+                <p className="mt-1 text-sm font-medium">{preview.transitToNatalAspects.length} до наталу</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Найточніші транзити до наталу</h3>
+              {preview.transitToNatalAspects.length > 0 ? (
+                <div className="space-y-1">
+                  {preview.transitToNatalAspects.slice(0, 8).map((aspect) => {
+                    const transitPoint = transitPoints.get(aspect.bodyA);
+                    const natalPoint = natalPoints.get(aspect.bodyB);
+
+                    return (
+                      <div
+                        className="grid gap-1 rounded-lg border px-3 py-2 text-sm sm:grid-cols-[1fr_auto]"
+                        key={`transit-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}
+                      >
+                        <span className="min-w-0">
+                          <span className="font-medium">
+                            {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {transitPoint?.label ?? aspect.bodyA}
+                          </span>{" "}
+                          {aspectLabels[aspect.type] ?? aspect.type} натальний{" "}
+                          <span className="font-medium">
+                            {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.bodyB}
+                          </span>
+                        </span>
+                        <strong className="text-astro-coral">{aspect.orb.toFixed(2)}°</strong>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Немає major aspects у поточних орбах.</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Найближчі 7 днів</h3>
+              <div className="space-y-2">
+                {preview.weekAhead.map((day) => {
+                  const strongestAspect = day.strongestAspects[0];
+                  const transitPoint = strongestAspect ? transitPoints.get(strongestAspect.bodyA) : null;
+                  const natalPoint = strongestAspect ? natalPoints.get(strongestAspect.bodyB) : null;
+
+                  return (
+                    <div className="rounded-lg border p-3" key={day.date}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold">{day.date}</p>
+                        <Badge variant="secondary">
+                          {day.moon ? `${signLabelsUk[day.moon.sign] ?? day.moon.sign} ${day.moon.signDegree.toFixed(1)}°` : "Moon n/a"}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatMoonPhase(day.moonPhase)}</p>
+                      {strongestAspect ? (
+                        <p className="mt-2 text-sm">
+                          <span className="font-medium">
+                            {planetGlyphs[strongestAspect.bodyA] ?? strongestAspect.bodyA}{" "}
+                            {transitPoint?.label ?? strongestAspect.bodyA}
+                          </span>{" "}
+                          {aspectLabels[strongestAspect.type] ?? strongestAspect.type} натальний{" "}
+                          <span className="font-medium">
+                            {planetGlyphs[strongestAspect.bodyB] ?? strongestAspect.bodyB}{" "}
+                            {natalPoint?.label ?? strongestAspect.bodyB}
+                          </span>{" "}
+                          <strong className="text-astro-coral">{strongestAspect.orb.toFixed(2)}°</strong>
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">Без major aspects у поточних орбах.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PlaceSearchPanel({
   error,
   results,
@@ -961,10 +1222,15 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
   const outerRadius = 138;
   const signRadius = 119;
   const pointRadius = 94;
+  const houseLabelRadius = 82;
   const aspectRadius = 70;
+  const ascendant = chart?.angles.find((angle) => angle.key === "asc") ?? null;
+  const midheaven = chart?.angles.find((angle) => angle.key === "mc") ?? null;
+  const wheelOffset = ascendant ? normalizeDegrees(270 - ascendant.longitude) : 0;
 
   const toXY = (longitude: number, radius: number): { x: number; y: number } => {
-    const angle = ((longitude - 90) * Math.PI) / 180;
+    const visualLongitude = normalizeDegrees(longitude + wheelOffset);
+    const angle = ((visualLongitude - 90) * Math.PI) / 180;
 
     return {
       x: center + Math.cos(angle) * radius,
@@ -973,15 +1239,42 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
   };
 
   const points = chart ? [...chart.angles, ...chart.bodies] : [];
+  const pointMarkers = chart?.bodies ?? [];
   const pointsByKey = new Map(points.map((chartPoint) => [chartPoint.key, chartPoint]));
+  const angleMarkers = [
+    ascendant,
+    chart?.angles.find((angle) => angle.key === "desc") ??
+      (ascendant
+        ? {
+            key: "desc",
+            label: "Descendant",
+            longitude: normalizeDegrees(ascendant.longitude + 180)
+          }
+        : null),
+    chart?.angles.find((angle) => angle.key === "ic") ??
+      (midheaven
+        ? {
+            key: "ic",
+            label: "Imum Coeli",
+            longitude: normalizeDegrees(midheaven.longitude + 180)
+          }
+        : null),
+    midheaven
+  ].filter((angle): angle is { key: string; label: string; longitude: number } => angle !== null && angle !== undefined);
 
   return (
     <svg
       className="mx-auto aspect-square w-full max-w-[560px] overflow-visible"
-      viewBox="0 0 320 320"
+      viewBox="-34 -34 388 388"
       role="img"
       aria-label="Колесо натальної карти"
     >
+      <defs>
+        <marker id="angle-arrowhead" markerHeight="7" markerWidth="7" orient="auto" refX="6" refY="3.5">
+          <path d="M 0 0 L 7 3.5 L 0 7 z" fill="context-stroke" />
+        </marker>
+      </defs>
+
       <circle cx={center} cy={center} r={outerRadius} className="fill-none stroke-foreground stroke-[1.6]" />
       <circle cx={center} cy={center} r={pointRadius + 12} className="fill-none stroke-border stroke-[1.2]" />
       <circle
@@ -990,6 +1283,36 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
         r={aspectRadius}
         className="fill-none stroke-border stroke-[1.2] [stroke-dasharray:3_4]"
       />
+
+      {chart?.houses.map((cusp, index) => {
+        const next = chart.houses[(index + 1) % chart.houses.length];
+        const start = toXY(cusp.longitude, outerRadius);
+        const end = toXY(cusp.longitude, aspectRadius);
+        const houseCenterLongitude = next
+          ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
+          : cusp.longitude;
+        const label = toXY(houseCenterLongitude, houseLabelRadius);
+        const isAngularHouse = cusp.house === 1 || cusp.house === 4 || cusp.house === 7 || cusp.house === 10;
+
+        return (
+          <g key={`house-${cusp.house}`}>
+            <line
+              x1={start.x}
+              y1={start.y}
+              x2={end.x}
+              y2={end.y}
+              className={cn("stroke-[1]", isAngularHouse ? "stroke-primary" : "stroke-border")}
+            />
+            <text
+              x={label.x}
+              y={label.y}
+              className="fill-muted-foreground text-[10px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
+            >
+              {cusp.house}
+            </text>
+          </g>
+        );
+      })}
 
       {Array.from({ length: 12 }, (_, index) => {
         const start = toXY(index * 30, outerRadius);
@@ -1033,7 +1356,36 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
         );
       })}
 
-      {points.map((chartPoint) => {
+      {angleMarkers.map((anglePoint) => {
+        const tail = toXY(anglePoint.longitude, outerRadius + 26);
+        const head = toXY(anglePoint.longitude, outerRadius + 3);
+        const label = toXY(anglePoint.longitude, outerRadius + 42);
+
+        return (
+          <g key={`angle-${anglePoint.key}`}>
+            <line
+              x1={tail.x}
+              y1={tail.y}
+              x2={head.x}
+              y2={head.y}
+              markerEnd="url(#angle-arrowhead)"
+              className={cn("stroke-[2]", getAngleStrokeClass(anglePoint.key))}
+            />
+            <text
+              x={label.x}
+              y={label.y}
+              className={cn(
+                "text-[11px] font-bold uppercase [dominant-baseline:middle] [text-anchor:middle]",
+                getAngleFillClass(anglePoint.key)
+              )}
+            >
+              {planetGlyphs[anglePoint.key] ?? anglePoint.label}
+            </text>
+          </g>
+        );
+      })}
+
+      {pointMarkers.map((chartPoint) => {
         const position = toXY(chartPoint.longitude, pointRadius);
 
         return (
@@ -1097,5 +1449,25 @@ function getAspectStrokeClass(type: string): string {
       return "stroke-astro-violet";
     default:
       return "stroke-primary";
+  }
+}
+
+function getAngleStrokeClass(key: string): string {
+  switch (key) {
+    case "mc":
+    case "ic":
+      return "stroke-astro-coral";
+    default:
+      return "stroke-primary";
+  }
+}
+
+function getAngleFillClass(key: string): string {
+  switch (key) {
+    case "mc":
+    case "ic":
+      return "fill-astro-coral";
+    default:
+      return "fill-primary";
   }
 }

@@ -7,7 +7,9 @@ import type {
   NatalPreviewPayload,
   PlaceSearchResponse,
   SaveBirthProfilePayload,
-  SaveBirthProfileResult
+  SaveBirthProfileResult,
+  TransitPreviewPayload,
+  TransitPreviewResult
 } from "./chart-types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -44,6 +46,22 @@ export const requestNatalInterpretation = async (
   }
 
   return response.json() as Promise<NatalInterpretationPreview>;
+};
+
+export const requestTransitPreview = async (payload: TransitPreviewPayload): Promise<TransitPreviewResult> => {
+  const response = await fetch(`${API_URL}/charts/transits/preview`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<TransitPreviewResult>;
 };
 
 export const saveBirthProfile = async (payload: SaveBirthProfilePayload): Promise<SaveBirthProfileResult> => {

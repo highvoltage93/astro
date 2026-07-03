@@ -61,6 +61,51 @@ export type NatalPreviewPayload = {
   zodiac: "tropical" | "sidereal";
 };
 
+export type TransitPreviewPayload = {
+  transitDateTime: string;
+  natal: NatalPreviewPayload;
+  zodiac?: "tropical" | "sidereal";
+};
+
+export type MoonPhaseName =
+  | "new"
+  | "waxing-crescent"
+  | "first-quarter"
+  | "waxing-gibbous"
+  | "full"
+  | "waning-gibbous"
+  | "last-quarter"
+  | "waning-crescent";
+
+export type MoonPhase = {
+  name: MoonPhaseName;
+  phaseAngle: number;
+  illuminatedFraction: number;
+  waxing: boolean;
+};
+
+export type TransitDayForecast = {
+  date: string;
+  transitDateTime: string;
+  moon: ChartPoint | null;
+  moonPhase: MoonPhase | null;
+  strongestAspects: Aspect[];
+};
+
+export type TransitPreviewResult = {
+  chartType: "transit";
+  generatedAt: string;
+  natal: ChartResult;
+  transit: ChartResult;
+  moonPhase: MoonPhase | null;
+  transitToNatalAspects: Aspect[];
+  weekAhead: TransitDayForecast[];
+  warnings: Array<{
+    code: string;
+    message: string;
+  }>;
+};
+
 export type SaveBirthProfilePayload = NatalPreviewPayload & {
   displayName: string;
   birthplaceName: string;

@@ -93,6 +93,60 @@ export type NatalPreviewInput = {
 
 export type NatalCalculationInput = NatalPreviewInput;
 
+export type TransitCalculationInput = {
+  transitDateTime: string;
+  latitude: number;
+  longitude: number;
+  zodiac?: ZodiacType;
+  ayanamsa?: Ayanamsa;
+  houseSystem?: HouseSystem;
+  ephemerisPath?: string;
+};
+
+export type TransitPreviewInput = {
+  transitDateTime: string;
+  natal: NatalPreviewInput;
+  zodiac?: ZodiacType;
+  ayanamsa?: Ayanamsa;
+  ephemerisPath?: string;
+};
+
+export type MoonPhaseName =
+  | "new"
+  | "waxing-crescent"
+  | "first-quarter"
+  | "waxing-gibbous"
+  | "full"
+  | "waning-gibbous"
+  | "last-quarter"
+  | "waning-crescent";
+
+export type MoonPhase = {
+  name: MoonPhaseName;
+  phaseAngle: number;
+  illuminatedFraction: number;
+  waxing: boolean;
+};
+
+export type TransitDayForecast = {
+  date: string;
+  transitDateTime: string;
+  moon: ChartPoint | null;
+  moonPhase: MoonPhase | null;
+  strongestAspects: Aspect[];
+};
+
+export type TransitPreviewResult = {
+  chartType: "transit";
+  generatedAt: string;
+  natal: ChartResult;
+  transit: ChartResult;
+  moonPhase: MoonPhase | null;
+  transitToNatalAspects: Aspect[];
+  weekAhead: TransitDayForecast[];
+  warnings: CalculationWarning[];
+};
+
 export type InterpretationHighlight = {
   factorKey: string;
   title: string;
