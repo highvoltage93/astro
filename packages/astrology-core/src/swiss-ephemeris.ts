@@ -74,8 +74,11 @@ const toSign = (longitude: number): { sign: string; signDegree: number } => {
   };
 };
 
-const localBirthTimeToUtc = (input: NatalCalculationInput): DateTime => {
-  const local = DateTime.fromISO(`${input.birthDate}T${input.birthTime}:00`, {
+const normalizeBirthTime = (birthTime: string): string =>
+  /^\d{2}:\d{2}$/.test(birthTime) ? `${birthTime}:00` : birthTime;
+
+const localBirthTimeToUtc = (input: NatalCalculationInput, birthTime: string): DateTime => {
+  const local = DateTime.fromISO(`${input.birthDate}T${normalizeBirthTime(birthTime)}`, {
     zone: input.timezone
   });
 
@@ -222,6 +225,8 @@ const calculateBody = ({
 
 export const calculateNatalChart = (input: NatalCalculationInput): ChartResult => {
   const warnings: CalculationWarning[] = [];
+  const birthTimeKnown = input.birthTimeKnown ?? true;
+  const calculationBirthTime = birthTimeKnown ? input.birthTime : "12:00:00";
   const settings = {
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
@@ -242,42 +247,55 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     set_sid_mode(AYANAMSA_CODES[settings.ayanamsa ?? "lahiri"], 0, 0);
   }
 
-  const utc = localBirthTimeToUtc(input);
+  if (!birthTimeKnown) {
+    addCalculationWarning(
+      warnings,
+      "UNKNOWN_BIRTH_TIME",
+      "Birth time is unknown. Planet positions are calculated for 12:00 local time; Ascendant, Midheaven, houses, and house placements are omitted."
+    );
+  }
+
+  const utc = localBirthTimeToUtc(input, calculationBirthTime);
   const { jdEt, jdUt } = buildJulianDate(utc);
   const bodyFlags =
     constants.SEFLG_SWIEPH | constants.SEFLG_SPEED | (settings.zodiac === "sidereal" ? constants.SEFLG_SIDEREAL : 0);
-  const houseFlags = settings.zodiac === "sidereal" ? constants.SEFLG_SIDEREAL : 0;
-  const houseSystemCode = HOUSE_SYSTEM_CODES[settings.houseSystem];
-  const houseResult = houses_ex2(jdUt, houseFlags, input.latitude, input.longitude, houseSystemCode);
+  let houses: HouseCusp[] = [];
+  let angles: ChartPoint[] = [];
 
-  if (houseResult.error) {
-    addCalculationWarning(warnings, "HOUSE_CALCULATION_WARNING", houseResult.error.trim());
+  if (birthTimeKnown) {
+    const houseFlags = settings.zodiac === "sidereal" ? constants.SEFLG_SIDEREAL : 0;
+    const houseSystemCode = HOUSE_SYSTEM_CODES[settings.houseSystem];
+    const houseResult = houses_ex2(jdUt, houseFlags, input.latitude, input.longitude, houseSystemCode);
+
+    if (houseResult.error) {
+      addCalculationWarning(warnings, "HOUSE_CALCULATION_WARNING", houseResult.error.trim());
+    }
+
+    houses = houseResult.data.houses.map((longitude, index) => ({
+      house: index + 1,
+      longitude: round(normalizeLongitude(longitude)),
+      ...toSign(longitude)
+    }));
+
+    const ascendant = houseResult.data.points[0];
+    const midheaven = houseResult.data.points[1];
+    angles = [
+      buildPoint({
+        key: "asc",
+        label: "Ascendant",
+        kind: "angle",
+        longitude: ascendant,
+        house: 1
+      }),
+      buildPoint({
+        key: "mc",
+        label: "Midheaven",
+        kind: "angle",
+        longitude: midheaven,
+        house: findHouse(midheaven, houses)
+      })
+    ];
   }
-
-  const houses: HouseCusp[] = houseResult.data.houses.map((longitude, index) => ({
-    house: index + 1,
-    longitude: round(normalizeLongitude(longitude)),
-    ...toSign(longitude)
-  }));
-
-  const ascendant = houseResult.data.points[0];
-  const midheaven = houseResult.data.points[1];
-  const angles = [
-    buildPoint({
-      key: "asc",
-      label: "Ascendant",
-      kind: "angle",
-      longitude: ascendant,
-      house: 1
-    }),
-    buildPoint({
-      key: "mc",
-      label: "Midheaven",
-      kind: "angle",
-      longitude: midheaven,
-      house: findHouse(midheaven, houses)
-    })
-  ];
 
   const bodies = BODY_DEFINITIONS.map((body) =>
     calculateBody({
@@ -315,6 +333,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     settings,
     subject: {
       utcDateTime: utc.toISO({ suppressMilliseconds: false }) ?? utc.toString(),
+      birthTimeKnown,
       latitude: input.latitude,
       longitude: input.longitude
     },

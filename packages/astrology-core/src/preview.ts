@@ -28,6 +28,9 @@ const house = (houseNumber: number, longitude: number): HouseCusp => ({
   ...toSign(longitude)
 });
 
+const normalizeBirthTime = (birthTime: string): string =>
+  /^\d{2}:\d{2}$/.test(birthTime) ? `${birthTime}:00` : birthTime;
+
 export const createNatalPreview = (input: NatalPreviewInput): ChartResult => {
   const settings = {
     zodiac: input.zodiac ?? "tropical",
@@ -61,7 +64,8 @@ export const createNatalPreview = (input: NatalPreviewInput): ChartResult => {
     },
     settings,
     subject: {
-      utcDateTime: `${input.birthDate}T${input.birthTime}:00.000Z`,
+      utcDateTime: `${input.birthDate}T${normalizeBirthTime(input.birthTime)}.000Z`,
+      birthTimeKnown: input.birthTimeKnown ?? true,
       latitude: input.latitude,
       longitude: input.longitude
     },
@@ -77,4 +81,3 @@ export const createNatalPreview = (input: NatalPreviewInput): ChartResult => {
     ]
   };
 };
-

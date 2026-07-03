@@ -1,23 +1,44 @@
 "use client";
 
-import { BookOpenText, Calculator, MapPin, RotateCcw, Save, Search, Settings2 } from "lucide-react";
+import {
+  BookOpenText,
+  Calculator,
+  FolderOpen,
+  MapPin,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Search,
+  Settings2,
+  Trash2
+} from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { requestNatalInterpretation, requestNatalPreview, saveBirthProfile, searchPlaces } from "@/lib/api";
+import {
+  deleteBirthProfile,
+  getBirthProfile,
+  listBirthProfiles,
+  requestNatalInterpretation,
+  requestNatalPreview,
+  saveBirthProfile,
+  searchPlaces
+} from "@/lib/api";
 import type {
   Aspect,
   ChartResult,
   NatalInterpretationPreview,
   NatalPreviewPayload,
-  PlaceSearchResult
+  PlaceSearchResult,
+  SavedBirthProfile
 } from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +46,7 @@ type FormState = {
   displayName: string;
   birthDate: string;
   birthTime: string;
+  birthTimeKnown: boolean;
   birthplaceName: string;
   countryCode: string;
   latitude: string;
@@ -37,7 +59,8 @@ type FormState = {
 const initialForm: FormState = {
   displayName: "Натальна карта",
   birthDate: "1995-04-12",
-  birthTime: "14:30",
+  birthTime: "14:30:27",
+  birthTimeKnown: true,
   birthplaceName: "Kyiv, Ukraine",
   countryCode: "UA",
   latitude: "50.4501",
@@ -91,11 +114,16 @@ export function AstroWorkbench() {
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [savedProfilesStatus, setSavedProfilesStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeSearchStatus, setPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
+  const [savedProfiles, setSavedProfiles] = useState<SavedBirthProfile[]>([]);
+  const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null);
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [interpretationError, setInterpretationError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedProfilesError, setSavedProfilesError] = useState<string | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
 
@@ -107,7 +135,7 @@ export function AstroWorkbench() {
     return [...chart.angles, ...chart.bodies].sort((a, b) => a.longitude - b.longitude);
   }, [chart]);
 
-  const updateForm = (field: keyof FormState, value: string): void => {
+  const updateForm = <Field extends keyof FormState>(field: Field, value: FormState[Field]): void => {
     setForm((current) => ({
       ...current,
       [field]: value
@@ -185,12 +213,101 @@ export function AstroWorkbench() {
   const buildNatalPayload = (): NatalPreviewPayload => ({
     birthDate: form.birthDate,
     birthTime: form.birthTime,
+    birthTimeKnown: form.birthTimeKnown,
     timezone: form.timezone,
     latitude: Number(form.latitude),
     longitude: Number(form.longitude),
     houseSystem: form.houseSystem,
     zodiac: form.zodiac
   });
+
+  const refreshSavedProfiles = async (): Promise<void> => {
+    setSavedProfilesStatus("loading");
+    setSavedProfilesError(null);
+
+    try {
+      const response = await listBirthProfiles();
+      setSavedProfiles(response.profiles);
+      setSavedProfilesStatus("ready");
+    } catch (requestError) {
+      setSavedProfilesStatus("error");
+      setSavedProfilesError(requestError instanceof Error ? requestError.message : "Unknown saved profiles error");
+    }
+  };
+
+  useEffect(() => {
+    void refreshSavedProfiles();
+  }, []);
+
+  const loadSavedProfile = async (profile: SavedBirthProfile): Promise<void> => {
+    setLoadingProfileId(profile.id);
+    setSavedProfilesError(null);
+
+    try {
+      const response = await getBirthProfile(profile.id);
+      const detailedProfile = response.profile;
+      const calculation = response.latestCalculation;
+
+      setForm({
+        displayName: detailedProfile.displayName,
+        birthDate: detailedProfile.birthDate,
+        birthTime: detailedProfile.birthTime ?? "12:00:00",
+        birthTimeKnown: detailedProfile.birthTimeKnown,
+        birthplaceName: detailedProfile.birthplaceName,
+        countryCode: detailedProfile.countryCode ?? "",
+        latitude: String(detailedProfile.latitude),
+        longitude: String(detailedProfile.longitude),
+        timezone: detailedProfile.timezone,
+        houseSystem: detailedProfile.latestCalculation?.houseSystem ?? "placidus",
+        zodiac: detailedProfile.latestCalculation?.zodiacType ?? "tropical"
+      });
+      setChart(calculation?.result ?? null);
+      setInterpretation(response.interpretation);
+      setInterpretationError(null);
+      setStatus(calculation ? "ready" : "idle");
+      setSaveStatus("saved");
+      setSaveError(null);
+      setSavedProfileId(detailedProfile.id);
+      setPlaceResults([]);
+      setPlaceError(null);
+      setPlaceSearchStatus("idle");
+      setSavedProfilesStatus("ready");
+    } catch (requestError) {
+      setSavedProfilesStatus("error");
+      setSavedProfilesError(requestError instanceof Error ? requestError.message : "Unknown saved profile error");
+    } finally {
+      setLoadingProfileId(null);
+    }
+  };
+
+  const deleteSavedProfile = async (profile: SavedBirthProfile): Promise<void> => {
+    const confirmed = window.confirm(`Видалити карту "${profile.displayName}"?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingProfileId(profile.id);
+    setSavedProfilesError(null);
+
+    try {
+      const response = await deleteBirthProfile(profile.id);
+      setSavedProfiles((current) => current.filter((savedProfile) => savedProfile.id !== response.deletedProfileId));
+
+      if (savedProfileId === response.deletedProfileId) {
+        setSavedProfileId(null);
+        setSaveStatus("idle");
+        setSaveError(null);
+      }
+
+      setSavedProfilesStatus("ready");
+    } catch (requestError) {
+      setSavedProfilesStatus("error");
+      setSavedProfilesError(requestError instanceof Error ? requestError.message : "Unknown delete profile error");
+    } finally {
+      setDeletingProfileId(null);
+    }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -237,13 +354,13 @@ export function AstroWorkbench() {
       const result = await saveBirthProfile({
         ...buildNatalPayload(),
         displayName: form.displayName,
-        birthTimeKnown: true,
         birthplaceName: form.birthplaceName,
         countryCode: form.countryCode || undefined
       });
 
       setSavedProfileId(result.birthProfile.id);
       setSaveStatus("saved");
+      await refreshSavedProfiles();
     } catch (requestError) {
       setSaveStatus("error");
       setSaveError(requestError instanceof Error ? requestError.message : "Unknown API error");
@@ -272,19 +389,31 @@ export function AstroWorkbench() {
         </header>
 
         <section className="grid items-start gap-4 xl:grid-cols-[360px_minmax(360px,1fr)_420px]">
-          <BirthDataCard
-            error={error}
-            form={form}
-            placeError={placeError}
-            placeResults={placeResults}
-            placeSearchStatus={placeSearchStatus}
-            status={status}
-            onPlaceSearch={searchBirthplace}
-            onPlaceSelect={selectBirthplace}
-            onReset={resetForm}
-            onSubmit={submit}
-            onUpdate={updateForm}
-          />
+          <div className="space-y-4">
+            <BirthDataCard
+              error={error}
+              form={form}
+              placeError={placeError}
+              placeResults={placeResults}
+              placeSearchStatus={placeSearchStatus}
+              status={status}
+              onPlaceSearch={searchBirthplace}
+              onPlaceSelect={selectBirthplace}
+              onReset={resetForm}
+              onSubmit={submit}
+              onUpdate={updateForm}
+            />
+            <SavedProfilesCard
+              deletingProfileId={deletingProfileId}
+              error={savedProfilesError}
+              loadingProfileId={loadingProfileId}
+              profiles={savedProfiles}
+              status={savedProfilesStatus}
+              onDelete={deleteSavedProfile}
+              onLoad={loadSavedProfile}
+              onRefresh={refreshSavedProfiles}
+            />
+          </div>
 
           <div className="min-w-0 space-y-4">
             <Card className="min-w-0">
@@ -406,7 +535,7 @@ function BirthDataCard({
   onPlaceSelect: (place: PlaceSearchResult) => void;
   onReset: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onUpdate: (field: keyof FormState, value: string) => void;
+  onUpdate: <Field extends keyof FormState>(field: Field, value: FormState[Field]) => void;
 }) {
   return (
     <Card>
@@ -436,11 +565,27 @@ function BirthDataCard({
             <Field label="Час">
               <Input
                 type="time"
+                step={1}
+                disabled={!form.birthTimeKnown}
                 value={form.birthTime}
                 onChange={(event) => onUpdate("birthTime", event.target.value)}
               />
             </Field>
           </div>
+
+          <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3 text-sm leading-5">
+            <Checkbox
+              checked={form.birthTimeKnown}
+              className="mt-0.5"
+              onCheckedChange={(checked) => onUpdate("birthTimeKnown", checked === true)}
+            />
+            <span>
+              <span className="block font-medium">Час народження відомий</span>
+              <span className="text-muted-foreground">
+                Якщо вимкнути, карта рахує планети на 12:00 локального часу без Ascendant, MC і домів.
+              </span>
+            </span>
+          </label>
 
           <div className="space-y-2">
             <Label>Місце</Label>
@@ -497,7 +642,10 @@ function BirthDataCard({
             </Field>
 
             <Field label="Зодіак">
-              <Select value={form.zodiac} onValueChange={(value) => onUpdate("zodiac", value)}>
+              <Select
+                value={form.zodiac}
+                onValueChange={(value) => onUpdate("zodiac", value as NatalPreviewPayload["zodiac"])}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -526,6 +674,102 @@ function BirthDataCard({
             </div>
           ) : null}
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SavedProfilesCard({
+  deletingProfileId,
+  error,
+  loadingProfileId,
+  profiles,
+  status,
+  onDelete,
+  onLoad,
+  onRefresh
+}: {
+  deletingProfileId: string | null;
+  error: string | null;
+  loadingProfileId: string | null;
+  profiles: SavedBirthProfile[];
+  status: "idle" | "loading" | "ready" | "error";
+  onDelete: (profile: SavedBirthProfile) => Promise<void>;
+  onLoad: (profile: SavedBirthProfile) => Promise<void>;
+  onRefresh: () => Promise<void>;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+        <div className="space-y-1">
+          <CardDescription className="font-semibold uppercase text-primary">Saved charts</CardDescription>
+          <CardTitle>Збережені карти</CardTitle>
+        </div>
+        <Button size="icon" variant="secondary" type="button" aria-label="Оновити список" onClick={onRefresh}>
+          <RefreshCw className={cn(status === "loading" && "animate-spin")} />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {status === "idle" ? (
+          <p className="text-sm text-muted-foreground">Онови список, щоб побачити останні збережені карти.</p>
+        ) : null}
+
+        {status === "error" ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {error ?? "Не вдалося завантажити збережені карти"}
+          </div>
+        ) : null}
+
+        {status === "ready" && profiles.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Збережених карт ще немає.</p>
+        ) : null}
+
+        {profiles.length > 0 ? (
+          <div className="space-y-2">
+            {profiles.map((profile) => {
+              const isLoading = loadingProfileId === profile.id;
+              const isDeleting = deletingProfileId === profile.id;
+              const isBusy = isLoading || isDeleting;
+
+              return (
+                <div
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2 rounded-lg border p-2"
+                  key={profile.id}
+                >
+                  <button
+                    className="grid min-w-0 gap-1 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
+                    disabled={isBusy}
+                    type="button"
+                    onClick={() => onLoad(profile)}
+                  >
+                    <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                      {isLoading ? (
+                        <RefreshCw className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                      ) : (
+                        <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
+                      )}
+                      <span className="truncate">{profile.displayName}</span>
+                    </span>
+                    <span className="pl-6 text-xs text-muted-foreground">
+                      {profile.birthDate} · {profile.birthTimeKnown ? profile.birthTime : "час невідомий"}
+                    </span>
+                    <span className="truncate pl-6 text-xs text-muted-foreground">{profile.birthplaceName}</span>
+                  </button>
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    type="button"
+                    aria-label={`Видалити карту ${profile.displayName}`}
+                    disabled={isBusy}
+                    onClick={() => onDelete(profile)}
+                  >
+                    {isDeleting ? <RefreshCw className="animate-spin" /> : <Trash2 />}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

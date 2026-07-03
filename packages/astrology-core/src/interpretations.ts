@@ -149,11 +149,13 @@ export const generateNatalInterpretationPreview = (chart: ChartResult): NatalInt
 
   highlights.push(...signHighlights);
 
-  for (const key of [
+  const expectedSignKeys = [
     sun ? `planet.sun.sign.${sun.sign}` : "planet.sun.sign",
     moon ? `planet.moon.sign.${moon.sign}` : "planet.moon.sign",
-    asc ? `angle.asc.sign.${asc.sign}` : "angle.asc.sign"
-  ]) {
+    asc ? `angle.asc.sign.${asc.sign}` : null
+  ].filter((key): key is string => key !== null);
+
+  for (const key of expectedSignKeys) {
     if (!highlights.some((highlight) => highlight.factorKey === key)) {
       missingFactorKeys.push(key);
     }
@@ -178,7 +180,11 @@ export const generateNatalInterpretationPreview = (chart: ChartResult): NatalInt
     locale: "uk",
     summary:
       summaryParts.length > 0
-        ? `Базовий фокус карти: ${summaryParts.join(", ")}. Нижче - перший контрольований шар трактувань без AI.`
+        ? `Базовий фокус карти: ${summaryParts.join(", ")}. ${
+            chart.subject.birthTimeKnown
+              ? "Нижче - перший контрольований шар трактувань без AI."
+              : "Час народження невідомий, тому Ascendant, MC, доми й house-based трактування не включені."
+          }`
         : "Базовий шар трактувань очікує достатньо розрахованих факторів карти.",
     highlights,
     missingFactorKeys

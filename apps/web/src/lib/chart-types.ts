@@ -36,6 +36,7 @@ export type ChartResult = {
   };
   subject: {
     utcDateTime: string;
+    birthTimeKnown: boolean;
     latitude: number;
     longitude: number;
   };
@@ -52,6 +53,7 @@ export type ChartResult = {
 export type NatalPreviewPayload = {
   birthDate: string;
   birthTime: string;
+  birthTimeKnown: boolean;
   timezone: string;
   latitude: number;
   longitude: number;
@@ -61,7 +63,6 @@ export type NatalPreviewPayload = {
 
 export type SaveBirthProfilePayload = NatalPreviewPayload & {
   displayName: string;
-  birthTimeKnown: boolean;
   birthplaceName: string;
   countryCode?: string;
 };
@@ -80,6 +81,46 @@ export type SaveBirthProfileResult = {
     engineVersion: string;
     calculatedAt: string;
   } | null;
+};
+
+export type SavedChartCalculationSummary = {
+  id: string;
+  chartType: string;
+  zodiacType: "tropical" | "sidereal";
+  houseSystem: string;
+  engineVersion: string;
+  calculatedAt: string;
+};
+
+export type SavedBirthProfile = {
+  id: string;
+  displayName: string;
+  birthDate: string;
+  birthTime: string | null;
+  birthTimeKnown: boolean;
+  birthplaceName: string;
+  countryCode?: string | null;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  createdAt: string;
+  latestCalculation: SavedChartCalculationSummary | null;
+};
+
+export type ListBirthProfilesResponse = {
+  profiles: SavedBirthProfile[];
+};
+
+export type BirthProfileDetailResponse = {
+  profile: SavedBirthProfile;
+  latestCalculation: (SavedChartCalculationSummary & {
+    result: ChartResult;
+  }) | null;
+  interpretation: NatalInterpretationPreview | null;
+};
+
+export type DeleteBirthProfileResponse = {
+  deletedProfileId: string;
 };
 
 export type PlaceSearchResult = {

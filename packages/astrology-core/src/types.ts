@@ -57,6 +57,7 @@ export type ChartSettings = {
 
 export type ChartSubject = {
   utcDateTime: string;
+  birthTimeKnown: boolean;
   latitude: number;
   longitude: number;
 };
@@ -80,6 +81,7 @@ export type ChartResult = {
 export type NatalPreviewInput = {
   birthDate: string;
   birthTime: string;
+  birthTimeKnown?: boolean;
   timezone: string;
   latitude: number;
   longitude: number;

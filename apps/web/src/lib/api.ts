@@ -1,5 +1,8 @@
 import type {
+  BirthProfileDetailResponse,
   ChartResult,
+  DeleteBirthProfileResponse,
+  ListBirthProfilesResponse,
   NatalInterpretationPreview,
   NatalPreviewPayload,
   PlaceSearchResponse,
@@ -57,6 +60,38 @@ export const saveBirthProfile = async (payload: SaveBirthProfilePayload): Promis
   }
 
   return response.json() as Promise<SaveBirthProfileResult>;
+};
+
+export const listBirthProfiles = async (): Promise<ListBirthProfilesResponse> => {
+  const response = await fetch(`${API_URL}/birth-profiles?limit=10`);
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<ListBirthProfilesResponse>;
+};
+
+export const getBirthProfile = async (id: string): Promise<BirthProfileDetailResponse> => {
+  const response = await fetch(`${API_URL}/birth-profiles/${id}`);
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<BirthProfileDetailResponse>;
+};
+
+export const deleteBirthProfile = async (id: string): Promise<DeleteBirthProfileResponse> => {
+  const response = await fetch(`${API_URL}/birth-profiles/${id}`, {
+    method: "DELETE"
+  });
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<DeleteBirthProfileResponse>;
 };
 
 export const searchPlaces = async (query: string): Promise<PlaceSearchResponse> => {

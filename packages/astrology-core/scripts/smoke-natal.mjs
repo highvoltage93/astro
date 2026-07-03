@@ -48,6 +48,25 @@ const interpretation = generateNatalInterpretationPreview(chart);
 assert.ok(interpretation.summary.length > 0, "Expected interpretation summary");
 assert.ok(interpretation.highlights.length >= 3, "Expected at least 3 interpretation highlights");
 
+const unknownTimeChart = calculateNatalChart({
+  ...fixture.input,
+  birthTimeKnown: false,
+  ephemerisPath
+});
+const unknownTimeInterpretation = generateNatalInterpretationPreview(unknownTimeChart);
+
+assert.equal(unknownTimeChart.subject.birthTimeKnown, false);
+assert.equal(unknownTimeChart.angles.length, 0, "Unknown time chart should omit angles");
+assert.equal(unknownTimeChart.houses.length, 0, "Unknown time chart should omit houses");
+assert.ok(
+  unknownTimeChart.warnings.some((warning) => warning.code === "UNKNOWN_BIRTH_TIME"),
+  "Unknown time chart should include UNKNOWN_BIRTH_TIME warning"
+);
+assert.ok(
+  !unknownTimeInterpretation.missingFactorKeys.some((key) => key.startsWith("angle.asc")),
+  "Unknown time interpretation should not treat Ascendant as missing content"
+);
+
 console.log(
   JSON.stringify(
     {
@@ -56,6 +75,7 @@ console.log(
       bodies: chart.bodies.length,
       aspects: chart.aspects.length,
       interpretationHighlights: interpretation.highlights.length,
+      unknownTimeWarnings: unknownTimeChart.warnings.map((warning) => warning.code),
       warnings: chart.warnings.map((warning) => warning.code)
     },
     null,

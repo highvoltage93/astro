@@ -36,6 +36,10 @@ GEOCODING_API_URL=https://geocoding-api.open-meteo.com/v1
 
 Search results include display name, country, latitude, longitude, and timezone. The web form uses this to fill birthplace coordinates before calculating a chart.
 
+Birth time supports seconds in `HH:mm:ss` format for higher-precision charts.
+
+If birth time is unknown, the app calculates planets for `12:00:00` local time and omits Ascendant, Midheaven, houses, and house placements from the result.
+
 ## Swiss Ephemeris Files
 
 The calculation adapter uses the `sweph` Node binding. For high precision calculations, download the Swiss Ephemeris files before running the app:
@@ -77,6 +81,7 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - Natal chart preview contract backed by the first Swiss Ephemeris adapter.
 - Natal interpretation preview endpoint backed by seed content for Sun, Moon, Ascendant, and exact aspects.
 - Birth profile persistence endpoint backed by Prisma.
+- Recent saved birth profiles list with detail loading and deletion for the MVP workspace.
 - First shadcn/ui product workspace for birth data intake, chart preview, and saving.
 
 ## Licensing Note
