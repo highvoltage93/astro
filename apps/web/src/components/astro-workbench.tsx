@@ -28,6 +28,7 @@ import {
   deleteBirthProfile,
   getBirthProfile,
   listBirthProfiles,
+  requestForecastPreview,
   requestNatalInterpretation,
   requestNatalPreview,
   requestSynastryPreview,
@@ -39,11 +40,15 @@ import type {
   Aspect,
   ChartPoint,
   ChartResult,
+  EssentialDignity,
+  ExactTransitEvent,
+  ForecastPreviewResult,
   HouseConnection,
   MoonPhase,
   NatalInterpretationPreview,
   NatalPreviewPayload,
   PlaceSearchResult,
+  ReturnEvent,
   SavedBirthProfile,
   SynastryPreviewResult,
   TransitPreviewResult
@@ -245,6 +250,14 @@ const signLabelsUk: Record<string, string> = {
   pisces: "Риби"
 };
 
+const dignityLabelsUk: Record<string, string> = {
+  domicile: "обитель",
+  exaltation: "екзальтація",
+  detriment: "вигнання",
+  fall: "падіння",
+  peregrine: "перегрин"
+};
+
 const moonPhaseLabelsUk: Record<string, string> = {
   new: "Новий Місяць",
   "waxing-crescent": "Зростаючий серп",
@@ -361,6 +374,16 @@ const formatMotion = (point: ChartPoint): string => {
   return point.speed < 0 ? `R ${Math.abs(point.speed).toFixed(4)}` : `D ${point.speed.toFixed(4)}`;
 };
 
+const formatPointPosition = (point: ChartPoint | null): string => {
+  if (!point) {
+    return "n/a";
+  }
+
+  const house = point.house ? ` · ${point.house} дім` : "";
+
+  return `${signLabelsUk[point.sign] ?? point.sign} ${point.signDegree.toFixed(2)}°${house}`;
+};
+
 export function AstroWorkbench() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [partnerForm, setPartnerForm] = useState<FormState>(initialPartnerForm);
@@ -370,10 +393,15 @@ export function AstroWorkbench() {
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
   const [transitDateTime, setTransitDateTime] = useState("");
   const [transitPreview, setTransitPreview] = useState<TransitPreviewResult | null>(null);
+  const [forecastFromDateTime, setForecastFromDateTime] = useState("");
+  const [forecastTargetYear, setForecastTargetYear] = useState(String(new Date().getFullYear()));
+  const [forecastDays, setForecastDays] = useState("90");
+  const [forecastPreview, setForecastPreview] = useState<ForecastPreviewResult | null>(null);
   const [synastryPreview, setSynastryPreview] = useState<SynastryPreviewResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [transitStatus, setTransitStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [forecastStatus, setForecastStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [synastryStatus, setSynastryStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [savedProfilesStatus, setSavedProfilesStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeSearchStatus, setPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -387,6 +415,7 @@ export function AstroWorkbench() {
   const [interpretationError, setInterpretationError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [transitError, setTransitError] = useState<string | null>(null);
+  const [forecastError, setForecastError] = useState<string | null>(null);
   const [synastryError, setSynastryError] = useState<string | null>(null);
   const [savedProfilesError, setSavedProfilesError] = useState<string | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
@@ -416,6 +445,12 @@ export function AstroWorkbench() {
     );
   }, [chart, visiblePointKeys]);
 
+  const clearForecastState = (): void => {
+    setForecastPreview(null);
+    setForecastError(null);
+    setForecastStatus("idle");
+  };
+
   const updateForm = <Field extends keyof FormState>(field: Field, value: FormState[Field]): void => {
     setForm((current) => ({
       ...current,
@@ -430,6 +465,7 @@ export function AstroWorkbench() {
     setTransitPreview(null);
     setTransitError(null);
     setTransitStatus("idle");
+    clearForecastState();
     setSynastryPreview(null);
     setSynastryError(null);
     setSynastryStatus("idle");
@@ -458,6 +494,7 @@ export function AstroWorkbench() {
     setTransitPreview(null);
     setTransitError(null);
     setTransitStatus("idle");
+    clearForecastState();
     setSynastryPreview(null);
     setSynastryError(null);
     setSynastryStatus("idle");
@@ -509,6 +546,7 @@ export function AstroWorkbench() {
     setTransitPreview(null);
     setTransitError(null);
     setTransitStatus("idle");
+    clearForecastState();
     setSynastryPreview(null);
     setSynastryError(null);
     setSynastryStatus("idle");
@@ -559,6 +597,7 @@ export function AstroWorkbench() {
     setTransitPreview(null);
     setTransitError(null);
     setTransitStatus("idle");
+    clearForecastState();
     setSynastryPreview(null);
     setSynastryError(null);
     setSynastryStatus("idle");
@@ -637,7 +676,11 @@ export function AstroWorkbench() {
   };
 
   useEffect(() => {
-    setTransitDateTime((current) => current || toDateTimeLocalValue(new Date()));
+    const now = new Date();
+
+    setTransitDateTime((current) => current || toDateTimeLocalValue(now));
+    setForecastFromDateTime((current) => current || toDateTimeLocalValue(now));
+    setForecastTargetYear((current) => current || String(now.getFullYear()));
     void refreshSavedProfiles();
   }, []);
 
@@ -670,6 +713,7 @@ export function AstroWorkbench() {
       setTransitPreview(null);
       setTransitError(null);
       setTransitStatus("idle");
+      clearForecastState();
       setSynastryPreview(null);
       setSynastryError(null);
       setSynastryStatus("idle");
@@ -727,6 +771,7 @@ export function AstroWorkbench() {
     setSynastryPreview(null);
     setSynastryError(null);
     setSynastryStatus("idle");
+    clearForecastState();
 
     try {
       const payload = buildNatalPayload();
@@ -810,6 +855,56 @@ export function AstroWorkbench() {
     } catch (requestError) {
       setTransitStatus("error");
       setTransitError(requestError instanceof Error ? requestError.message : "Unknown transit API error");
+    }
+  };
+
+  const calculateForecast = async (): Promise<void> => {
+    if (!forecastFromDateTime) {
+      setForecastStatus("error");
+      setForecastError("Вкажи стартову дату прогнозу.");
+      return;
+    }
+
+    const selectedForecastDate = new Date(forecastFromDateTime);
+    const parsedTargetYear = Number(forecastTargetYear);
+    const parsedDays = Number(forecastDays);
+
+    if (Number.isNaN(selectedForecastDate.getTime())) {
+      setForecastStatus("error");
+      setForecastError("Вкажи коректну стартову дату прогнозу.");
+      return;
+    }
+
+    if (!Number.isInteger(parsedTargetYear) || parsedTargetYear < 1900 || parsedTargetYear > 2100) {
+      setForecastStatus("error");
+      setForecastError("Рік соляра має бути між 1900 і 2100.");
+      return;
+    }
+
+    if (!Number.isInteger(parsedDays) || parsedDays < 1 || parsedDays > 366) {
+      setForecastStatus("error");
+      setForecastError("Період точних транзитів має бути від 1 до 366 днів.");
+      return;
+    }
+
+    setForecastStatus("loading");
+    setForecastError(null);
+
+    try {
+      const result = await requestForecastPreview({
+        fromDateTime: selectedForecastDate.toISOString(),
+        natal: buildNatalPayload(),
+        targetYear: parsedTargetYear,
+        days: parsedDays,
+        zodiac: form.zodiac,
+        pointOrbs
+      });
+
+      setForecastPreview(result);
+      setForecastStatus("ready");
+    } catch (requestError) {
+      setForecastStatus("error");
+      setForecastError(requestError instanceof Error ? requestError.message : "Unknown forecast API error");
     }
   };
 
@@ -924,6 +1019,27 @@ export function AstroWorkbench() {
             </Card>
 
             <InterpretationCard error={interpretationError} interpretation={interpretation} status={status} />
+            <ForecastModuleCard
+              days={forecastDays}
+              error={forecastError}
+              fromDateTime={forecastFromDateTime}
+              preview={forecastPreview}
+              status={forecastStatus}
+              targetYear={forecastTargetYear}
+              onCalculate={calculateForecast}
+              onDaysChange={(value) => {
+                setForecastDays(value);
+                clearForecastState();
+              }}
+              onFromDateTimeChange={(value) => {
+                setForecastFromDateTime(value);
+                clearForecastState();
+              }}
+              onTargetYearChange={(value) => {
+                setForecastTargetYear(value);
+                clearForecastState();
+              }}
+            />
             <TransitForecastCard
               error={transitError}
               preview={transitPreview}
@@ -1379,6 +1495,216 @@ function InterpretationCard({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ForecastModuleCard({
+  days,
+  error,
+  fromDateTime,
+  preview,
+  status,
+  targetYear,
+  onCalculate,
+  onDaysChange,
+  onFromDateTimeChange,
+  onTargetYearChange
+}: {
+  days: string;
+  error: string | null;
+  fromDateTime: string;
+  preview: ForecastPreviewResult | null;
+  status: "idle" | "loading" | "ready" | "error";
+  targetYear: string;
+  onCalculate: () => Promise<void>;
+  onDaysChange: (value: string) => void;
+  onFromDateTimeChange: (value: string) => void;
+  onTargetYearChange: (value: string) => void;
+}) {
+  const exactTransits = preview?.exactTransits ?? [];
+  const highPriorityTransits = exactTransits.filter((event) => event.strength === "high").length;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Calculator className="h-5 w-5" />
+        </div>
+        <div className="space-y-1">
+          <CardDescription className="font-semibold uppercase text-primary">Forecast v1</CardDescription>
+          <CardTitle>Прогностичний модуль</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.7fr_0.7fr_auto]">
+          <Field label="Старт прогнозу">
+            <Input
+              type="datetime-local"
+              value={fromDateTime}
+              onChange={(event) => onFromDateTimeChange(event.target.value)}
+            />
+          </Field>
+          <Field label="Днів транзитів">
+            <Input
+              min={1}
+              max={366}
+              type="number"
+              value={days}
+              onChange={(event) => onDaysChange(event.target.value)}
+            />
+          </Field>
+          <Field label="Рік соляра">
+            <Input
+              min={1900}
+              max={2100}
+              type="number"
+              value={targetYear}
+              onChange={(event) => onTargetYearChange(event.target.value)}
+            />
+          </Field>
+          <div className="flex items-end">
+            <Button type="button" disabled={status === "loading"} onClick={onCalculate}>
+              <Activity />
+              {status === "loading" ? "Рахую" : "Порахувати"}
+            </Button>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        {!preview && status !== "loading" && !error ? (
+          <p className="text-sm text-muted-foreground">
+            Модуль рахує соляр, найближчий лунар і точні дати major-транзитів до натальних точок у вибраному вікні.
+          </p>
+        ) : null}
+
+        {preview ? (
+          <div className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-3">
+              <ForecastMetric label="Соляр" value={preview.solarReturn ? formatDateTimeCompact(preview.solarReturn.exactAt) : "n/a"} />
+              <ForecastMetric label="Лунар" value={preview.lunarReturn ? formatDateTimeCompact(preview.lunarReturn.exactAt) : "n/a"} />
+              <ForecastMetric label="Точних транзитів" value={`${exactTransits.length} · ${highPriorityTransits} сильних`} />
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <ReturnEventPanel event={preview.solarReturn} title="Соляр" />
+              <ReturnEventPanel event={preview.lunarReturn} title="Лунар" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">Точні дати транзитів</h3>
+                <Badge variant="secondary">{exactTransits.length}</Badge>
+              </div>
+              <ExactTransitsTable events={exactTransits} />
+            </div>
+
+            {preview.warnings.map((warning) => (
+              <div
+                className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
+                key={`forecast-warning-${warning.code}`}
+              >
+                {warning.message}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ForecastMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function ReturnEventPanel({ event, title }: { event: ReturnEvent | null; title: string }) {
+  const targetPoint = event?.chart.bodies.find((point) => point.key === event.targetPointKey) ?? null;
+  const ascendant = event?.chart.angles.find((point) => point.key === "asc") ?? null;
+  const midheaven = event?.chart.angles.find((point) => point.key === "mc") ?? null;
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <Badge variant={event ? "secondary" : "outline"}>{event ? formatExactAt(event.exactAt) : "не знайдено"}</Badge>
+      </div>
+      {event ? (
+        <div className="grid gap-2 text-sm">
+          <ReturnPointRow label={event.targetPointKey === "sun" ? "Сонце" : "Місяць"} point={targetPoint} />
+          <ReturnPointRow label="ASC" point={ascendant} />
+          <ReturnPointRow label="MC" point={midheaven} />
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Повернення не знайдено в пошуковому вікні.</p>
+      )}
+    </div>
+  );
+}
+
+function ReturnPointRow({ label, point }: { label: string; point: ChartPoint | null }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md bg-background px-3 py-2">
+      <span className="font-medium">{label}</span>
+      <span className="text-right text-muted-foreground">{formatPointPosition(point)}</span>
+    </div>
+  );
+}
+
+function ExactTransitsTable({ events }: { events: ExactTransitEvent[] }) {
+  if (events.length === 0) {
+    return <p className="text-sm text-muted-foreground">У вибраному вікні точних major-транзитів не знайдено.</p>;
+  }
+
+  return (
+    <div className="max-h-[460px] overflow-auto rounded-lg border">
+      <Table>
+        <TableHeader className="sticky top-0 z-10 bg-card">
+          <TableRow>
+            <TableHead>Дата</TableHead>
+            <TableHead>Транзит</TableHead>
+            <TableHead>Аспект</TableHead>
+            <TableHead>Натал</TableHead>
+            <TableHead>Дім</TableHead>
+            <TableHead>Сила</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {events.slice(0, 36).map((event) => (
+            <TableRow key={`exact-${event.bodyA}-${event.type}-${event.bodyB}-${event.exactAt}`}>
+              <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTimeCompact(event.exactAt)}</TableCell>
+              <TableCell className="font-medium">
+                {planetGlyphs[event.bodyA] ?? event.bodyA} {event.transitPointLabel}
+              </TableCell>
+              <TableCell className={cn("font-medium", getAspectTextClass(event.type))}>
+                {aspectLabels[event.type] ?? event.type}
+              </TableCell>
+              <TableCell className="font-medium">
+                {planetGlyphs[event.bodyB] ?? event.bodyB} {event.natalPointLabel}
+              </TableCell>
+              <TableCell className="text-muted-foreground">{event.natalHouse ?? "n/a"}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {transitStrengthLabelsUk[event.strength] ?? event.strength} · {event.score.toFixed(1)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {events.length > 36 ? (
+        <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          Показано перші 36 подій із {events.length}. Зменш період, щоб сфокусувати консультаційне вікно.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -2018,6 +2344,9 @@ function ProfessionalDataCard({
         <PlacementsTable placements={placements} />
 
         <Separator />
+        <DignitiesTable chart={chart} />
+
+        <Separator />
         <HousesTable chart={chart} />
 
         <Separator />
@@ -2131,6 +2460,60 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
               <TableRow>
                 <TableCell colSpan={4} className="text-muted-foreground">
                   Очікує дані карти
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function DignitiesTable({ chart }: { chart: ChartResult | null }) {
+  const dignities = chart?.essentialDignities ?? [];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">Диспозитори</h3>
+        <Badge variant="secondary">{dignities.length}</Badge>
+      </div>
+      <div className="max-h-[338px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Планета</TableHead>
+              <TableHead>Статус</TableHead>
+              <TableHead>Диспозитор</TableHead>
+              <TableHead>Ланцюг</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {dignities.length > 0 ? (
+              dignities.map((dignity) => (
+                <TableRow key={dignity.pointKey}>
+                  <TableCell className="font-medium">
+                    <span className="mr-2 inline-flex w-6 font-semibold text-primary">
+                      {planetGlyphs[dignity.pointKey] ?? "•"}
+                    </span>
+                    {dignity.pointLabel}
+                  </TableCell>
+                  <TableCell className={cn("font-medium", getDignityTextClass(dignity.dignity))}>
+                    {dignityLabelsUk[dignity.dignity] ?? dignity.dignity} ({dignity.score})
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {dignity.dispositorKey ? `${planetGlyphs[dignity.dispositorKey] ?? ""} ${dignity.dispositorLabel}` : "n/a"}
+                  </TableCell>
+                  <TableCell className="max-w-[180px] truncate text-muted-foreground" title={formatDispositorChain(dignity)}>
+                    {formatDispositorChain(dignity)}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  Очікує розрахунок диспозиторів.
                 </TableCell>
               </TableRow>
             )}
@@ -2734,6 +3117,24 @@ function getAspectTextClass(type: string): string {
     default:
       return "text-primary";
   }
+}
+
+function getDignityTextClass(type: string): string {
+  switch (type) {
+    case "domicile":
+    case "exaltation":
+      return "text-primary";
+    case "detriment":
+    case "fall":
+      return "text-blue-600";
+    default:
+      return "text-muted-foreground";
+  }
+}
+
+function formatDispositorChain(dignity: EssentialDignity): string {
+  const chain = dignity.chain.map((key) => planetGlyphs[key] ?? key).join(" → ");
+  return dignity.cycle ? `${chain} ↺` : chain;
 }
 
 function getAngleStrokeClass(key: string): string {

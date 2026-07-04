@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 
 const require = createRequire(import.meta.url);
 const {
+  calculateForecastPreview,
   calculateNatalChart,
   calculateSynastryPreview,
   calculateTransitPreview,
@@ -48,6 +49,11 @@ const minBodies = hasFallbackWarnings
 
 assert.ok(chart.bodies.length >= minBodies, `Expected at least ${minBodies} bodies, got ${chart.bodies.length}`);
 assert.ok(chart.houseConnections.length >= 12, "Expected house ruler connections for known birth time");
+assert.ok(chart.essentialDignities.length >= minBodies, "Expected essential dignity rows for chart bodies");
+assert.ok(
+  chart.essentialDignities.some((dignity) => dignity.chain.length > 1),
+  "Expected dispositor chains in essential dignities"
+);
 
 const interpretation = generateNatalInterpretationPreview(chart);
 
@@ -139,6 +145,26 @@ assert.equal(
   "Unknown time transit preview should omit house placements"
 );
 
+const forecastPreview = calculateForecastPreview({
+  fromDateTime: "2026-07-03T12:00:00.000Z",
+  natal: fixture.input,
+  targetYear: 2026,
+  days: 45,
+  ephemerisPath
+});
+
+assert.equal(forecastPreview.chartType, "forecast");
+assert.ok(forecastPreview.solarReturn, "Expected solar return in forecast preview");
+assert.ok(forecastPreview.lunarReturn, "Expected lunar return in forecast preview");
+assert.equal(forecastPreview.solarReturn.chart.chartType, "return");
+assert.equal(forecastPreview.lunarReturn.chart.chartType, "return");
+assert.ok(forecastPreview.exactTransits.length > 0, "Expected exact transit dates in forecast preview");
+assert.ok(forecastPreview.exactTransits[0].exactAt, "Expected exact transit event timestamp");
+assert.ok(
+  Number.isFinite(forecastPreview.exactTransits[0].score),
+  "Expected exact transit event score"
+);
+
 const synastryPreview = calculateSynastryPreview({
   subjectA: fixture.input,
   subjectB: {
@@ -170,7 +196,9 @@ console.log(
       bodies: chart.bodies.length,
       aspects: chart.aspects.length,
       houseConnections: chart.houseConnections.length,
+      dignities: chart.essentialDignities.length,
       transitAspects: transitPreview.transitToNatalAspects.length,
+      forecastExactTransits: forecastPreview.exactTransits.length,
       synastryAspects: synastryPreview.interAspects.length,
       moonPhase: transitPreview.moonPhase.name,
       interpretationHighlights: interpretation.highlights.length,

@@ -32,6 +32,15 @@ export const transitPreviewSchema = z.object({
   pointOrbs: pointOrbsSchema
 });
 
+export const forecastPreviewSchema = z.object({
+  fromDateTime: z.string().datetime({ offset: true }),
+  natal: natalPreviewSchema,
+  targetYear: z.number().int().min(1900).max(2100).optional(),
+  days: z.number().int().min(1).max(366).default(90),
+  zodiac: z.enum(["tropical", "sidereal"]).optional(),
+  pointOrbs: pointOrbsSchema
+});
+
 export const synastryPreviewSchema = z.object({
   subjectA: natalPreviewSchema,
   subjectB: natalPreviewSchema,

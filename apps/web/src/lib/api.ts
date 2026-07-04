@@ -2,6 +2,8 @@ import type {
   BirthProfileDetailResponse,
   ChartResult,
   DeleteBirthProfileResponse,
+  ForecastPreviewPayload,
+  ForecastPreviewResult,
   ListBirthProfilesResponse,
   NatalInterpretationPreview,
   NatalPreviewPayload,
@@ -64,6 +66,22 @@ export const requestTransitPreview = async (payload: TransitPreviewPayload): Pro
   }
 
   return response.json() as Promise<TransitPreviewResult>;
+};
+
+export const requestForecastPreview = async (payload: ForecastPreviewPayload): Promise<ForecastPreviewResult> => {
+  const response = await fetch(`${API_URL}/charts/forecast/preview`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<ForecastPreviewResult>;
 };
 
 export const requestSynastryPreview = async (payload: SynastryPreviewPayload): Promise<SynastryPreviewResult> => {

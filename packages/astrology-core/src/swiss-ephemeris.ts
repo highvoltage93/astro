@@ -10,7 +10,7 @@ import {
   type HouseSystems
 } from "sweph";
 import { calculateAspectsBetween, calculateMajorAspects } from "./aspects";
-import { DEFAULT_MAJOR_ASPECT_ORBS, ZODIAC_SIGNS } from "./constants";
+import { DEFAULT_MAJOR_ASPECT_ORBS, MAJOR_ASPECT_ANGLES, ZODIAC_SIGNS } from "./constants";
 import type {
   Ayanamsa,
   Aspect,
@@ -18,6 +18,11 @@ import type {
   CalculationWarning,
   ChartPoint,
   ChartResult,
+  EssentialDignity,
+  EssentialDignityType,
+  ExactTransitEvent,
+  ForecastPreviewInput,
+  ForecastPreviewResult,
   HouseConnection,
   HouseConnectionDetail,
   HouseConnectionRole,
@@ -27,6 +32,7 @@ import type {
   MoonPhase,
   NatalCalculationInput,
   PointOrbSettings,
+  ReturnEvent,
   SynastryPreviewInput,
   SynastryPreviewResult,
   TransitAspect,
@@ -34,7 +40,8 @@ import type {
   TransitDayForecast,
   TransitCalculationInput,
   TransitPreviewInput,
-  TransitPreviewResult
+  TransitPreviewResult,
+  ZodiacType
 } from "./types";
 
 type BodyDefinition = {
@@ -75,6 +82,8 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
   { key: "lilith", label: "Lilith", swephId: constants.SE_MEAN_APOG, kind: "calculated" }
 ];
 
+const BODY_DEFINITION_BY_KEY = new Map(BODY_DEFINITIONS.map((body) => [body.key, body]));
+
 const SIGN_RULERS: Record<string, Array<{ key: string; label: string; rulerType: "modern" | "traditional" }>> = {
   aries: [{ key: "mars", label: "Mars", rulerType: "modern" }],
   taurus: [{ key: "venus", label: "Venus", rulerType: "modern" }],
@@ -97,6 +106,44 @@ const SIGN_RULERS: Record<string, Array<{ key: string; label: string; rulerType:
     { key: "neptune", label: "Neptune", rulerType: "modern" },
     { key: "jupiter", label: "Jupiter", rulerType: "traditional" }
   ]
+};
+
+const PLANET_DOMICILES: Record<string, string[]> = {
+  sun: ["leo"],
+  moon: ["cancer"],
+  mercury: ["gemini", "virgo"],
+  venus: ["taurus", "libra"],
+  mars: ["aries", "scorpio"],
+  jupiter: ["sagittarius", "pisces"],
+  saturn: ["capricorn", "aquarius"],
+  uranus: ["aquarius"],
+  neptune: ["pisces"],
+  pluto: ["scorpio"]
+};
+
+const PLANET_EXALTATIONS: Record<string, string> = {
+  sun: "aries",
+  moon: "taurus",
+  mercury: "virgo",
+  venus: "pisces",
+  mars: "capricorn",
+  jupiter: "cancer",
+  saturn: "libra"
+};
+
+const OPPOSITE_SIGNS: Record<string, string> = {
+  aries: "libra",
+  taurus: "scorpio",
+  gemini: "sagittarius",
+  cancer: "capricorn",
+  leo: "aquarius",
+  virgo: "pisces",
+  libra: "aries",
+  scorpio: "taurus",
+  sagittarius: "gemini",
+  capricorn: "cancer",
+  aquarius: "leo",
+  pisces: "virgo"
 };
 
 const ASPECT_SCORE_WEIGHTS: Record<AspectType, number> = {
@@ -124,6 +171,11 @@ const TRANSIT_BODY_SCORE_WEIGHTS: Record<string, number> = {
   lilith: 0.55
 };
 
+const FORECAST_DEFAULT_DAYS = 90;
+const FORECAST_MAX_DAYS = 366;
+const FORECAST_EXACT_TRANSIT_BODY_KEYS = [...BODY_DEFINITIONS.map((body) => body.key), "south-node"];
+const EXACT_CROSSING_EPSILON = 0.00001;
+
 const normalizeLongitude = (longitude: number): number => ((longitude % 360) + 360) % 360;
 
 const round = (value: number, digits = 6): number => Number(value.toFixed(digits));
@@ -142,6 +194,33 @@ const cleanPointOrbs = (pointOrbs: PointOrbSettings | undefined): PointOrbSettin
   }
 
   return cleaned;
+};
+
+const buildBodyFlags = (settings: { zodiac: ZodiacType }): number =>
+  constants.SEFLG_SWIEPH | constants.SEFLG_SPEED | (settings.zodiac === "sidereal" ? constants.SEFLG_SIDEREAL : 0);
+
+const setEphemerisContext = ({
+  ephemerisPath,
+  settings,
+  warnings
+}: {
+  ephemerisPath?: string;
+  settings: { zodiac: ZodiacType; ayanamsa?: Ayanamsa };
+  warnings: CalculationWarning[];
+}): void => {
+  if (ephemerisPath) {
+    set_ephe_path(ephemerisPath);
+  } else {
+    addCalculationWarning(
+      warnings,
+      "EPHEMERIS_PATH_NOT_SET",
+      "SWISSEPH_EPHE_PATH is not set. Calculations may fall back to lower-precision Moshier ephemeris."
+    );
+  }
+
+  if (settings.zodiac === "sidereal") {
+    set_sid_mode(AYANAMSA_CODES[settings.ayanamsa ?? "lahiri"], 0, 0);
+  }
 };
 
 const shortestForwardArc = (start: number, end: number): number => normalizeLongitude(end - start);
@@ -342,6 +421,97 @@ const calculateHouseConnections = (houses: HouseCusp[], bodies: ChartPoint[], as
   return [...connectionMap.values()].sort((a, b) => b.total - a.total || a.fromHouse - b.fromHouse || a.toHouse - b.toHouse);
 };
 
+const dignityScore = (dignity: EssentialDignityType): number => {
+  switch (dignity) {
+    case "domicile":
+      return 5;
+    case "exaltation":
+      return 4;
+    case "detriment":
+      return -5;
+    case "fall":
+      return -4;
+    default:
+      return 0;
+  }
+};
+
+const dignityForPoint = (point: ChartPoint): EssentialDignityType => {
+  const domiciles = PLANET_DOMICILES[point.key] ?? [];
+  const exaltation = PLANET_EXALTATIONS[point.key];
+
+  if (domiciles.includes(point.sign)) {
+    return "domicile";
+  }
+
+  if (exaltation === point.sign) {
+    return "exaltation";
+  }
+
+  if (domiciles.some((sign) => OPPOSITE_SIGNS[sign] === point.sign)) {
+    return "detriment";
+  }
+
+  if (exaltation && OPPOSITE_SIGNS[exaltation] === point.sign) {
+    return "fall";
+  }
+
+  return "peregrine";
+};
+
+const buildDispositorChain = (point: ChartPoint, pointsByKey: Map<string, ChartPoint>): { chain: string[]; cycle: boolean } => {
+  const chain = [point.key];
+  const visited = new Set([point.key]);
+  let current = point;
+
+  for (let index = 0; index < 12; index += 1) {
+    const dispositorKey = SIGN_RULERS[current.sign]?.[0]?.key;
+
+    if (!dispositorKey) {
+      return { chain, cycle: false };
+    }
+
+    chain.push(dispositorKey);
+
+    if (visited.has(dispositorKey)) {
+      return { chain, cycle: true };
+    }
+
+    visited.add(dispositorKey);
+    const next = pointsByKey.get(dispositorKey);
+
+    if (!next) {
+      return { chain, cycle: false };
+    }
+
+    current = next;
+  }
+
+  return { chain, cycle: false };
+};
+
+const calculateEssentialDignities = (bodies: ChartPoint[]): EssentialDignity[] => {
+  const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
+
+  return bodies.map((body) => {
+    const dignity = dignityForPoint(body);
+    const dispositor = SIGN_RULERS[body.sign]?.[0];
+    const chain = buildDispositorChain(body, pointsByKey);
+
+    return {
+      pointKey: body.key,
+      pointLabel: body.label,
+      sign: body.sign,
+      dignity,
+      score: dignityScore(dignity),
+      dispositorKey: dispositor?.key,
+      dispositorLabel: dispositor?.label,
+      chain: chain.chain,
+      cycle: chain.cycle
+    };
+  });
+};
+
 const buildPoint = ({
   house,
   key,
@@ -391,6 +561,56 @@ const formatEphemerisBodyWarning = (bodyLabel: string, rawError: string): string
   }
 
   return `${bodyLabel}: ${trimmedError}`;
+};
+
+const pointLabelForKey = (pointKey: string): string => {
+  if (pointKey === "south-node") {
+    return "South Node";
+  }
+
+  return BODY_DEFINITION_BY_KEY.get(pointKey)?.label ?? pointKey;
+};
+
+const calculatePointPositionAt = ({
+  flags,
+  pointKey,
+  utc,
+  warnings
+}: {
+  flags: number;
+  pointKey: string;
+  utc: DateTime;
+  warnings: CalculationWarning[];
+}): { longitude: number; speed?: number } | null => {
+  const sourceKey = pointKey === "south-node" ? "north-node" : pointKey;
+  const body = BODY_DEFINITION_BY_KEY.get(sourceKey);
+
+  if (!body) {
+    return null;
+  }
+
+  const { jdEt } = buildJulianDate(utc);
+  const result: Calc = calc(jdEt, body.swephId, flags);
+
+  if (result.error) {
+    const fallback = result.flag >= 0 && result.data?.[0] !== undefined;
+    addCalculationWarning(
+      warnings,
+      fallback ? "EPHEMERIS_FALLBACK" : "BODY_UNAVAILABLE",
+      formatEphemerisBodyWarning(pointLabelForKey(pointKey), result.error)
+    );
+
+    if (!fallback) {
+      return null;
+    }
+  }
+
+  const longitude = pointKey === "south-node" ? normalizeLongitude(result.data[0] + 180) : result.data[0];
+
+  return {
+    longitude: normalizeLongitude(longitude),
+    speed: result.data[3]
+  };
 };
 
 const getMoonPhaseName = (phaseAngle: number): MoonPhase["name"] => {
@@ -468,6 +688,19 @@ const aspectStrength = (score: number): TransitAspectStrength => {
   }
 
   return "low";
+};
+
+const allowedOrbForExactTransitPair = (
+  type: AspectType,
+  transitPointKey: string,
+  natalPointKey: string,
+  pointOrbs: PointOrbSettings = {}
+): number => {
+  const fallbackOrb = DEFAULT_MAJOR_ASPECT_ORBS[type];
+  const transitOrb = pointOrbs[transitPointKey] ?? fallbackOrb;
+  const natalOrb = pointOrbs[natalPointKey] ?? fallbackOrb;
+
+  return Math.min(fallbackOrb, transitOrb, natalOrb);
 };
 
 const enrichTransitAspect = ({
@@ -739,6 +972,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
   const aspectAngles = angles.filter((angle) => angle.key === "asc" || angle.key === "mc");
   const aspects = calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs);
   const houseConnections = calculateHouseConnections(houses, bodies, aspects);
+  const essentialDignities = calculateEssentialDignities(bodies);
 
   return {
     chartType: "natal",
@@ -757,6 +991,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     angles,
     houses,
     houseConnections,
+    essentialDignities,
     bodies,
     aspects,
     warnings
@@ -830,6 +1065,8 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
     },
     angles: [],
     houses: [],
+    houseConnections: [],
+    essentialDignities: calculateEssentialDignities(bodies),
     bodies,
     aspects: calculateMajorAspects(bodies, undefined, settings.pointOrbs),
     warnings
@@ -899,6 +1136,607 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     transitToNatalAspects,
     weekAhead,
     warnings: [...natal.warnings, ...transit.warnings]
+  };
+};
+
+type LongitudeSample = {
+  utc: DateTime;
+  longitude: number;
+};
+
+const toUtcIso = (utc: DateTime): string => utc.toISO({ suppressMilliseconds: false }) ?? utc.toString();
+
+const clampForecastDays = (days: number | undefined): number => {
+  const normalizedDays = Number.isFinite(days) ? Math.trunc(days ?? FORECAST_DEFAULT_DAYS) : FORECAST_DEFAULT_DAYS;
+
+  return Math.max(1, Math.min(FORECAST_MAX_DAYS, normalizedDays));
+};
+
+const dateInYearForBirthDate = (birthDate: string, targetYear: number): DateTime => {
+  const parsedBirthDate = DateTime.fromISO(birthDate, { zone: "utc" });
+  const sourceDate = parsedBirthDate.isValid ? parsedBirthDate : DateTime.utc(targetYear, 1, 1);
+  const monthStart = DateTime.utc(targetYear, sourceDate.month, 1).startOf("day");
+  const day = Math.min(sourceDate.day, monthStart.daysInMonth ?? sourceDate.day);
+
+  return monthStart.set({ day, hour: 12, minute: 0, second: 0, millisecond: 0 });
+};
+
+const midpointDateTime = (start: DateTime, end: DateTime): DateTime =>
+  DateTime.fromMillis((start.toMillis() + end.toMillis()) / 2, { zone: "utc" });
+
+const longitudeDeltaAt = ({
+  flags,
+  pointKey,
+  targetLongitude,
+  utc,
+  warnings
+}: {
+  flags: number;
+  pointKey: string;
+  targetLongitude: number;
+  utc: DateTime;
+  warnings: CalculationWarning[];
+}): number | null => {
+  const position = calculatePointPositionAt({
+    flags,
+    pointKey,
+    utc,
+    warnings
+  });
+
+  return position ? signedAngularDistance(position.longitude, targetLongitude) : null;
+};
+
+const refineLongitudeCrossing = ({
+  end,
+  flags,
+  pointKey,
+  start,
+  targetLongitude,
+  warnings
+}: {
+  end: DateTime;
+  flags: number;
+  pointKey: string;
+  start: DateTime;
+  targetLongitude: number;
+  warnings: CalculationWarning[];
+}): DateTime | null => {
+  let left = start;
+  let right = end;
+  let leftDelta = longitudeDeltaAt({ flags, pointKey, targetLongitude, utc: left, warnings });
+  let rightDelta = longitudeDeltaAt({ flags, pointKey, targetLongitude, utc: right, warnings });
+
+  if (leftDelta === null || rightDelta === null) {
+    return null;
+  }
+
+  if (Math.abs(leftDelta) <= EXACT_CROSSING_EPSILON) {
+    return left;
+  }
+
+  if (Math.abs(rightDelta) <= EXACT_CROSSING_EPSILON) {
+    return right;
+  }
+
+  if (leftDelta * rightDelta > 0) {
+    return Math.abs(leftDelta) < Math.abs(rightDelta) ? left : right;
+  }
+
+  for (let index = 0; index < 42; index += 1) {
+    const mid = midpointDateTime(left, right);
+    const midDelta = longitudeDeltaAt({ flags, pointKey, targetLongitude, utc: mid, warnings });
+
+    if (midDelta === null) {
+      return null;
+    }
+
+    if (Math.abs(midDelta) <= EXACT_CROSSING_EPSILON || right.toMillis() - left.toMillis() <= 1000) {
+      return mid;
+    }
+
+    if (leftDelta * midDelta <= 0) {
+      right = mid;
+      rightDelta = midDelta;
+    } else {
+      left = mid;
+      leftDelta = midDelta;
+    }
+  }
+
+  return midpointDateTime(left, right);
+};
+
+const findBodyReturnTime = ({
+  end,
+  flags,
+  natalLongitude,
+  pointKey,
+  start,
+  stepHours,
+  warnings
+}: {
+  end: DateTime;
+  flags: number;
+  natalLongitude: number;
+  pointKey: "sun" | "moon";
+  start: DateTime;
+  stepHours: number;
+  warnings: CalculationWarning[];
+}): DateTime | null => {
+  let leftTime = start;
+  let leftDelta = longitudeDeltaAt({
+    flags,
+    pointKey,
+    targetLongitude: natalLongitude,
+    utc: leftTime,
+    warnings
+  });
+  let closest: { delta: number; utc: DateTime } | null = leftDelta === null ? null : { delta: Math.abs(leftDelta), utc: leftTime };
+
+  if (leftDelta === null) {
+    return null;
+  }
+
+  while (leftTime.toMillis() < end.toMillis()) {
+    const nextTime = DateTime.fromMillis(
+      Math.min(leftTime.plus({ hours: stepHours }).toMillis(), end.toMillis()),
+      { zone: "utc" }
+    );
+    const nextDelta = longitudeDeltaAt({
+      flags,
+      pointKey,
+      targetLongitude: natalLongitude,
+      utc: nextTime,
+      warnings
+    });
+
+    if (nextDelta === null) {
+      return null;
+    }
+
+    if (!closest || Math.abs(nextDelta) < closest.delta) {
+      closest = { delta: Math.abs(nextDelta), utc: nextTime };
+    }
+
+    const nearTarget = Math.min(Math.abs(leftDelta), Math.abs(nextDelta)) <= 20;
+
+    if (Math.abs(leftDelta) <= EXACT_CROSSING_EPSILON) {
+      return leftTime;
+    }
+
+    if (leftDelta * nextDelta <= 0 && nearTarget) {
+      return refineLongitudeCrossing({
+        end: nextTime,
+        flags,
+        pointKey,
+        start: leftTime,
+        targetLongitude: natalLongitude,
+        warnings
+      });
+    }
+
+    leftTime = nextTime;
+    leftDelta = nextDelta;
+  }
+
+  return closest && closest.delta <= 0.25 ? closest.utc : null;
+};
+
+const calculateReturnChartAt = ({
+  exactAt,
+  input,
+  natal,
+  pointOrbs
+}: {
+  exactAt: DateTime;
+  input: ForecastPreviewInput;
+  natal: ChartResult;
+  pointOrbs?: PointOrbSettings;
+}): ChartResult => {
+  const birthDate = exactAt.toISODate() ?? exactAt.toFormat("yyyy-MM-dd");
+  const birthTime = exactAt.toFormat("HH:mm:ss");
+  const chart = calculateNatalChart({
+    birthDate,
+    birthTime,
+    birthTimeKnown: true,
+    timezone: "UTC",
+    latitude: natal.subject.latitude,
+    longitude: natal.subject.longitude,
+    houseSystem: natal.settings.houseSystem,
+    zodiac: input.zodiac ?? natal.settings.zodiac,
+    ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
+    pointOrbs,
+    ephemerisPath: input.ephemerisPath
+  });
+
+  return {
+    ...chart,
+    chartType: "return"
+  };
+};
+
+const calculateReturnEvent = ({
+  end,
+  flags,
+  input,
+  kind,
+  natal,
+  natalPoint,
+  pointOrbs,
+  start,
+  stepHours,
+  warnings
+}: {
+  end: DateTime;
+  flags: number;
+  input: ForecastPreviewInput;
+  kind: ReturnEvent["kind"];
+  natal: ChartResult;
+  natalPoint: ChartPoint;
+  pointOrbs?: PointOrbSettings;
+  start: DateTime;
+  stepHours: number;
+  warnings: CalculationWarning[];
+}): ReturnEvent | null => {
+  const exactAt = findBodyReturnTime({
+    end,
+    flags,
+    natalLongitude: natalPoint.longitude,
+    pointKey: kind === "solar" ? "sun" : "moon",
+    start,
+    stepHours,
+    warnings
+  });
+
+  if (!exactAt) {
+    addCalculationWarning(
+      warnings,
+      kind === "solar" ? "SOLAR_RETURN_NOT_FOUND" : "LUNAR_RETURN_NOT_FOUND",
+      kind === "solar"
+        ? "Solar return exact time was not found inside the selected annual search window."
+        : "Lunar return exact time was not found inside the selected lunar search window."
+    );
+    return null;
+  }
+
+  const chart = calculateReturnChartAt({
+    exactAt,
+    input,
+    natal,
+    pointOrbs
+  });
+  const returnPoint = chart.bodies.find((point) => point.key === natalPoint.key);
+
+  return {
+    kind,
+    exactAt: toUtcIso(exactAt),
+    targetPointKey: natalPoint.key === "moon" ? "moon" : "sun",
+    natalLongitude: round(natalPoint.longitude, 4),
+    returnLongitude: round(returnPoint?.longitude ?? natalPoint.longitude, 4),
+    chart
+  };
+};
+
+const aspectTargetLongitudes = (natalLongitude: number, exactAngle: number): number[] => {
+  if (exactAngle === 0 || exactAngle === 180) {
+    return [normalizeLongitude(natalLongitude + exactAngle)];
+  }
+
+  return [normalizeLongitude(natalLongitude + exactAngle), normalizeLongitude(natalLongitude - exactAngle)];
+};
+
+const buildTransitLongitudeSamples = ({
+  end,
+  flags,
+  pointKey,
+  start,
+  stepHours,
+  warnings
+}: {
+  end: DateTime;
+  flags: number;
+  pointKey: string;
+  start: DateTime;
+  stepHours: number;
+  warnings: CalculationWarning[];
+}): LongitudeSample[] => {
+  const samples: LongitudeSample[] = [];
+  let cursor = start;
+
+  while (cursor.toMillis() <= end.toMillis()) {
+    const position = calculatePointPositionAt({
+      flags,
+      pointKey,
+      utc: cursor,
+      warnings
+    });
+
+    if (!position) {
+      return samples;
+    }
+
+    samples.push({
+      utc: cursor,
+      longitude: position.longitude
+    });
+
+    cursor = cursor.plus({ hours: stepHours });
+  }
+
+  const lastSample = samples[samples.length - 1];
+
+  if (lastSample && lastSample.utc.toMillis() < end.toMillis()) {
+    const position = calculatePointPositionAt({
+      flags,
+      pointKey,
+      utc: end,
+      warnings
+    });
+
+    if (position) {
+      samples.push({
+        utc: end,
+        longitude: position.longitude
+      });
+    }
+  }
+
+  return samples;
+};
+
+const buildExactTransitEvent = ({
+  baseDateTime,
+  exactAngle,
+  exactAt,
+  flags,
+  natalPoint,
+  pointOrbs,
+  transitPointKey,
+  type,
+  warnings
+}: {
+  baseDateTime: DateTime;
+  exactAngle: number;
+  exactAt: DateTime;
+  flags: number;
+  natalPoint: ChartPoint;
+  pointOrbs?: PointOrbSettings;
+  transitPointKey: string;
+  type: AspectType;
+  warnings: CalculationWarning[];
+}): ExactTransitEvent => {
+  const allowedOrb = allowedOrbForExactTransitPair(type, transitPointKey, natalPoint.key, pointOrbs);
+  const exactPosition = calculatePointPositionAt({
+    flags,
+    pointKey: transitPointKey,
+    utc: exactAt,
+    warnings
+  });
+  const speed = Math.abs(exactPosition?.speed ?? 0);
+  const durationDays = speed >= 0.0001 ? round((allowedOrb * 2) / speed, 2) : null;
+  const activeWindowIsReasonable = durationDays !== null && durationDays <= 1460;
+  const aspectWeight = ASPECT_SCORE_WEIGHTS[type] ?? 0.65;
+  const bodyWeight = TRANSIT_BODY_SCORE_WEIGHTS[transitPointKey] ?? 0.55;
+  const score = round((0.62 + aspectWeight * 0.23 + bodyWeight * 0.15) * 100, 1);
+
+  return {
+    bodyA: transitPointKey,
+    bodyB: natalPoint.key,
+    type,
+    exactAngle,
+    orb: 0,
+    phase: "exact",
+    exactAt: toUtcIso(exactAt),
+    daysToExact: round(exactAt.diff(baseDateTime, "days").days, 3),
+    activeFrom: activeWindowIsReasonable ? toUtcIso(exactAt.minus({ days: durationDays / 2 })) : null,
+    activeUntil: activeWindowIsReasonable ? toUtcIso(exactAt.plus({ days: durationDays / 2 })) : null,
+    durationDays: activeWindowIsReasonable ? durationDays : null,
+    score,
+    strength: aspectStrength(score),
+    transitPointLabel: pointLabelForKey(transitPointKey),
+    natalPointLabel: natalPoint.label,
+    natalHouse: natalPoint.house
+  };
+};
+
+const calculateExactTransitEvents = ({
+  baseDateTime,
+  days,
+  flags,
+  natal,
+  pointOrbs,
+  warnings
+}: {
+  baseDateTime: DateTime;
+  days: number;
+  flags: number;
+  natal: ChartResult;
+  pointOrbs?: PointOrbSettings;
+  warnings: CalculationWarning[];
+}): ExactTransitEvent[] => {
+  const events: ExactTransitEvent[] = [];
+  const eventKeys = new Set<string>();
+  const windowEnd = baseDateTime.plus({ days });
+  const natalPoints = [...natal.angles, ...natal.bodies];
+
+  for (const transitPointKey of FORECAST_EXACT_TRANSIT_BODY_KEYS) {
+    const samples = buildTransitLongitudeSamples({
+      end: windowEnd,
+      flags,
+      pointKey: transitPointKey,
+      start: baseDateTime,
+      stepHours: transitPointKey === "moon" ? 3 : 12,
+      warnings
+    });
+
+    if (samples.length < 2) {
+      continue;
+    }
+
+    for (const natalPoint of natalPoints) {
+      for (const [type, exactAngle] of Object.entries(MAJOR_ASPECT_ANGLES) as Array<[AspectType, number]>) {
+        for (const targetLongitude of aspectTargetLongitudes(natalPoint.longitude, exactAngle)) {
+          for (let index = 0; index < samples.length - 1; index += 1) {
+            const left = samples[index];
+            const right = samples[index + 1];
+
+            if (!left || !right) {
+              continue;
+            }
+
+            const leftDelta = signedAngularDistance(left.longitude, targetLongitude);
+            const rightDelta = signedAngularDistance(right.longitude, targetLongitude);
+            const nearTarget = Math.min(Math.abs(leftDelta), Math.abs(rightDelta)) <= 20;
+            const crossesTarget = leftDelta * rightDelta <= 0 && nearTarget;
+
+            if (!crossesTarget && Math.abs(leftDelta) > EXACT_CROSSING_EPSILON) {
+              continue;
+            }
+
+            const exactAt =
+              Math.abs(leftDelta) <= EXACT_CROSSING_EPSILON
+                ? left.utc
+                : Math.abs(rightDelta) <= EXACT_CROSSING_EPSILON
+                  ? right.utc
+                  : refineLongitudeCrossing({
+                      end: right.utc,
+                      flags,
+                      pointKey: transitPointKey,
+                      start: left.utc,
+                      targetLongitude,
+                      warnings
+                    });
+
+            if (
+              !exactAt ||
+              exactAt.toMillis() < baseDateTime.toMillis() ||
+              exactAt.toMillis() > windowEnd.toMillis()
+            ) {
+              continue;
+            }
+
+            const eventKey = `${transitPointKey}-${natalPoint.key}-${type}-${Math.round(exactAt.toMillis() / 60000)}`;
+
+            if (eventKeys.has(eventKey)) {
+              continue;
+            }
+
+            eventKeys.add(eventKey);
+            events.push(
+              buildExactTransitEvent({
+                baseDateTime,
+                exactAngle,
+                exactAt,
+                flags,
+                natalPoint,
+                pointOrbs,
+                transitPointKey,
+                type,
+                warnings
+              })
+            );
+          }
+        }
+      }
+    }
+  }
+
+  return events.sort(
+    (a, b) =>
+      new Date(a.exactAt ?? 0).getTime() - new Date(b.exactAt ?? 0).getTime() ||
+      b.score - a.score ||
+      a.bodyA.localeCompare(b.bodyA)
+  );
+};
+
+const addReturnChartWarnings = (
+  warnings: CalculationWarning[],
+  returnEvent: ReturnEvent | null,
+  prefix: "SOLAR" | "LUNAR"
+): void => {
+  for (const warning of returnEvent?.chart.warnings ?? []) {
+    addCalculationWarning(warnings, `${prefix}_${warning.code}`, `${prefix === "SOLAR" ? "Solar" : "Lunar"} return: ${warning.message}`);
+  }
+};
+
+export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastPreviewResult => {
+  const baseDateTime = parseTransitDateTime(input.fromDateTime);
+  const requestedPointOrbs = cleanPointOrbs(input.pointOrbs);
+  const natal = calculateNatalChart({
+    ...input.natal,
+    zodiac: input.zodiac ?? input.natal.zodiac,
+    ayanamsa: input.ayanamsa ?? input.natal.ayanamsa,
+    pointOrbs: requestedPointOrbs ?? input.natal.pointOrbs,
+    ephemerisPath: input.ephemerisPath
+  });
+  const forecastPointOrbs = requestedPointOrbs ?? natal.settings.pointOrbs;
+  const settings = {
+    zodiac: input.zodiac ?? natal.settings.zodiac,
+    ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa
+  };
+  const warnings: CalculationWarning[] = [...natal.warnings];
+  const targetYear = Math.max(1900, Math.min(2100, Math.trunc(input.targetYear ?? baseDateTime.year)));
+  const days = clampForecastDays(input.days);
+
+  setEphemerisContext({
+    ephemerisPath: input.ephemerisPath,
+    settings,
+    warnings
+  });
+
+  const flags = buildBodyFlags(settings);
+  const natalSun = natal.bodies.find((body) => body.key === "sun") ?? null;
+  const natalMoon = natal.bodies.find((body) => body.key === "moon") ?? null;
+  const solarAnchor = dateInYearForBirthDate(input.natal.birthDate, targetYear);
+  const solarReturn = natalSun
+    ? calculateReturnEvent({
+        end: solarAnchor.plus({ days: 8 }),
+        flags,
+        input,
+        kind: "solar",
+        natal,
+        natalPoint: natalSun,
+        pointOrbs: forecastPointOrbs,
+        start: solarAnchor.minus({ days: 8 }),
+        stepHours: 6,
+        warnings
+      })
+    : null;
+  const lunarReturn = natalMoon
+    ? calculateReturnEvent({
+        end: baseDateTime.plus({ days: 32 }),
+        flags,
+        input,
+        kind: "lunar",
+        natal,
+        natalPoint: natalMoon,
+        pointOrbs: forecastPointOrbs,
+        start: baseDateTime,
+        stepHours: 3,
+        warnings
+      })
+    : null;
+  const exactTransits = calculateExactTransitEvents({
+    baseDateTime,
+    days,
+    flags,
+    natal,
+    pointOrbs: forecastPointOrbs,
+    warnings
+  });
+
+  addReturnChartWarnings(warnings, solarReturn, "SOLAR");
+  addReturnChartWarnings(warnings, lunarReturn, "LUNAR");
+
+  return {
+    chartType: "forecast",
+    generatedAt: new Date().toISOString(),
+    natal,
+    solarReturn,
+    lunarReturn,
+    exactTransits,
+    warnings
   };
 };
 

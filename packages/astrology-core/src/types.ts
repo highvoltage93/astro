@@ -68,6 +68,20 @@ export type HouseConnection = {
   details: HouseConnectionDetail[];
 };
 
+export type EssentialDignityType = "domicile" | "exaltation" | "detriment" | "fall" | "peregrine";
+
+export type EssentialDignity = {
+  pointKey: string;
+  pointLabel: string;
+  sign: string;
+  dignity: EssentialDignityType;
+  score: number;
+  dispositorKey?: string;
+  dispositorLabel?: string;
+  chain: string[];
+  cycle: boolean;
+};
+
 export type PointOrbSettings = Partial<Record<string, number>>;
 
 export type TransitAspectPhase = "applying" | "separating" | "exact" | "stationary";
@@ -116,6 +130,7 @@ export type ChartResult = {
   angles: ChartPoint[];
   houses: HouseCusp[];
   houseConnections?: HouseConnection[];
+  essentialDignities?: EssentialDignity[];
   bodies: ChartPoint[];
   aspects: Aspect[];
   warnings: CalculationWarning[];
@@ -157,6 +172,34 @@ export type TransitPreviewInput = {
   ephemerisPath?: string;
 };
 
+export type ReturnKind = "solar" | "lunar";
+
+export type ReturnEvent = {
+  kind: ReturnKind;
+  exactAt: string;
+  targetPointKey: "sun" | "moon";
+  natalLongitude: number;
+  returnLongitude: number;
+  chart: ChartResult;
+};
+
+export type ExactTransitEvent = TransitAspect & {
+  transitPointLabel: string;
+  natalPointLabel: string;
+  natalHouse?: number;
+};
+
+export type ForecastPreviewInput = {
+  natal: NatalPreviewInput;
+  fromDateTime: string;
+  targetYear?: number;
+  days?: number;
+  zodiac?: ZodiacType;
+  ayanamsa?: Ayanamsa;
+  pointOrbs?: PointOrbSettings;
+  ephemerisPath?: string;
+};
+
 export type MoonPhaseName =
   | "new"
   | "waxing-crescent"
@@ -191,6 +234,16 @@ export type TransitPreviewResult = {
   transitHousePlacements: ChartPoint[];
   transitToNatalAspects: TransitAspect[];
   weekAhead: TransitDayForecast[];
+  warnings: CalculationWarning[];
+};
+
+export type ForecastPreviewResult = {
+  chartType: "forecast";
+  generatedAt: string;
+  natal: ChartResult;
+  solarReturn: ReturnEvent | null;
+  lunarReturn: ReturnEvent | null;
+  exactTransits: ExactTransitEvent[];
   warnings: CalculationWarning[];
 };
 

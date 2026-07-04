@@ -45,6 +45,18 @@ export type HouseConnection = {
   details: HouseConnectionDetail[];
 };
 
+export type EssentialDignity = {
+  pointKey: string;
+  pointLabel: string;
+  sign: string;
+  dignity: "domicile" | "exaltation" | "detriment" | "fall" | "peregrine";
+  score: number;
+  dispositorKey?: string;
+  dispositorLabel?: string;
+  chain: string[];
+  cycle: boolean;
+};
+
 export type TransitAspect = Aspect & {
   phase: "applying" | "separating" | "exact" | "stationary";
   exactAt: string | null;
@@ -77,6 +89,7 @@ export type ChartResult = {
   angles: ChartPoint[];
   houses: HouseCusp[];
   houseConnections?: HouseConnection[];
+  essentialDignities?: EssentialDignity[];
   bodies: ChartPoint[];
   aspects: Aspect[];
   warnings: Array<{
@@ -100,6 +113,15 @@ export type NatalPreviewPayload = {
 export type TransitPreviewPayload = {
   transitDateTime: string;
   natal: NatalPreviewPayload;
+  zodiac?: "tropical" | "sidereal";
+  pointOrbs?: Record<string, number>;
+};
+
+export type ForecastPreviewPayload = {
+  fromDateTime: string;
+  natal: NatalPreviewPayload;
+  targetYear?: number;
+  days?: number;
   zodiac?: "tropical" | "sidereal";
   pointOrbs?: Record<string, number>;
 };
@@ -145,6 +167,34 @@ export type TransitPreviewResult = {
   transitHousePlacements: ChartPoint[];
   transitToNatalAspects: TransitAspect[];
   weekAhead: TransitDayForecast[];
+  warnings: Array<{
+    code: string;
+    message: string;
+  }>;
+};
+
+export type ReturnEvent = {
+  kind: "solar" | "lunar";
+  exactAt: string;
+  targetPointKey: "sun" | "moon";
+  natalLongitude: number;
+  returnLongitude: number;
+  chart: ChartResult;
+};
+
+export type ExactTransitEvent = TransitAspect & {
+  transitPointLabel: string;
+  natalPointLabel: string;
+  natalHouse?: number;
+};
+
+export type ForecastPreviewResult = {
+  chartType: "forecast";
+  generatedAt: string;
+  natal: ChartResult;
+  solarReturn: ReturnEvent | null;
+  lunarReturn: ReturnEvent | null;
+  exactTransits: ExactTransitEvent[];
   warnings: Array<{
     code: string;
     message: string;

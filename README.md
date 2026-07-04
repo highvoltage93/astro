@@ -80,13 +80,15 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - Birthplace search endpoint backed by Open-Meteo Geocoding.
 - Natal chart preview contract backed by the first Swiss Ephemeris adapter.
 - Transit preview contract for current-sky positions, Moon phase, transit planets in natal houses, scored transit-to-natal aspects, approximate exact times, active windows, and a 7 day outlook.
+- Forecast preview contract for solar return, next lunar return, and exact major transit dates over a selected consultation window.
 - Synastry preview contract for two natal charts with planet-to-planet inter-chart aspects, an overlay chart, and a compact relationship aspect summary.
 - Per-point orb settings for natal and transit aspect filtering.
 - House ruler connections for professional "house-to-house" analysis.
+- Essential dignities and dispositor chains for professional planet condition analysis.
 - Natal interpretation preview endpoint backed by seed content for Sun, Moon, Ascendant, and exact aspects.
 - Birth profile persistence endpoint backed by Prisma.
 - Recent saved birth profiles list with detail loading and deletion for the MVP workspace.
-- First shadcn/ui product workspace for birth data intake, interactive chart preview, saving, orb tuning, point visibility, professional data tables, house connections, transit preview, and synastry preview.
+- First shadcn/ui product workspace for birth data intake, interactive chart preview, saving, orb tuning, point visibility, professional data tables, house connections, dignities/dispositors, forecast returns, exact transit dates, transit preview, and synastry preview.
 
 ## Licensing Note
 
