@@ -34,7 +34,7 @@ export type HouseCusp = {
   signDegree: number;
 };
 
-export type RulerType = "modern" | "traditional";
+export type RulerType = "direct" | "retrograde";
 
 export type PlanetMotion = "direct" | "retrograde" | "stationary";
 
@@ -52,8 +52,8 @@ export type PlanetRulership = {
   pointKey: string;
   pointLabel: string;
   houses: number[];
-  modernHouses: number[];
-  traditionalHouses: number[];
+  directHouses: number[];
+  retrogradeHouses: number[];
 };
 
 export type BalanceScore = {

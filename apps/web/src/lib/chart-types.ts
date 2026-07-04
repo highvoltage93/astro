@@ -22,7 +22,7 @@ export type HouseRuler = {
   sign: string;
   rulerKey: string;
   rulerLabel: string;
-  rulerType: "modern" | "traditional";
+  rulerType: "direct" | "retrograde";
   rulerHouse?: number;
   motion?: "direct" | "retrograde" | "stationary";
 };
@@ -31,8 +31,8 @@ export type PlanetRulership = {
   pointKey: string;
   pointLabel: string;
   houses: number[];
-  modernHouses: number[];
-  traditionalHouses: number[];
+  directHouses: number[];
+  retrogradeHouses: number[];
 };
 
 export type BalanceScore = {

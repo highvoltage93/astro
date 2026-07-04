@@ -34,7 +34,7 @@ const normalizeBirthTime = (birthTime: string): string =>
 export const createNatalPreview = (input: NatalPreviewInput): ChartResult => {
   const settings = {
     zodiac: input.zodiac ?? "tropical",
-    houseSystem: input.houseSystem ?? "placidus"
+    houseSystem: input.houseSystem ?? "koch"
   };
 
   const bodies = [

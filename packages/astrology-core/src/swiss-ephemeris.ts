@@ -96,26 +96,35 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
 const BODY_DEFINITION_BY_KEY = new Map(BODY_DEFINITIONS.map((body) => [body.key, body]));
 
 const SIGN_RULERS: Record<string, SignRulerDefinition[]> = {
-  aries: [{ key: "mars", label: "Mars", rulerType: "modern" }],
-  taurus: [{ key: "venus", label: "Venus", rulerType: "modern" }],
-  gemini: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
-  cancer: [{ key: "moon", label: "Moon", rulerType: "modern" }],
-  leo: [{ key: "sun", label: "Sun", rulerType: "modern" }],
-  virgo: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
-  libra: [{ key: "venus", label: "Venus", rulerType: "modern" }],
-  scorpio: [
-    { key: "pluto", label: "Pluto", rulerType: "modern" },
-    { key: "mars", label: "Mars", rulerType: "traditional" }
+  aries: [
+    { key: "mars", label: "Mars", rulerType: "direct" },
+    { key: "pluto", label: "Pluto", rulerType: "retrograde" }
   ],
-  sagittarius: [{ key: "jupiter", label: "Jupiter", rulerType: "modern" }],
-  capricorn: [{ key: "saturn", label: "Saturn", rulerType: "modern" }],
+  taurus: [{ key: "venus", label: "Venus", rulerType: "direct" }],
+  gemini: [{ key: "mercury", label: "Mercury", rulerType: "direct" }],
+  cancer: [{ key: "moon", label: "Moon", rulerType: "direct" }],
+  leo: [{ key: "sun", label: "Sun", rulerType: "direct" }],
+  virgo: [{ key: "mercury", label: "Mercury", rulerType: "direct" }],
+  libra: [{ key: "venus", label: "Venus", rulerType: "direct" }],
+  scorpio: [
+    { key: "pluto", label: "Pluto", rulerType: "direct" },
+    { key: "mars", label: "Mars", rulerType: "retrograde" }
+  ],
+  sagittarius: [
+    { key: "jupiter", label: "Jupiter", rulerType: "direct" },
+    { key: "neptune", label: "Neptune", rulerType: "retrograde" }
+  ],
+  capricorn: [
+    { key: "saturn", label: "Saturn", rulerType: "direct" },
+    { key: "uranus", label: "Uranus", rulerType: "retrograde" }
+  ],
   aquarius: [
-    { key: "uranus", label: "Uranus", rulerType: "modern" },
-    { key: "saturn", label: "Saturn", rulerType: "traditional" }
+    { key: "uranus", label: "Uranus", rulerType: "direct" },
+    { key: "saturn", label: "Saturn", rulerType: "retrograde" }
   ],
   pisces: [
-    { key: "neptune", label: "Neptune", rulerType: "modern" },
-    { key: "jupiter", label: "Jupiter", rulerType: "traditional" }
+    { key: "neptune", label: "Neptune", rulerType: "direct" },
+    { key: "jupiter", label: "Jupiter", rulerType: "retrograde" }
   ]
 };
 
@@ -438,8 +447,8 @@ const calculatePlanetRulerships = (houseRulers: HouseRuler[], bodies: ChartPoint
       pointKey,
       pointLabel,
       houses: [],
-      modernHouses: [],
-      traditionalHouses: []
+      directHouses: [],
+      retrogradeHouses: []
     };
 
     rulershipsByPlanet.set(pointKey, created);
@@ -455,10 +464,10 @@ const calculatePlanetRulerships = (houseRulers: HouseRuler[], bodies: ChartPoint
 
     rulership.houses.push(houseRuler.house);
 
-    if (houseRuler.rulerType === "modern") {
-      rulership.modernHouses.push(houseRuler.house);
+    if (houseRuler.rulerType === "direct") {
+      rulership.directHouses.push(houseRuler.house);
     } else {
-      rulership.traditionalHouses.push(houseRuler.house);
+      rulership.retrogradeHouses.push(houseRuler.house);
     }
   }
 
@@ -466,8 +475,8 @@ const calculatePlanetRulerships = (houseRulers: HouseRuler[], bodies: ChartPoint
     .map((rulership) => ({
       ...rulership,
       houses: [...new Set(rulership.houses)].sort((a, b) => a - b),
-      modernHouses: [...new Set(rulership.modernHouses)].sort((a, b) => a - b),
-      traditionalHouses: [...new Set(rulership.traditionalHouses)].sort((a, b) => a - b)
+      directHouses: [...new Set(rulership.directHouses)].sort((a, b) => a - b),
+      retrogradeHouses: [...new Set(rulership.retrogradeHouses)].sort((a, b) => a - b)
     }))
     .sort((a, b) => a.pointLabel.localeCompare(b.pointLabel));
 };
@@ -1054,7 +1063,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
   const settings = {
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
-    houseSystem: input.houseSystem ?? "placidus",
+    houseSystem: input.houseSystem ?? "koch",
     pointOrbs: cleanPointOrbs(input.pointOrbs)
   };
 
@@ -1204,7 +1213,7 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
   const settings = {
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
-    houseSystem: input.houseSystem ?? "placidus",
+    houseSystem: input.houseSystem ?? "koch",
     pointOrbs: cleanPointOrbs(input.pointOrbs)
   };
 

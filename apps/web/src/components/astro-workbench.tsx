@@ -84,7 +84,7 @@ const initialForm: FormState = {
   latitude: "50.4501",
   longitude: "30.5234",
   timezone: "Europe/Kyiv",
-  houseSystem: "placidus",
+  houseSystem: "koch",
   zodiac: "tropical"
 };
 
@@ -98,15 +98,15 @@ const initialPartnerForm: FormState = {
   latitude: "49.8397",
   longitude: "24.0297",
   timezone: "Europe/Kyiv",
-  houseSystem: "placidus",
+  houseSystem: "koch",
   zodiac: "tropical"
 };
 
 const houseSystems = [
+  ["koch", "Koch"],
   ["placidus", "Placidus"],
   ["whole-sign", "Whole Sign"],
   ["equal", "Equal"],
-  ["koch", "Koch"],
   ["campanus", "Campanus"],
   ["regiomontanus", "Regiomontanus"],
   ["porphyry", "Porphyry"]
@@ -229,33 +229,42 @@ const zodiacSignMetaByKey: Record<string, (typeof zodiacSigns)[number]> = Object
   zodiacSigns.map((sign) => [sign.key, sign])
 ) as Record<string, (typeof zodiacSigns)[number]>;
 
-const signRulers: Record<string, Array<{ key: string; label: string; rulerType: "modern" | "traditional" }>> = {
-  aries: [{ key: "mars", label: "Mars", rulerType: "modern" }],
-  taurus: [{ key: "venus", label: "Venus", rulerType: "modern" }],
-  gemini: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
-  cancer: [{ key: "moon", label: "Moon", rulerType: "modern" }],
-  leo: [{ key: "sun", label: "Sun", rulerType: "modern" }],
-  virgo: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
-  libra: [{ key: "venus", label: "Venus", rulerType: "modern" }],
-  scorpio: [
-    { key: "pluto", label: "Pluto", rulerType: "modern" },
-    { key: "mars", label: "Mars", rulerType: "traditional" }
+const signRulers: Record<string, Array<{ key: string; label: string; rulerType: "direct" | "retrograde" }>> = {
+  aries: [
+    { key: "mars", label: "Mars", rulerType: "direct" },
+    { key: "pluto", label: "Pluto", rulerType: "retrograde" }
   ],
-  sagittarius: [{ key: "jupiter", label: "Jupiter", rulerType: "modern" }],
-  capricorn: [{ key: "saturn", label: "Saturn", rulerType: "modern" }],
+  taurus: [{ key: "venus", label: "Venus", rulerType: "direct" }],
+  gemini: [{ key: "mercury", label: "Mercury", rulerType: "direct" }],
+  cancer: [{ key: "moon", label: "Moon", rulerType: "direct" }],
+  leo: [{ key: "sun", label: "Sun", rulerType: "direct" }],
+  virgo: [{ key: "mercury", label: "Mercury", rulerType: "direct" }],
+  libra: [{ key: "venus", label: "Venus", rulerType: "direct" }],
+  scorpio: [
+    { key: "pluto", label: "Pluto", rulerType: "direct" },
+    { key: "mars", label: "Mars", rulerType: "retrograde" }
+  ],
+  sagittarius: [
+    { key: "jupiter", label: "Jupiter", rulerType: "direct" },
+    { key: "neptune", label: "Neptune", rulerType: "retrograde" }
+  ],
+  capricorn: [
+    { key: "saturn", label: "Saturn", rulerType: "direct" },
+    { key: "uranus", label: "Uranus", rulerType: "retrograde" }
+  ],
   aquarius: [
-    { key: "uranus", label: "Uranus", rulerType: "modern" },
-    { key: "saturn", label: "Saturn", rulerType: "traditional" }
+    { key: "uranus", label: "Uranus", rulerType: "direct" },
+    { key: "saturn", label: "Saturn", rulerType: "retrograde" }
   ],
   pisces: [
-    { key: "neptune", label: "Neptune", rulerType: "modern" },
-    { key: "jupiter", label: "Jupiter", rulerType: "traditional" }
+    { key: "neptune", label: "Neptune", rulerType: "direct" },
+    { key: "jupiter", label: "Jupiter", rulerType: "retrograde" }
   ]
 };
 
 const rulerTypeLabelsUk: Record<string, string> = {
-  modern: "сучасний",
-  traditional: "традиційний"
+  direct: "директний",
+  retrograde: "ретроградний"
 };
 
 const motionLabelsUk: Record<string, string> = {
@@ -363,6 +372,30 @@ const toDateTimeLocalValue = (date: Date): string => {
 
 const normalizeDegrees = (degrees: number): number => ((degrees % 360) + 360) % 360;
 
+const formatZodiacDegree = (degree: number, includeSeconds = true): string => {
+  const normalized = Math.max(0, degree);
+  let wholeDegrees = Math.floor(normalized);
+  let minutes = Math.floor((normalized - wholeDegrees) * 60);
+  let seconds = Math.round((((normalized - wholeDegrees) * 60) - minutes) * 60);
+
+  if (seconds >= 60) {
+    seconds = 0;
+    minutes += 1;
+  }
+
+  if (minutes >= 60) {
+    minutes = 0;
+    wholeDegrees += 1;
+  }
+
+  const paddedMinutes = String(minutes).padStart(2, "0");
+  const paddedSeconds = String(seconds).padStart(2, "0");
+
+  return includeSeconds
+    ? `${wholeDegrees}°${paddedMinutes}′${paddedSeconds}″`
+    : `${wholeDegrees}°${paddedMinutes}′`;
+};
+
 const formatMoonPhase = (phase: MoonPhase | null): string =>
   phase ? `${moonPhaseLabelsUk[phase.name] ?? phase.name} · ${Math.round(phase.illuminatedFraction * 100)}%` : "n/a";
 
@@ -449,20 +482,18 @@ const formatPointTooltip = (point: ChartPoint, chart?: ChartResult | null): stri
   const speed = point.speed === undefined ? "" : `\nШвидкість: ${point.speed.toFixed(4)}°/день`;
   const ruledHouses = formatHouseList(getRuledHouseNumbers(chart, point.key));
 
-  return `${point.label}\nЗнак: ${signLabelsUk[point.sign] ?? point.sign}\nГрадус знака: ${point.signDegree.toFixed(
-    2
-  )}°\nАбсолютна довгота: ${point.longitude.toFixed(2)}°\n${house}\nПравить домами: ${ruledHouses}${speed}`;
+  return `${point.label}\nЗнак: ${signLabelsUk[point.sign] ?? point.sign}\nГрадус знака: ${formatZodiacDegree(
+    point.signDegree
+  )}\nАбсолютна довгота: ${point.longitude.toFixed(4)}°\n${house}\nПравить домами: ${ruledHouses}${speed}`;
 };
 
 const formatSignTooltip = (sign: (typeof zodiacSigns)[number], chart?: ChartResult | null): string => {
   const pointsByKey = new Map(chart?.bodies.map((point) => [point.key, point]) ?? []);
   const rulers = signRulers[sign.key] ?? [];
-  const directRulers = rulers.filter((ruler) => motionLabelForPoint(pointsByKey.get(ruler.key)) !== motionLabelsUk.retrograde);
-  const retrogradeRulers = rulers.filter((ruler) => motionLabelForPoint(pointsByKey.get(ruler.key)) === motionLabelsUk.retrograde);
+  const directRulers = rulers.filter((ruler) => ruler.rulerType === "direct");
+  const retrogradeRulers = rulers.filter((ruler) => ruler.rulerType === "retrograde");
   const formatRuler = (ruler: (typeof rulers)[number]): string =>
-    `${planetGlyphs[ruler.key] ?? ""} ${ruler.label} (${rulerTypeLabelsUk[ruler.rulerType]}, ${motionLabelForPoint(
-      pointsByKey.get(ruler.key)
-    )})`;
+    `${planetGlyphs[ruler.key] ?? ""} ${ruler.label} (${motionLabelForPoint(pointsByKey.get(ruler.key))})`;
 
   return [
     sign.label,
@@ -495,7 +526,7 @@ const formatPointPosition = (point: ChartPoint | null): string => {
 
   const house = point.house ? ` · ${point.house} дім` : "";
 
-  return `${signLabelsUk[point.sign] ?? point.sign} ${point.signDegree.toFixed(2)}°${house}`;
+  return `${signLabelsUk[point.sign] ?? point.sign} ${formatZodiacDegree(point.signDegree)}${house}`;
 };
 
 export function AstroWorkbench() {
@@ -817,7 +848,7 @@ export function AstroWorkbench() {
         latitude: String(detailedProfile.latitude),
         longitude: String(detailedProfile.longitude),
         timezone: detailedProfile.timezone,
-        houseSystem: detailedProfile.latestCalculation?.houseSystem ?? "placidus",
+        houseSystem: detailedProfile.latestCalculation?.houseSystem ?? "koch",
         zodiac: detailedProfile.latestCalculation?.zodiacType ?? "tropical"
       });
       setPointOrbs(calculation?.result.settings.pointOrbs ?? defaultPointOrbs);
@@ -1101,7 +1132,7 @@ export function AstroWorkbench() {
               <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                 <div className="space-y-1">
                   <CardDescription className="font-semibold uppercase text-primary">
-                    {chart?.settings.houseSystem ?? "placidus"}
+                    {chart?.settings.houseSystem ?? "koch"}
                   </CardDescription>
                   <CardTitle>{form.displayName}</CardTitle>
                 </div>
@@ -1889,7 +1920,7 @@ function TransitForecastCard({
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Місяць зараз</p>
                 <p className="mt-1 text-sm font-medium">
-                  {moon ? `${signLabelsUk[moon.sign] ?? moon.sign} ${moon.signDegree.toFixed(2)}°` : "n/a"}
+                  {moon ? `${signLabelsUk[moon.sign] ?? moon.sign} ${formatZodiacDegree(moon.signDegree)}` : "n/a"}
                 </p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
@@ -1997,7 +2028,7 @@ function TransitForecastCard({
                         <p className="text-sm font-semibold">{day.date}</p>
                         <Badge variant="secondary">
                           {day.moon
-                            ? `${signLabelsUk[day.moon.sign] ?? day.moon.sign} ${day.moon.signDegree.toFixed(1)}°${
+                            ? `${signLabelsUk[day.moon.sign] ?? day.moon.sign} ${formatZodiacDegree(day.moon.signDegree, false)}${
                                 day.moon.house ? ` · ${day.moon.house} дім` : ""
                               }`
                             : "Moon n/a"}
@@ -2679,7 +2710,7 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
                     {placement.label}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {signLabelsUk[placement.sign] ?? placement.sign} {placement.signDegree.toFixed(2)}°
+                    {signLabelsUk[placement.sign] ?? placement.sign} {formatZodiacDegree(placement.signDegree)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{placement.house ?? "n/a"}</TableCell>
                   <TableCell className="text-muted-foreground">{formatMotion(placement)}</TableCell>
@@ -2714,8 +2745,8 @@ function PlanetRulershipsTable({ chart }: { chart: ChartResult | null }) {
             <TableRow>
               <TableHead>Планета</TableHead>
               <TableHead>Доми</TableHead>
-              <TableHead>Сучасні</TableHead>
-              <TableHead>Традиц.</TableHead>
+              <TableHead>Директні</TableHead>
+              <TableHead>Ретроградні</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -2729,8 +2760,8 @@ function PlanetRulershipsTable({ chart }: { chart: ChartResult | null }) {
                     {rulership.pointLabel}
                   </TableCell>
                   <TableCell className="font-semibold text-foreground">({formatHouseList(rulership.houses)})</TableCell>
-                  <TableCell className="text-muted-foreground">{formatHouseList(rulership.modernHouses)}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatHouseList(rulership.traditionalHouses)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatHouseList(rulership.directHouses)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatHouseList(rulership.retrogradeHouses)}</TableCell>
                 </TableRow>
               ))
             ) : (
@@ -2820,7 +2851,7 @@ function HousesTable({ chart }: { chart: ChartResult | null }) {
                 <TableRow key={house.house}>
                   <TableCell className="font-medium">{house.house}</TableCell>
                   <TableCell className="text-muted-foreground">
-                    {signLabelsUk[house.sign] ?? house.sign} {house.signDegree.toFixed(2)}°
+                    {signLabelsUk[house.sign] ?? house.sign} {formatZodiacDegree(house.signDegree)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{houseTopicsUk[house.house] ?? "n/a"}</TableCell>
                 </TableRow>

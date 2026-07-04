@@ -27,7 +27,7 @@ const createBirthProfileSchema = z.object({
   timezone: z.string().min(1),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
-  houseSystem: z.enum(houseSystemValues).default("placidus"),
+  houseSystem: z.enum(houseSystemValues).default("koch"),
   zodiac: z.enum(["tropical", "sidereal"]).default("tropical"),
   pointOrbs: z.record(z.number().min(0).max(15)).optional()
 });
