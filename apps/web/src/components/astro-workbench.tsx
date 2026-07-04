@@ -2384,8 +2384,6 @@ function SynastryOverlayWheel({
             ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
             : cusp.longitude;
           const label = toXY(houseCenterLongitude, subjectAHouseLabelRadius);
-          const isAngularHouse = cusp.house === 1 || cusp.house === 4 || cusp.house === 7 || cusp.house === 10;
-
           return (
             <g key={`syn-house-${cusp.house}`}>
               <line
@@ -2393,12 +2391,12 @@ function SynastryOverlayWheel({
                 y1={start.y}
                 x2={end.x}
                 y2={end.y}
-                className={cn("stroke-[0.9]", isAngularHouse ? "stroke-primary" : "stroke-border")}
+                className="stroke-astro-coral stroke-[1]"
               />
               <text
                 x={label.x}
                 y={label.y}
-                className="fill-primary text-[9px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
+                className="fill-astro-coral text-[9px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
               >
                 {cusp.house}
               </text>
@@ -2444,11 +2442,11 @@ function SynastryOverlayWheel({
           return (
             <g key={`syn-sign-${signMeta?.key ?? index}`}>
               {signMeta ? <title>{formatSignTooltip(signMeta, preview.subjectA)}</title> : null}
-              <line x1={divider.x} y1={divider.y} x2={dividerEnd.x} y2={dividerEnd.y} className="stroke-border stroke-[1]" />
+              <line x1={divider.x} y1={divider.y} x2={dividerEnd.x} y2={dividerEnd.y} className="stroke-foreground stroke-[1]" />
               <text
                 x={sign.x}
                 y={sign.y}
-                className="fill-muted-foreground text-base [dominant-baseline:middle] [text-anchor:middle]"
+                className="fill-foreground text-base [dominant-baseline:middle] [text-anchor:middle]"
               >
                 {signGlyphs[index]}
               </text>
@@ -3463,7 +3461,6 @@ function ChartWheel({
           ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
           : cusp.longitude;
         const label = toXY(houseCenterLongitude, houseLabelRadius);
-        const isAngularHouse = cusp.house === 1 || cusp.house === 4 || cusp.house === 7 || cusp.house === 10;
         const isHighlightedHouse = highlightedHouses.has(cusp.house);
 
         return (
@@ -3474,8 +3471,8 @@ function ChartWheel({
               x2={end.x}
               y2={end.y}
               className={cn(
-                "stroke-[1]",
-                isHighlightedHouse ? "stroke-astro-coral stroke-[2]" : isAngularHouse ? "stroke-primary" : "stroke-border"
+                "stroke-astro-coral",
+                isHighlightedHouse ? "stroke-[2.2]" : "stroke-[1.2]"
               )}
             />
             {isHighlightedHouse ? (
@@ -3484,10 +3481,7 @@ function ChartWheel({
             <text
               x={label.x}
               y={label.y}
-              className={cn(
-                "text-[10px] font-semibold [dominant-baseline:middle] [text-anchor:middle]",
-                isHighlightedHouse ? "fill-astro-coral" : "fill-muted-foreground"
-              )}
+              className="fill-astro-coral text-[10px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
             >
               {cusp.house}
             </text>
@@ -3504,11 +3498,11 @@ function ChartWheel({
         return (
           <g key={signMeta?.key ?? index}>
             {signMeta ? <title>{formatSignTooltip(signMeta, chart)}</title> : null}
-            <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-border stroke-[1]" />
+            <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-foreground stroke-[1]" />
             <text
               x={sign.x}
               y={sign.y}
-              className="fill-muted-foreground text-lg [dominant-baseline:middle] [text-anchor:middle]"
+              className="fill-foreground text-lg [dominant-baseline:middle] [text-anchor:middle]"
             >
               {signGlyphs[index]}
             </text>
