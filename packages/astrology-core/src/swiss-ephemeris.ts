@@ -793,8 +793,8 @@ export const calculateSynastryPreview = (input: SynastryPreviewInput): SynastryP
     pointOrbs: previewPointOrbs ?? input.subjectB.pointOrbs,
     ephemerisPath: input.ephemerisPath
   });
-  const subjectAPoints = [...subjectA.angles, ...subjectA.bodies];
-  const subjectBPoints = [...subjectB.angles, ...subjectB.bodies];
+  const subjectAPoints = subjectA.bodies;
+  const subjectBPoints = subjectB.bodies;
   const synastryPointOrbs = previewPointOrbs ?? subjectA.settings.pointOrbs ?? subjectB.settings.pointOrbs;
   const interAspects = calculateAspectsBetween(subjectAPoints, subjectBPoints, undefined, synastryPointOrbs);
   const warnings: CalculationWarning[] = [

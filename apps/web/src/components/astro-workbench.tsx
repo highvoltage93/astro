@@ -1720,6 +1720,8 @@ function SynastryCard({
 
         {preview ? (
           <div className="space-y-4">
+            <SynastryOverlayWheel preview={preview} subjectAName={subjectAName} subjectBName={form.displayName} />
+
             <div className="grid gap-2 sm:grid-cols-5">
               <SynastryMetric label="Усього" value={preview.summary.totalAspects} />
               <SynastryMetric label="Гармонічні" value={preview.summary.harmoniousAspects} />
@@ -1787,6 +1789,162 @@ function SynastryMetric({ label, value }: { label: string; value: number }) {
     <div className="rounded-lg border bg-muted/30 p-3">
       <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
       <p className="mt-1 text-lg font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function SynastryOverlayWheel({
+  preview,
+  subjectAName,
+  subjectBName
+}: {
+  preview: SynastryPreviewResult;
+  subjectAName: string;
+  subjectBName: string;
+}) {
+  const center = 160;
+  const outerRadius = 138;
+  const innerRadius = 54;
+  const signRadius = 123;
+  const subjectARadius = 101;
+  const subjectBRadius = 76;
+  const subjectAAspectRadius = 88;
+  const subjectBAspectRadius = 63;
+  const ascendant = preview.subjectA.angles.find((angle) => angle.key === "asc") ?? null;
+  const wheelOffset = ascendant ? normalizeDegrees(270 + ascendant.longitude) : 0;
+
+  const toXY = (longitude: number, radius: number): { x: number; y: number } => {
+    const visualLongitude = normalizeDegrees(wheelOffset - longitude);
+    const angle = ((visualLongitude - 90) * Math.PI) / 180;
+
+    return {
+      x: center + Math.cos(angle) * radius,
+      y: center + Math.sin(angle) * radius
+    };
+  };
+
+  const subjectAPoints = new Map(preview.subjectA.bodies.map((point) => [point.key, point]));
+  const subjectBPoints = new Map(preview.subjectB.bodies.map((point) => [point.key, point]));
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+        <Badge variant="secondary">{subjectAName}</Badge>
+        <Badge variant="outline">{subjectBName}</Badge>
+        <span className="text-muted-foreground">Bi-wheel · аспекти між планетами партнерів</span>
+      </div>
+      <svg
+        className="mx-auto aspect-square w-full max-w-[520px] overflow-visible"
+        viewBox="-26 -26 372 372"
+        role="img"
+        aria-label="Накладена карта синастрії"
+      >
+        <circle cx={center} cy={center} r={outerRadius} className="fill-background stroke-foreground stroke-[1.4]" />
+        <circle cx={center} cy={center} r={subjectARadius + 15} className="fill-none stroke-border stroke-[1]" />
+        <circle cx={center} cy={center} r={subjectBRadius + 15} className="fill-none stroke-border stroke-[1]" />
+        <circle cx={center} cy={center} r={innerRadius} className="fill-none stroke-border stroke-[1] [stroke-dasharray:3_4]" />
+
+        {preview.subjectA.houses.map((cusp) => {
+          const start = toXY(cusp.longitude, outerRadius);
+          const end = toXY(cusp.longitude, innerRadius);
+          const isAngularHouse = cusp.house === 1 || cusp.house === 4 || cusp.house === 7 || cusp.house === 10;
+
+          return (
+            <line
+              key={`syn-house-${cusp.house}`}
+              x1={start.x}
+              y1={start.y}
+              x2={end.x}
+              y2={end.y}
+              className={cn("stroke-[0.9]", isAngularHouse ? "stroke-primary" : "stroke-border")}
+            />
+          );
+        })}
+
+        {Array.from({ length: 12 }, (_, index) => {
+          const signMeta = zodiacSigns[index];
+          const divider = toXY(index * 30, outerRadius);
+          const dividerEnd = toXY(index * 30, subjectARadius + 15);
+          const sign = toXY(index * 30 + 15, signRadius);
+
+          return (
+            <g key={`syn-sign-${signMeta?.key ?? index}`}>
+              {signMeta ? <title>{formatSignTooltip(signMeta)}</title> : null}
+              <line x1={divider.x} y1={divider.y} x2={dividerEnd.x} y2={dividerEnd.y} className="stroke-border stroke-[1]" />
+              <text
+                x={sign.x}
+                y={sign.y}
+                className="fill-muted-foreground text-base [dominant-baseline:middle] [text-anchor:middle]"
+              >
+                {signGlyphs[index]}
+              </text>
+            </g>
+          );
+        })}
+
+        {preview.interAspects.slice(0, 36).map((aspect) => {
+          const pointA = subjectAPoints.get(aspect.bodyA);
+          const pointB = subjectBPoints.get(aspect.bodyB);
+
+          if (!pointA || !pointB) {
+            return null;
+          }
+
+          const a = toXY(pointA.longitude, subjectAAspectRadius);
+          const b = toXY(pointB.longitude, subjectBAspectRadius);
+
+          return (
+            <line
+              key={`syn-wheel-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              className={cn("stroke-[1] opacity-75", getAspectStrokeClass(aspect.type))}
+            >
+              <title>
+                {pointA.label} {aspectLabels[aspect.type] ?? aspect.type} {pointB.label} · orb {aspect.orb.toFixed(2)}°
+              </title>
+            </line>
+          );
+        })}
+
+        {preview.subjectA.bodies.map((point) => {
+          const position = toXY(point.longitude, subjectARadius);
+
+          return (
+            <g key={`syn-a-${point.key}`}>
+              <title>{`${subjectAName}\n${formatPointTooltip(point)}`}</title>
+              <circle cx={position.x} cy={position.y} r="12" className="fill-background stroke-primary stroke-[1.3]" />
+              <text
+                x={position.x}
+                y={position.y}
+                className="fill-primary text-xs font-bold [dominant-baseline:middle] [text-anchor:middle]"
+              >
+                {planetGlyphs[point.key] ?? point.label.slice(0, 2)}
+              </text>
+            </g>
+          );
+        })}
+
+        {preview.subjectB.bodies.map((point) => {
+          const position = toXY(point.longitude, subjectBRadius);
+
+          return (
+            <g key={`syn-b-${point.key}`}>
+              <title>{`${subjectBName}\n${formatPointTooltip(point)}`}</title>
+              <circle cx={position.x} cy={position.y} r="11" className="fill-background stroke-astro-coral stroke-[1.3]" />
+              <text
+                x={position.x}
+                y={position.y}
+                className="fill-astro-coral text-[11px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+              >
+                {planetGlyphs[point.key] ?? point.label.slice(0, 2)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

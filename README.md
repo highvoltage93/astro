@@ -80,7 +80,7 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - Birthplace search endpoint backed by Open-Meteo Geocoding.
 - Natal chart preview contract backed by the first Swiss Ephemeris adapter.
 - Transit preview contract for current-sky positions, Moon phase, transit planets in natal houses, scored transit-to-natal aspects, approximate exact times, active windows, and a 7 day outlook.
-- Synastry preview contract for two natal charts with inter-chart aspects and a compact relationship aspect summary.
+- Synastry preview contract for two natal charts with planet-to-planet inter-chart aspects, an overlay chart, and a compact relationship aspect summary.
 - Per-point orb settings for natal and transit aspect filtering.
 - Natal interpretation preview endpoint backed by seed content for Sun, Moon, Ascendant, and exact aspects.
 - Birth profile persistence endpoint backed by Prisma.
