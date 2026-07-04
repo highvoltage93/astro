@@ -39,6 +39,7 @@ import type {
   Aspect,
   ChartPoint,
   ChartResult,
+  HouseConnection,
   MoonPhase,
   NatalInterpretationPreview,
   NatalPreviewPayload,
@@ -1808,6 +1809,8 @@ function SynastryOverlayWheel({
   const signRadius = 123;
   const subjectARadius = 101;
   const subjectBRadius = 76;
+  const subjectAHouseLabelRadius = 111;
+  const subjectBHouseLabelRadius = 43;
   const subjectAAspectRadius = 88;
   const subjectBAspectRadius = 63;
   const ascendant = preview.subjectA.angles.find((angle) => angle.key === "asc") ?? null;
@@ -1845,19 +1848,61 @@ function SynastryOverlayWheel({
         <circle cx={center} cy={center} r={innerRadius} className="fill-none stroke-border stroke-[1] [stroke-dasharray:3_4]" />
 
         {preview.subjectA.houses.map((cusp) => {
+          const next = preview.subjectA.houses[cusp.house % preview.subjectA.houses.length];
           const start = toXY(cusp.longitude, outerRadius);
           const end = toXY(cusp.longitude, innerRadius);
+          const houseCenterLongitude = next
+            ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
+            : cusp.longitude;
+          const label = toXY(houseCenterLongitude, subjectAHouseLabelRadius);
           const isAngularHouse = cusp.house === 1 || cusp.house === 4 || cusp.house === 7 || cusp.house === 10;
 
           return (
-            <line
-              key={`syn-house-${cusp.house}`}
-              x1={start.x}
-              y1={start.y}
-              x2={end.x}
-              y2={end.y}
-              className={cn("stroke-[0.9]", isAngularHouse ? "stroke-primary" : "stroke-border")}
-            />
+            <g key={`syn-house-${cusp.house}`}>
+              <line
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+                className={cn("stroke-[0.9]", isAngularHouse ? "stroke-primary" : "stroke-border")}
+              />
+              <text
+                x={label.x}
+                y={label.y}
+                className="fill-primary text-[9px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
+              >
+                {cusp.house}
+              </text>
+            </g>
+          );
+        })}
+
+        {preview.subjectB.houses.map((cusp) => {
+          const next = preview.subjectB.houses[cusp.house % preview.subjectB.houses.length];
+          const start = toXY(cusp.longitude, subjectBRadius + 15);
+          const end = toXY(cusp.longitude, innerRadius);
+          const houseCenterLongitude = next
+            ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
+            : cusp.longitude;
+          const label = toXY(houseCenterLongitude, subjectBHouseLabelRadius);
+
+          return (
+            <g key={`syn-partner-house-${cusp.house}`}>
+              <line
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+                className="stroke-astro-coral stroke-[0.9] opacity-60 [stroke-dasharray:2_3]"
+              />
+              <text
+                x={label.x}
+                y={label.y}
+                className="fill-astro-coral text-[8px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
+              >
+                {cusp.house}
+              </text>
+            </g>
           );
         })}
 
@@ -2136,6 +2181,8 @@ function HousesTable({ chart }: { chart: ChartResult | null }) {
 
 function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
   const connections = chart?.houseConnections ?? [];
+  const connectionMap = new Map(connections.map((connection) => [`${connection.fromHouse}-${connection.toHouse}`, connection]));
+  const houses = Array.from({ length: 12 }, (_, index) => index + 1);
 
   return (
     <div className="space-y-3">
@@ -2143,49 +2190,110 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
         <h3 className="text-sm font-semibold">Зв'язки домів</h3>
         <Badge variant="secondary">{connections.length}</Badge>
       </div>
-      <div className="max-h-[320px] overflow-auto rounded-lg border">
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-card">
-            <TableRow>
-              <TableHead>Формула</TableHead>
-              <TableHead>Управитель</TableHead>
-              <TableHead>Позиція</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {connections.length > 0 ? (
-              connections.map((connection) => (
-                <TableRow key={`${connection.fromHouse}-${connection.rulerKey}-${connection.rulerType}`}>
-                  <TableCell className="font-medium">
-                    {connection.fromHouse} дім → {connection.toHouse ? `${connection.toHouse} дім` : "n/a"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    <span className="mr-2 inline-flex w-6 font-semibold text-primary">
-                      {planetGlyphs[connection.rulerKey] ?? "•"}
-                    </span>
-                    {connection.rulerLabel}
-                    {connection.rulerType === "traditional" ? " · trad." : ""}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {signLabelsUk[connection.cuspSign] ?? connection.cuspSign}
-                    {connection.rulerSign
-                      ? ` / ${signLabelsUk[connection.rulerSign] ?? connection.rulerSign} ${connection.rulerSignDegree?.toFixed(2) ?? "n/a"}°`
-                      : " / n/a"}
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={3} className="text-muted-foreground">
-                  Для зв'язків домів потрібен відомий час народження і розраховані доми.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {connections.length > 0 ? (
+        <>
+          <div className="overflow-auto rounded-lg border">
+            <table className="min-w-[620px] border-collapse text-xs">
+              <thead className="sticky top-0 z-10 bg-card">
+                <tr>
+                  <th className="h-8 w-9 border-b border-r px-2 text-left font-semibold text-muted-foreground">Дім</th>
+                  {houses.map((house) => (
+                    <th className="h-8 border-b border-r px-2 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
+                      {house}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {houses.map((fromHouse) => (
+                  <tr key={`house-row-${fromHouse}`}>
+                    <th className="h-9 border-b border-r bg-muted/30 px-2 text-left font-semibold">{fromHouse}</th>
+                    {houses.map((toHouse) => {
+                      const connection = connectionMap.get(`${fromHouse}-${toHouse}`);
+
+                      return (
+                        <td
+                          className={cn(
+                            "h-9 min-w-12 border-b border-r px-1 text-center align-middle",
+                            getHouseConnectionCellClass(connection)
+                          )}
+                          key={`house-cell-${fromHouse}-${toHouse}`}
+                          title={connection ? formatHouseConnectionTitle(connection) : undefined}
+                        >
+                          {connection ? formatHouseConnectionScore(connection) : ""}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="space-y-2">
+            {connections.slice(0, 8).map((connection) => (
+              <div className="rounded-lg border bg-muted/20 p-3 text-xs" key={`house-link-${connection.fromHouse}-${connection.toHouse}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">
+                    {connection.fromHouse} дім → {connection.toHouse} дім
+                  </span>
+                  <span className="text-muted-foreground">{formatHouseConnectionScore(connection)}</span>
+                </div>
+                <p className="mt-1 text-muted-foreground">{formatHouseConnectionTitle(connection)}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Для зв'язків домів потрібен відомий час народження і розраховані доми. Якщо відкрито стару збережену карту,
+          перерахуй її ще раз.
+        </p>
+      )}
     </div>
   );
+}
+
+function getHouseConnectionCellClass(connection: HouseConnection | undefined): string {
+  if (!connection) {
+    return "bg-background";
+  }
+
+  if (connection.tense > connection.harmonious) {
+    return "bg-blue-600/15 text-blue-800";
+  }
+
+  if (connection.harmonious > 0) {
+    return "bg-astro-coral/15 text-astro-coral";
+  }
+
+  return "bg-muted/50 text-muted-foreground";
+}
+
+function formatHouseConnectionScore(connection: HouseConnection): string {
+  const parts = [
+    connection.harmonious > 0 ? `+${connection.harmonious}` : "",
+    connection.tense > 0 ? `-${connection.tense}` : "",
+    connection.neutral > 0 ? `○${connection.neutral}` : ""
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" ") : String(connection.total);
+}
+
+function formatHouseConnectionTitle(connection: HouseConnection): string {
+  return connection.details
+    .slice(0, 4)
+    .map((detail) => {
+      const roleA = detail.fromRole === "ruler" ? "R" : "D";
+      const roleB = detail.toRole === "ruler" ? "R" : "D";
+      const planetA = planetGlyphs[detail.planetA] ?? detail.planetA;
+      const planetB = detail.planetB ? planetGlyphs[detail.planetB] ?? detail.planetB : "";
+      const aspect = detail.aspectType ? ` ${aspectLabels[detail.aspectType] ?? detail.aspectType} ` : " → ";
+
+      return detail.source === "aspect"
+        ? `${planetA}${roleA}${connection.fromHouse}${aspect}${planetB}${roleB}${connection.toHouse}`
+        : `${planetA} R${connection.fromHouse} → D${connection.toHouse}`;
+    })
+    .join("; ");
 }
 
 function AspectsTable({ aspects }: { aspects: Aspect[] }) {

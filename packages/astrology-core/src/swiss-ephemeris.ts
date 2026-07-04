@@ -19,6 +19,9 @@ import type {
   ChartPoint,
   ChartResult,
   HouseConnection,
+  HouseConnectionDetail,
+  HouseConnectionRole,
+  HouseConnectionTone,
   HouseCusp,
   HouseSystem,
   MoonPhase,
@@ -72,7 +75,7 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
   { key: "lilith", label: "Lilith", swephId: constants.SE_MEAN_APOG, kind: "calculated" }
 ];
 
-const SIGN_RULERS: Record<string, Array<{ key: string; label: string; rulerType: HouseConnection["rulerType"] }>> = {
+const SIGN_RULERS: Record<string, Array<{ key: string; label: string; rulerType: "modern" | "traditional" }>> = {
   aries: [{ key: "mars", label: "Mars", rulerType: "modern" }],
   taurus: [{ key: "venus", label: "Venus", rulerType: "modern" }],
   gemini: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
@@ -237,34 +240,106 @@ const findHouse = (longitude: number, cusps: HouseCusp[]): number | undefined =>
   return undefined;
 };
 
-const calculateHouseConnections = (houses: HouseCusp[], bodies: ChartPoint[]): HouseConnection[] => {
+const aspectTone = (aspectType: AspectType): HouseConnectionTone => {
+  if (aspectType === "trine" || aspectType === "sextile") {
+    return "harmonious";
+  }
+
+  if (aspectType === "square" || aspectType === "opposition") {
+    return "tense";
+  }
+
+  return "neutral";
+};
+
+const calculateHouseConnections = (houses: HouseCusp[], bodies: ChartPoint[], aspects: Aspect[]): HouseConnection[] => {
   if (houses.length === 0) {
     return [];
   }
 
   const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
-  const connections: HouseConnection[] = [];
+  const rolesByPlanet = new Map<string, Array<{ house: number; role: HouseConnectionRole }>>();
+  const connectionMap = new Map<string, HouseConnection>();
+
+  const addRole = (planetKey: string, house: number | undefined, role: HouseConnectionRole): void => {
+    if (!house) {
+      return;
+    }
+
+    const roles = rolesByPlanet.get(planetKey) ?? [];
+    roles.push({ house, role });
+    rolesByPlanet.set(planetKey, roles);
+  };
+
+  const addConnection = (fromHouse: number, toHouse: number | undefined, detail: HouseConnectionDetail): void => {
+    if (!toHouse) {
+      return;
+    }
+
+    const key = `${fromHouse}-${toHouse}`;
+    const connection =
+      connectionMap.get(key) ??
+      ({
+        fromHouse,
+        toHouse,
+        harmonious: 0,
+        tense: 0,
+        neutral: 0,
+        total: 0,
+        details: []
+      } satisfies HouseConnection);
+
+    connection[detail.tone] += 1;
+    connection.total += 1;
+    connection.details.push(detail);
+    connectionMap.set(key, connection);
+  };
+
+  for (const body of bodies) {
+    addRole(body.key, body.house, "placement");
+  }
 
   for (const house of houses) {
     const rulers = SIGN_RULERS[house.sign] ?? [];
 
     for (const ruler of rulers) {
       const rulerPoint = pointsByKey.get(ruler.key);
-
-      connections.push({
-        fromHouse: house.house,
-        toHouse: rulerPoint?.house,
-        cuspSign: house.sign,
-        rulerKey: ruler.key,
-        rulerLabel: ruler.label,
-        rulerType: ruler.rulerType,
-        rulerSign: rulerPoint?.sign,
-        rulerSignDegree: rulerPoint?.signDegree
+      addRole(ruler.key, house.house, "ruler");
+      addConnection(house.house, rulerPoint?.house, {
+        source: "ruler-position",
+        tone: "neutral",
+        planetA: ruler.key,
+        fromRole: "ruler",
+        toRole: "placement"
       });
     }
   }
 
-  return connections;
+  for (const aspect of aspects) {
+    const rolesA = rolesByPlanet.get(aspect.bodyA) ?? [];
+    const rolesB = rolesByPlanet.get(aspect.bodyB) ?? [];
+    const tone = aspectTone(aspect.type);
+
+    for (const roleA of rolesA) {
+      for (const roleB of rolesB) {
+        if (roleA.house === roleB.house && roleA.role === roleB.role) {
+          continue;
+        }
+
+        addConnection(roleA.house, roleB.house, {
+          source: "aspect",
+          tone,
+          planetA: aspect.bodyA,
+          planetB: aspect.bodyB,
+          fromRole: roleA.role,
+          toRole: roleB.role,
+          aspectType: aspect.type
+        });
+      }
+    }
+  }
+
+  return [...connectionMap.values()].sort((a, b) => b.total - a.total || a.fromHouse - b.fromHouse || a.toHouse - b.toHouse);
 };
 
 const buildPoint = ({
@@ -662,7 +737,8 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
   }
 
   const aspectAngles = angles.filter((angle) => angle.key === "asc" || angle.key === "mc");
-  const houseConnections = calculateHouseConnections(houses, bodies);
+  const aspects = calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs);
+  const houseConnections = calculateHouseConnections(houses, bodies, aspects);
 
   return {
     chartType: "natal",
@@ -682,7 +758,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     houses,
     houseConnections,
     bodies,
-    aspects: calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs),
+    aspects,
     warnings
   };
 };

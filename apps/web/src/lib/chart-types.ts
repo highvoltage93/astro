@@ -17,23 +17,32 @@ export type HouseCusp = {
   signDegree: number;
 };
 
-export type HouseConnection = {
-  fromHouse: number;
-  toHouse?: number;
-  cuspSign: string;
-  rulerKey: string;
-  rulerLabel: string;
-  rulerType: "modern" | "traditional";
-  rulerSign?: string;
-  rulerSignDegree?: number;
-};
-
 export type Aspect = {
   bodyA: string;
   bodyB: string;
   type: string;
   exactAngle: number;
   orb: number;
+};
+
+export type HouseConnectionDetail = {
+  source: "ruler-position" | "aspect";
+  tone: "harmonious" | "tense" | "neutral";
+  planetA: string;
+  planetB?: string;
+  fromRole: "placement" | "ruler";
+  toRole: "placement" | "ruler";
+  aspectType?: string;
+};
+
+export type HouseConnection = {
+  fromHouse: number;
+  toHouse: number;
+  harmonious: number;
+  tense: number;
+  neutral: number;
+  total: number;
+  details: HouseConnectionDetail[];
 };
 
 export type TransitAspect = Aspect & {

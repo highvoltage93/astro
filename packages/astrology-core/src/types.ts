@@ -34,17 +34,6 @@ export type HouseCusp = {
   signDegree: number;
 };
 
-export type HouseConnection = {
-  fromHouse: number;
-  toHouse?: number;
-  cuspSign: string;
-  rulerKey: string;
-  rulerLabel: string;
-  rulerType: "modern" | "traditional";
-  rulerSign?: string;
-  rulerSignDegree?: number;
-};
-
 export type AspectType = "conjunction" | "opposition" | "trine" | "square" | "sextile";
 
 export type Aspect = {
@@ -53,6 +42,30 @@ export type Aspect = {
   type: AspectType;
   exactAngle: number;
   orb: number;
+};
+
+export type HouseConnectionRole = "placement" | "ruler";
+
+export type HouseConnectionTone = "harmonious" | "tense" | "neutral";
+
+export type HouseConnectionDetail = {
+  source: "ruler-position" | "aspect";
+  tone: HouseConnectionTone;
+  planetA: string;
+  planetB?: string;
+  fromRole: HouseConnectionRole;
+  toRole: HouseConnectionRole;
+  aspectType?: AspectType;
+};
+
+export type HouseConnection = {
+  fromHouse: number;
+  toHouse: number;
+  harmonious: number;
+  tense: number;
+  neutral: number;
+  total: number;
+  details: HouseConnectionDetail[];
 };
 
 export type PointOrbSettings = Partial<Record<string, number>>;
