@@ -280,6 +280,21 @@ const syntheticPolarityLabelsUk: Record<string, string> = {
   feminine: "жіночий"
 };
 
+const signPolarities: Record<string, "masculine" | "feminine"> = {
+  aries: "masculine",
+  taurus: "feminine",
+  gemini: "masculine",
+  cancer: "feminine",
+  leo: "masculine",
+  virgo: "feminine",
+  libra: "masculine",
+  scorpio: "feminine",
+  sagittarius: "masculine",
+  capricorn: "feminine",
+  aquarius: "masculine",
+  pisces: "feminine"
+};
+
 const aspectLabels: Record<string, string> = {
   conjunction: "З'єднання",
   opposition: "Опозиція",
@@ -521,6 +536,30 @@ const formatPointPosition = (point: ChartPoint | null): string => {
   const house = point.house ? ` · ${point.house} дім` : "";
 
   return `${signLabelsUk[point.sign] ?? point.sign} ${formatZodiacDegree(point.signDegree)}${house}`;
+};
+
+const buildPolarityRowsFromSignScores = (
+  signScores: Array<{ key: string; score: number }>
+): Array<{ key: "masculine" | "feminine"; score: number }> => {
+  const totals: Record<"masculine" | "feminine", number> = {
+    masculine: 0,
+    feminine: 0
+  };
+
+  for (const row of signScores) {
+    const polarity = signPolarities[row.key];
+
+    if (polarity) {
+      totals[polarity] += row.score;
+    }
+  }
+
+  const rows: Array<{ key: "masculine" | "feminine"; score: number }> = [
+    { key: "masculine", score: Number(totals.masculine.toFixed(3)) },
+    { key: "feminine", score: Number(totals.feminine.toFixed(3)) }
+  ];
+
+  return rows.sort((a, b) => b.score - a.score);
 };
 
 export function AstroWorkbench() {
@@ -2517,8 +2556,13 @@ function ProfessionalDataCard({
 
 function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
   const signature = chart?.syntheticSignature;
-  const polarity = signature?.polarity ?? signature?.scores.polarities?.[0] ?? null;
-  const polarityRows = signature?.scores.polarities ?? [];
+  const polarityRows =
+    signature?.scores.polarities && signature.scores.polarities.length > 0
+      ? signature.scores.polarities
+      : signature
+        ? buildPolarityRowsFromSignScores(signature.scores.signs)
+        : [];
+  const polarity = signature?.polarity ?? polarityRows[0] ?? null;
 
   if (!signature) {
     return (
@@ -2557,11 +2601,7 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
             value={syntheticPolarityLabelsUk[polarity.key] ?? polarity.key}
             score={polarity.score}
           />
-        ) : (
-          <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-            Полярність з'явиться після перерахунку карти.
-          </div>
-        )}
+        ) : null}
       </div>
       <div className="grid gap-3">
         <SyntheticScoreGroup
@@ -3093,11 +3133,13 @@ function formatHouseConnectionTitle(connection: HouseConnection): string {
 }
 
 function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoint[] }) {
-  const matrixPoints = points.slice(0, 18);
+  const planetAspectKeys = new Set(primaryPlanetOrder);
+  const matrixPoints = points.filter((point) => planetAspectKeys.has(point.key));
   const pointsByKey = new Map(points.map((point) => [point.key, point]));
+  const planetAspects = aspects.filter((aspect) => planetAspectKeys.has(aspect.bodyA) && planetAspectKeys.has(aspect.bodyB));
   const aspectMap = new Map<string, Aspect>();
 
-  for (const aspect of aspects) {
+  for (const aspect of planetAspects) {
     aspectMap.set(`${aspect.bodyA}-${aspect.bodyB}`, aspect);
     aspectMap.set(`${aspect.bodyB}-${aspect.bodyA}`, aspect);
   }
@@ -3106,7 +3148,7 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">Аспекти</h3>
-        <Badge variant="secondary">{aspects.length}</Badge>
+        <Badge variant="secondary">{planetAspects.length}</Badge>
       </div>
 
       <div className="overflow-auto rounded-lg border">
@@ -3176,8 +3218,8 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
             </TableRow>
           </TableHeader>
           <TableBody>
-            {aspects.length > 0 ? (
-              aspects.slice(0, 24).map((aspect) => {
+            {planetAspects.length > 0 ? (
+              planetAspects.slice(0, 24).map((aspect) => {
                 const pointA = pointsByKey.get(aspect.bodyA);
                 const pointB = pointsByKey.get(aspect.bodyB);
 
@@ -3199,7 +3241,7 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
             ) : (
               <TableRow>
                 <TableCell colSpan={4} className="text-muted-foreground">
-                  Немає аспектів у поточних фільтрах.
+                  Немає аспектів між планетами у поточних фільтрах.
                 </TableCell>
               </TableRow>
             )}
@@ -3478,7 +3520,9 @@ function ChartWheel({
             x2={b.x}
             y2={b.y}
             className={cn("stroke-[1.1] opacity-70", getAspectStrokeClass(aspect.type))}
-          />
+          >
+            <title>{formatAspectTitle(aspect, pointsByKey)}</title>
+          </line>
         );
       })}
 
