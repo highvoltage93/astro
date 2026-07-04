@@ -63,6 +63,46 @@ assert.ok(
   "Expected dispositor chains in essential dignities"
 );
 
+const defaultHouseSystemChart = calculateNatalChart({
+  ...fixture.input,
+  houseSystem: undefined,
+  ephemerisPath
+});
+const kochChart = calculateNatalChart({
+  ...fixture.input,
+  houseSystem: "koch",
+  ephemerisPath
+});
+const placidusChart = calculateNatalChart({
+  ...fixture.input,
+  houseSystem: "placidus",
+  ephemerisPath
+});
+const wholeSignChart = calculateNatalChart({
+  ...fixture.input,
+  houseSystem: "whole-sign",
+  ephemerisPath
+});
+const hasRuler = (sign, rulerKey, rulerType) =>
+  wholeSignChart.houseRulers.some(
+    (ruler) => ruler.sign === sign && ruler.rulerKey === rulerKey && ruler.rulerType === rulerType
+  );
+
+assert.equal(defaultHouseSystemChart.settings.houseSystem, "koch", "Expected Koch as default house system");
+assert.equal(kochChart.settings.houseSystem, "koch", "Expected Koch chart setting");
+assert.equal(placidusChart.settings.houseSystem, "placidus", "Expected Placidus chart setting");
+assert.notEqual(
+  kochChart.houses[1]?.longitude,
+  placidusChart.houses[1]?.longitude,
+  "Expected Koch and Placidus to produce distinct intermediate house cusps"
+);
+assert.ok(hasRuler("aries", "pluto", "direct"), "Expected Pluto as direct ruler of Aries");
+assert.ok(hasRuler("aries", "mars", "retrograde"), "Expected retrograde Mars as ruler of Aries");
+assert.ok(hasRuler("scorpio", "mars", "direct"), "Expected Mars as direct ruler of Scorpio");
+assert.ok(hasRuler("scorpio", "pluto", "retrograde"), "Expected retrograde Pluto as ruler of Scorpio");
+assert.ok(hasRuler("pisces", "neptune", "direct"), "Expected Neptune as direct ruler of Pisces");
+assert.ok(hasRuler("pisces", "jupiter", "retrograde"), "Expected retrograde Jupiter as ruler of Pisces");
+
 const interpretation = generateNatalInterpretationPreview(chart);
 
 assert.ok(interpretation.summary.length > 0, "Expected interpretation summary");

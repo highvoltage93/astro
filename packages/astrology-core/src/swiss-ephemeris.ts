@@ -95,51 +95,48 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
 
 const BODY_DEFINITION_BY_KEY = new Map(BODY_DEFINITIONS.map((body) => [body.key, body]));
 
-const SIGN_RULERS: Record<string, SignRulerDefinition[]> = {
-  aries: [
-    { key: "mars", label: "Mars", rulerType: "direct" },
-    { key: "pluto", label: "Pluto", rulerType: "retrograde" }
-  ],
-  taurus: [{ key: "venus", label: "Venus", rulerType: "direct" }],
-  gemini: [{ key: "mercury", label: "Mercury", rulerType: "direct" }],
-  cancer: [{ key: "moon", label: "Moon", rulerType: "direct" }],
-  leo: [{ key: "sun", label: "Sun", rulerType: "direct" }],
-  virgo: [{ key: "mercury", label: "Mercury", rulerType: "direct" }],
-  libra: [{ key: "venus", label: "Venus", rulerType: "direct" }],
-  scorpio: [
-    { key: "pluto", label: "Pluto", rulerType: "direct" },
-    { key: "mars", label: "Mars", rulerType: "retrograde" }
-  ],
-  sagittarius: [
-    { key: "jupiter", label: "Jupiter", rulerType: "direct" },
-    { key: "neptune", label: "Neptune", rulerType: "retrograde" }
-  ],
-  capricorn: [
-    { key: "saturn", label: "Saturn", rulerType: "direct" },
-    { key: "uranus", label: "Uranus", rulerType: "retrograde" }
-  ],
-  aquarius: [
-    { key: "uranus", label: "Uranus", rulerType: "direct" },
-    { key: "saturn", label: "Saturn", rulerType: "retrograde" }
-  ],
-  pisces: [
-    { key: "neptune", label: "Neptune", rulerType: "direct" },
-    { key: "jupiter", label: "Jupiter", rulerType: "retrograde" }
-  ]
-};
-
-const PLANET_DOMICILES: Record<string, string[]> = {
+const PLANET_DIRECT_RULERS: Record<string, string[]> = {
   sun: ["leo"],
   moon: ["cancer"],
-  mercury: ["gemini", "virgo"],
+  mercury: ["virgo", "gemini"],
   venus: ["taurus", "libra"],
-  mars: ["aries", "scorpio"],
-  jupiter: ["sagittarius", "pisces"],
-  saturn: ["capricorn", "aquarius"],
+  mars: ["scorpio"],
+  jupiter: ["sagittarius"],
+  saturn: ["capricorn"],
   uranus: ["aquarius"],
   neptune: ["pisces"],
-  pluto: ["scorpio"]
+  pluto: ["aries"]
 };
+
+const PLANET_RETROGRADE_RULERS: Record<string, string[]> = {
+  mars: ["scorpio", "aries"],
+  jupiter: ["pisces", "sagittarius"],
+  saturn: ["capricorn", "aquarius"],
+  uranus: ["aquarius", "capricorn"],
+  neptune: ["pisces", "sagittarius"],
+  pluto: ["aries", "scorpio"]
+};
+
+const SIGN_RULERS: Record<string, SignRulerDefinition[]> = Object.fromEntries(
+  ZODIAC_SIGNS.map((sign) => {
+    const directRulers = Object.entries(PLANET_DIRECT_RULERS)
+      .filter(([, signs]) => signs.includes(sign))
+      .map(([key]) => ({
+        key,
+        label: BODY_DEFINITION_BY_KEY.get(key)?.label ?? key,
+        rulerType: "direct" as const
+      }));
+    const retrogradeRulers = Object.entries(PLANET_RETROGRADE_RULERS)
+      .filter(([, signs]) => signs.includes(sign))
+      .map(([key]) => ({
+        key,
+        label: BODY_DEFINITION_BY_KEY.get(key)?.label ?? key,
+        rulerType: "retrograde" as const
+      }));
+
+    return [sign, [...directRulers, ...retrogradeRulers]];
+  })
+) as Record<string, SignRulerDefinition[]>;
 
 const PLANET_EXALTATIONS: Record<string, string> = {
   sun: "aries",
@@ -662,7 +659,11 @@ const dignityScore = (dignity: EssentialDignityType): number => {
 };
 
 const dignityForPoint = (point: ChartPoint): EssentialDignityType => {
-  const domiciles = PLANET_DOMICILES[point.key] ?? [];
+  const directDomiciles = PLANET_DIRECT_RULERS[point.key] ?? [];
+  const retrogradeDomiciles = PLANET_RETROGRADE_RULERS[point.key] ?? [];
+  const domiciles = point.speed !== undefined && point.speed < -0.0001 && retrogradeDomiciles.length > 0
+    ? retrogradeDomiciles
+    : directDomiciles;
   const exaltation = PLANET_EXALTATIONS[point.key];
 
   if (domiciles.includes(point.sign)) {

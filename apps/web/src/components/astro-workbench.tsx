@@ -104,12 +104,7 @@ const initialPartnerForm: FormState = {
 
 const houseSystems = [
   ["koch", "Koch"],
-  ["placidus", "Placidus"],
-  ["whole-sign", "Whole Sign"],
-  ["equal", "Equal"],
-  ["campanus", "Campanus"],
-  ["regiomontanus", "Regiomontanus"],
-  ["porphyry", "Porphyry"]
+  ["placidus", "Placidus"]
 ] as const;
 
 const planetGlyphs: Record<string, string> = {
@@ -218,38 +213,61 @@ const zodiacSigns = [
 
 const signGlyphs = zodiacSigns.map((sign) => sign.glyph);
 
-const signRulers: Record<string, Array<{ key: string; label: string; rulerType: "direct" | "retrograde" }>> = {
-  aries: [
-    { key: "mars", label: "Mars", rulerType: "direct" },
-    { key: "pluto", label: "Pluto", rulerType: "retrograde" }
-  ],
-  taurus: [{ key: "venus", label: "Venus", rulerType: "direct" }],
-  gemini: [{ key: "mercury", label: "Mercury", rulerType: "direct" }],
-  cancer: [{ key: "moon", label: "Moon", rulerType: "direct" }],
-  leo: [{ key: "sun", label: "Sun", rulerType: "direct" }],
-  virgo: [{ key: "mercury", label: "Mercury", rulerType: "direct" }],
-  libra: [{ key: "venus", label: "Venus", rulerType: "direct" }],
-  scorpio: [
-    { key: "pluto", label: "Pluto", rulerType: "direct" },
-    { key: "mars", label: "Mars", rulerType: "retrograde" }
-  ],
-  sagittarius: [
-    { key: "jupiter", label: "Jupiter", rulerType: "direct" },
-    { key: "neptune", label: "Neptune", rulerType: "retrograde" }
-  ],
-  capricorn: [
-    { key: "saturn", label: "Saturn", rulerType: "direct" },
-    { key: "uranus", label: "Uranus", rulerType: "retrograde" }
-  ],
-  aquarius: [
-    { key: "uranus", label: "Uranus", rulerType: "direct" },
-    { key: "saturn", label: "Saturn", rulerType: "retrograde" }
-  ],
-  pisces: [
-    { key: "neptune", label: "Neptune", rulerType: "direct" },
-    { key: "jupiter", label: "Jupiter", rulerType: "retrograde" }
-  ]
+const planetLabels: Record<string, string> = {
+  sun: "Sun",
+  moon: "Moon",
+  mercury: "Mercury",
+  venus: "Venus",
+  mars: "Mars",
+  jupiter: "Jupiter",
+  saturn: "Saturn",
+  uranus: "Uranus",
+  neptune: "Neptune",
+  pluto: "Pluto"
 };
+
+const planetDirectRulers: Record<string, string[]> = {
+  sun: ["leo"],
+  moon: ["cancer"],
+  mercury: ["virgo", "gemini"],
+  venus: ["taurus", "libra"],
+  mars: ["scorpio"],
+  jupiter: ["sagittarius"],
+  saturn: ["capricorn"],
+  uranus: ["aquarius"],
+  neptune: ["pisces"],
+  pluto: ["aries"]
+};
+
+const planetRetrogradeRulers: Record<string, string[]> = {
+  mars: ["scorpio", "aries"],
+  jupiter: ["pisces", "sagittarius"],
+  saturn: ["capricorn", "aquarius"],
+  uranus: ["aquarius", "capricorn"],
+  neptune: ["pisces", "sagittarius"],
+  pluto: ["aries", "scorpio"]
+};
+
+const signRulers: Record<string, Array<{ key: string; label: string; rulerType: "direct" | "retrograde" }>> = Object.fromEntries(
+  zodiacSigns.map((sign) => {
+    const directRulers = Object.entries(planetDirectRulers)
+      .filter(([, signs]) => signs.includes(sign.key))
+      .map(([key]) => ({
+        key,
+        label: planetLabels[key] ?? key,
+        rulerType: "direct" as const
+      }));
+    const retrogradeRulers = Object.entries(planetRetrogradeRulers)
+      .filter(([, signs]) => signs.includes(sign.key))
+      .map(([key]) => ({
+        key,
+        label: planetLabels[key] ?? key,
+        rulerType: "retrograde" as const
+      }));
+
+    return [sign.key, [...directRulers, ...retrogradeRulers]];
+  })
+) as Record<string, Array<{ key: string; label: string; rulerType: "direct" | "retrograde" }>>;
 
 const rulerTypeLabelsUk: Record<string, string> = {
   direct: "директний",
