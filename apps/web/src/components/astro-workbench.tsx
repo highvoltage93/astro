@@ -2517,6 +2517,8 @@ function ProfessionalDataCard({
 
 function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
   const signature = chart?.syntheticSignature;
+  const polarity = signature?.polarity ?? signature?.scores.polarities?.[0] ?? null;
+  const polarityRows = signature?.scores.polarities ?? [];
 
   if (!signature) {
     return (
@@ -2549,11 +2551,17 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
           value={syntheticCrossLabelsUk[signature.cross.key] ?? signature.cross.key}
           score={signature.cross.score}
         />
-        <SyntheticLeader
-          label="Полярність"
-          value={syntheticPolarityLabelsUk[signature.polarity.key] ?? signature.polarity.key}
-          score={signature.polarity.score}
-        />
+        {polarity ? (
+          <SyntheticLeader
+            label="Полярність"
+            value={syntheticPolarityLabelsUk[polarity.key] ?? polarity.key}
+            score={polarity.score}
+          />
+        ) : (
+          <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+            Полярність з'явиться після перерахунку карти.
+          </div>
+        )}
       </div>
       <div className="grid gap-3">
         <SyntheticScoreGroup
@@ -2580,14 +2588,16 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
           }))}
           total={signature.scores.total}
         />
-        <SyntheticScoreGroup
-          label="Полярність"
-          rows={signature.scores.polarities.map((row) => ({
-            ...row,
-            label: syntheticPolarityLabelsUk[row.key] ?? row.key
-          }))}
-          total={signature.scores.total}
-        />
+        {polarityRows.length > 0 ? (
+          <SyntheticScoreGroup
+            label="Полярність"
+            rows={polarityRows.map((row) => ({
+              ...row,
+              label: syntheticPolarityLabelsUk[row.key] ?? row.key
+            }))}
+            total={signature.scores.total}
+          />
+        ) : null}
       </div>
     </div>
   );
