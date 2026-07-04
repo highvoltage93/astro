@@ -169,6 +169,33 @@ export type TransitPreviewResult = {
   warnings: CalculationWarning[];
 };
 
+export type SynastryPreviewInput = {
+  subjectA: NatalPreviewInput;
+  subjectB: NatalPreviewInput;
+  zodiac?: ZodiacType;
+  ayanamsa?: Ayanamsa;
+  pointOrbs?: PointOrbSettings;
+  ephemerisPath?: string;
+};
+
+export type SynastrySummary = {
+  totalAspects: number;
+  harmoniousAspects: number;
+  tenseAspects: number;
+  conjunctions: number;
+  exactAspects: number;
+};
+
+export type SynastryPreviewResult = {
+  chartType: "synastry";
+  generatedAt: string;
+  subjectA: ChartResult;
+  subjectB: ChartResult;
+  interAspects: Aspect[];
+  summary: SynastrySummary;
+  warnings: CalculationWarning[];
+};
+
 export type InterpretationHighlight = {
   factorKey: string;
   title: string;

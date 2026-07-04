@@ -7,7 +7,7 @@
     "dev:api": "corepack pnpm --filter @astroprocessor/astrology-core build && corepack pnpm --filter @astroprocessor/api dev",
     "dev:web": "corepack pnpm --filter @astroprocessor/web dev",
     "build": "corepack pnpm --recursive build",
-    "typecheck": "corepack pnpm --recursive typecheck",
+    "typecheck": "corepack pnpm --filter @astroprocessor/astrology-core build && corepack pnpm --recursive typecheck",
     "lint": "corepack pnpm --recursive lint",
     "ephemeris:download": "corepack pnpm --filter @astroprocessor/astrology-core ephemeris:download",
     "smoke:natal": "corepack pnpm --filter @astroprocessor/astrology-core smoke:natal",

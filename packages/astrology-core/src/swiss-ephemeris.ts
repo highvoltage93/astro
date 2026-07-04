@@ -23,6 +23,8 @@ import type {
   MoonPhase,
   NatalCalculationInput,
   PointOrbSettings,
+  SynastryPreviewInput,
+  SynastryPreviewResult,
   TransitAspect,
   TransitAspectStrength,
   TransitDayForecast,
@@ -764,5 +766,55 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     transitToNatalAspects,
     weekAhead,
     warnings: [...natal.warnings, ...transit.warnings]
+  };
+};
+
+const summarizeSynastryAspects = (aspects: Aspect[]): SynastryPreviewResult["summary"] => ({
+  totalAspects: aspects.length,
+  harmoniousAspects: aspects.filter((aspect) => aspect.type === "trine" || aspect.type === "sextile").length,
+  tenseAspects: aspects.filter((aspect) => aspect.type === "square" || aspect.type === "opposition").length,
+  conjunctions: aspects.filter((aspect) => aspect.type === "conjunction").length,
+  exactAspects: aspects.filter((aspect) => aspect.orb <= 1).length
+});
+
+export const calculateSynastryPreview = (input: SynastryPreviewInput): SynastryPreviewResult => {
+  const previewPointOrbs = cleanPointOrbs(input.pointOrbs);
+  const subjectA = calculateNatalChart({
+    ...input.subjectA,
+    zodiac: input.zodiac ?? input.subjectA.zodiac,
+    ayanamsa: input.ayanamsa ?? input.subjectA.ayanamsa,
+    pointOrbs: previewPointOrbs ?? input.subjectA.pointOrbs,
+    ephemerisPath: input.ephemerisPath
+  });
+  const subjectB = calculateNatalChart({
+    ...input.subjectB,
+    zodiac: input.zodiac ?? input.subjectB.zodiac,
+    ayanamsa: input.ayanamsa ?? input.subjectB.ayanamsa,
+    pointOrbs: previewPointOrbs ?? input.subjectB.pointOrbs,
+    ephemerisPath: input.ephemerisPath
+  });
+  const subjectAPoints = [...subjectA.angles, ...subjectA.bodies];
+  const subjectBPoints = [...subjectB.angles, ...subjectB.bodies];
+  const synastryPointOrbs = previewPointOrbs ?? subjectA.settings.pointOrbs ?? subjectB.settings.pointOrbs;
+  const interAspects = calculateAspectsBetween(subjectAPoints, subjectBPoints, undefined, synastryPointOrbs);
+  const warnings: CalculationWarning[] = [
+    ...subjectA.warnings.map((warning) => ({
+      code: `SUBJECT_A_${warning.code}`,
+      message: `Subject A: ${warning.message}`
+    })),
+    ...subjectB.warnings.map((warning) => ({
+      code: `SUBJECT_B_${warning.code}`,
+      message: `Subject B: ${warning.message}`
+    }))
+  ];
+
+  return {
+    chartType: "synastry",
+    generatedAt: new Date().toISOString(),
+    subjectA,
+    subjectB,
+    interAspects,
+    summary: summarizeSynastryAspects(interAspects),
+    warnings
   };
 };

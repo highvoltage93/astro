@@ -83,6 +83,13 @@ export type TransitPreviewPayload = {
   pointOrbs?: Record<string, number>;
 };
 
+export type SynastryPreviewPayload = {
+  subjectA: NatalPreviewPayload;
+  subjectB: NatalPreviewPayload;
+  zodiac?: "tropical" | "sidereal";
+  pointOrbs?: Record<string, number>;
+};
+
 export type MoonPhaseName =
   | "new"
   | "waxing-crescent"
@@ -117,6 +124,25 @@ export type TransitPreviewResult = {
   transitHousePlacements: ChartPoint[];
   transitToNatalAspects: TransitAspect[];
   weekAhead: TransitDayForecast[];
+  warnings: Array<{
+    code: string;
+    message: string;
+  }>;
+};
+
+export type SynastryPreviewResult = {
+  chartType: "synastry";
+  generatedAt: string;
+  subjectA: ChartResult;
+  subjectB: ChartResult;
+  interAspects: Aspect[];
+  summary: {
+    totalAspects: number;
+    harmoniousAspects: number;
+    tenseAspects: number;
+    conjunctions: number;
+    exactAspects: number;
+  };
   warnings: Array<{
     code: string;
     message: string;

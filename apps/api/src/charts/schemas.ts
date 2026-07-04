@@ -31,3 +31,10 @@ export const transitPreviewSchema = z.object({
   zodiac: z.enum(["tropical", "sidereal"]).optional(),
   pointOrbs: pointOrbsSchema
 });
+
+export const synastryPreviewSchema = z.object({
+  subjectA: natalPreviewSchema,
+  subjectB: natalPreviewSchema,
+  zodiac: z.enum(["tropical", "sidereal"]).optional(),
+  pointOrbs: pointOrbsSchema
+});

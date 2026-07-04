@@ -30,6 +30,7 @@ import {
   listBirthProfiles,
   requestNatalInterpretation,
   requestNatalPreview,
+  requestSynastryPreview,
   requestTransitPreview,
   saveBirthProfile,
   searchPlaces
@@ -43,6 +44,7 @@ import type {
   NatalPreviewPayload,
   PlaceSearchResult,
   SavedBirthProfile,
+  SynastryPreviewResult,
   TransitPreviewResult
 } from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
@@ -73,6 +75,20 @@ const initialForm: FormState = {
   countryCode: "UA",
   latitude: "50.4501",
   longitude: "30.5234",
+  timezone: "Europe/Kyiv",
+  houseSystem: "placidus",
+  zodiac: "tropical"
+};
+
+const initialPartnerForm: FormState = {
+  displayName: "Партнер",
+  birthDate: "1992-09-18",
+  birthTime: "09:15:00",
+  birthTimeKnown: true,
+  birthplaceName: "Lviv, Ukraine",
+  countryCode: "UA",
+  latitude: "49.8397",
+  longitude: "24.0297",
   timezone: "Europe/Kyiv",
   houseSystem: "placidus",
   zodiac: "tropical"
@@ -346,18 +362,23 @@ const formatMotion = (point: ChartPoint): string => {
 
 export function AstroWorkbench() {
   const [form, setForm] = useState<FormState>(initialForm);
+  const [partnerForm, setPartnerForm] = useState<FormState>(initialPartnerForm);
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
   const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
   const [chart, setChart] = useState<ChartResult | null>(null);
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
   const [transitDateTime, setTransitDateTime] = useState("");
   const [transitPreview, setTransitPreview] = useState<TransitPreviewResult | null>(null);
+  const [synastryPreview, setSynastryPreview] = useState<SynastryPreviewResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [transitStatus, setTransitStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [synastryStatus, setSynastryStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [savedProfilesStatus, setSavedProfilesStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeSearchStatus, setPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [partnerPlaceSearchStatus, setPartnerPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
+  const [partnerPlaceResults, setPartnerPlaceResults] = useState<PlaceSearchResult[]>([]);
   const [savedProfiles, setSavedProfiles] = useState<SavedBirthProfile[]>([]);
   const [loadingProfileId, setLoadingProfileId] = useState<string | null>(null);
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
@@ -365,8 +386,10 @@ export function AstroWorkbench() {
   const [interpretationError, setInterpretationError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [transitError, setTransitError] = useState<string | null>(null);
+  const [synastryError, setSynastryError] = useState<string | null>(null);
   const [savedProfilesError, setSavedProfilesError] = useState<string | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  const [partnerPlaceError, setPartnerPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
 
   const placements = useMemo(() => {
@@ -406,6 +429,9 @@ export function AstroWorkbench() {
     setTransitPreview(null);
     setTransitError(null);
     setTransitStatus("idle");
+    setSynastryPreview(null);
+    setSynastryError(null);
+    setSynastryStatus("idle");
     setStatus("idle");
 
     if (field === "birthplaceName") {
@@ -431,7 +457,26 @@ export function AstroWorkbench() {
     setTransitPreview(null);
     setTransitError(null);
     setTransitStatus("idle");
+    setSynastryPreview(null);
+    setSynastryError(null);
+    setSynastryStatus("idle");
     setStatus("idle");
+  };
+
+  const updatePartnerForm = <Field extends keyof FormState>(field: Field, value: FormState[Field]): void => {
+    setPartnerForm((current) => ({
+      ...current,
+      [field]: value
+    }));
+    setSynastryPreview(null);
+    setSynastryError(null);
+    setSynastryStatus("idle");
+
+    if (field === "birthplaceName") {
+      setPartnerPlaceResults([]);
+      setPartnerPlaceError(null);
+      setPartnerPlaceSearchStatus("idle");
+    }
   };
 
   const updatePointVisibility = (key: string, checked: boolean): void => {
@@ -454,6 +499,7 @@ export function AstroWorkbench() {
 
   const resetForm = (): void => {
     setForm(initialForm);
+    setPartnerForm(initialPartnerForm);
     setPointOrbs(defaultPointOrbs);
     setVisiblePointKeys(defaultVisiblePointKeys);
     setChart(null);
@@ -462,6 +508,9 @@ export function AstroWorkbench() {
     setTransitPreview(null);
     setTransitError(null);
     setTransitStatus("idle");
+    setSynastryPreview(null);
+    setSynastryError(null);
+    setSynastryStatus("idle");
     setStatus("idle");
     setSaveStatus("idle");
     setSaveError(null);
@@ -469,6 +518,9 @@ export function AstroWorkbench() {
     setPlaceResults([]);
     setPlaceError(null);
     setPlaceSearchStatus("idle");
+    setPartnerPlaceResults([]);
+    setPartnerPlaceError(null);
+    setPartnerPlaceSearchStatus("idle");
   };
 
   const searchBirthplace = async (): Promise<void> => {
@@ -506,6 +558,9 @@ export function AstroWorkbench() {
     setTransitPreview(null);
     setTransitError(null);
     setTransitStatus("idle");
+    setSynastryPreview(null);
+    setSynastryError(null);
+    setSynastryStatus("idle");
     setStatus("idle");
     setSaveStatus("idle");
     setSaveError(null);
@@ -515,17 +570,56 @@ export function AstroWorkbench() {
     setPlaceSearchStatus("idle");
   };
 
-  const buildNatalPayload = (): NatalPreviewPayload => ({
-    birthDate: form.birthDate,
-    birthTime: form.birthTime,
-    birthTimeKnown: form.birthTimeKnown,
-    timezone: form.timezone,
-    latitude: Number(form.latitude),
-    longitude: Number(form.longitude),
-    houseSystem: form.houseSystem,
-    zodiac: form.zodiac,
+  const searchPartnerBirthplace = async (): Promise<void> => {
+    if (partnerForm.birthplaceName.trim().length < 2) {
+      setPartnerPlaceError("Введи щонайменше 2 символи для пошуку міста.");
+      setPartnerPlaceSearchStatus("error");
+      return;
+    }
+
+    setPartnerPlaceSearchStatus("loading");
+    setPartnerPlaceError(null);
+
+    try {
+      const response = await searchPlaces(partnerForm.birthplaceName);
+      setPartnerPlaceResults(response.results);
+      setPartnerPlaceSearchStatus("ready");
+    } catch (requestError) {
+      setPartnerPlaceSearchStatus("error");
+      setPartnerPlaceError(requestError instanceof Error ? requestError.message : "Unknown place search error");
+    }
+  };
+
+  const selectPartnerBirthplace = (place: PlaceSearchResult): void => {
+    setPartnerForm((current) => ({
+      ...current,
+      birthplaceName: place.displayName,
+      countryCode: place.countryCode ?? "",
+      latitude: String(place.latitude),
+      longitude: String(place.longitude),
+      timezone: place.timezone ?? current.timezone
+    }));
+    setSynastryPreview(null);
+    setSynastryError(null);
+    setSynastryStatus("idle");
+    setPartnerPlaceResults([]);
+    setPartnerPlaceError(null);
+    setPartnerPlaceSearchStatus("idle");
+  };
+
+  const buildNatalPayloadFromForm = (source: FormState): NatalPreviewPayload => ({
+    birthDate: source.birthDate,
+    birthTime: source.birthTime,
+    birthTimeKnown: source.birthTimeKnown,
+    timezone: source.timezone,
+    latitude: Number(source.latitude),
+    longitude: Number(source.longitude),
+    houseSystem: source.houseSystem,
+    zodiac: source.zodiac,
     pointOrbs
   });
+
+  const buildNatalPayload = (): NatalPreviewPayload => buildNatalPayloadFromForm(form);
 
   const refreshSavedProfiles = async (): Promise<void> => {
     setSavedProfilesStatus("loading");
@@ -575,6 +669,9 @@ export function AstroWorkbench() {
       setTransitPreview(null);
       setTransitError(null);
       setTransitStatus("idle");
+      setSynastryPreview(null);
+      setSynastryError(null);
+      setSynastryStatus("idle");
       setStatus(calculation ? "ready" : "idle");
       setSaveStatus("saved");
       setSaveError(null);
@@ -626,6 +723,9 @@ export function AstroWorkbench() {
     setError(null);
     setInterpretationError(null);
     setInterpretation(null);
+    setSynastryPreview(null);
+    setSynastryError(null);
+    setSynastryStatus("idle");
 
     try {
       const payload = buildNatalPayload();
@@ -709,6 +809,26 @@ export function AstroWorkbench() {
     } catch (requestError) {
       setTransitStatus("error");
       setTransitError(requestError instanceof Error ? requestError.message : "Unknown transit API error");
+    }
+  };
+
+  const calculateSynastry = async (): Promise<void> => {
+    setSynastryStatus("loading");
+    setSynastryError(null);
+
+    try {
+      const result = await requestSynastryPreview({
+        subjectA: buildNatalPayload(),
+        subjectB: buildNatalPayloadFromForm(partnerForm),
+        zodiac: form.zodiac,
+        pointOrbs
+      });
+
+      setSynastryPreview(result);
+      setSynastryStatus("ready");
+    } catch (requestError) {
+      setSynastryStatus("error");
+      setSynastryError(requestError instanceof Error ? requestError.message : "Unknown synastry API error");
     }
   };
 
@@ -810,6 +930,20 @@ export function AstroWorkbench() {
               transitDateTime={transitDateTime}
               onCalculate={calculateTransits}
               onTransitDateTimeChange={setTransitDateTime}
+            />
+            <SynastryCard
+              error={synastryError}
+              form={partnerForm}
+              placeError={partnerPlaceError}
+              placeResults={partnerPlaceResults}
+              placeSearchStatus={partnerPlaceSearchStatus}
+              preview={synastryPreview}
+              status={synastryStatus}
+              subjectAName={form.displayName}
+              onCalculate={calculateSynastry}
+              onPlaceSearch={searchPartnerBirthplace}
+              onPlaceSelect={selectPartnerBirthplace}
+              onUpdate={updatePartnerForm}
             />
           </div>
 
@@ -1468,6 +1602,192 @@ function TransitForecastCard({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function SynastryCard({
+  error,
+  form,
+  placeError,
+  placeResults,
+  placeSearchStatus,
+  preview,
+  status,
+  subjectAName,
+  onCalculate,
+  onPlaceSearch,
+  onPlaceSelect,
+  onUpdate
+}: {
+  error: string | null;
+  form: FormState;
+  placeError: string | null;
+  placeResults: PlaceSearchResult[];
+  placeSearchStatus: "idle" | "loading" | "ready" | "error";
+  preview: SynastryPreviewResult | null;
+  status: "idle" | "loading" | "ready" | "error";
+  subjectAName: string;
+  onCalculate: () => Promise<void>;
+  onPlaceSearch: () => Promise<void>;
+  onPlaceSelect: (place: PlaceSearchResult) => void;
+  onUpdate: <Field extends keyof FormState>(field: Field, value: FormState[Field]) => void;
+}) {
+  const subjectAPoints = new Map([...(preview?.subjectA.angles ?? []), ...(preview?.subjectA.bodies ?? [])].map((point) => [point.key, point]));
+  const subjectBPoints = new Map([...(preview?.subjectB.angles ?? []), ...(preview?.subjectB.bodies ?? [])].map((point) => [point.key, point]));
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Activity className="h-5 w-5" />
+        </div>
+        <div className="space-y-1">
+          <CardDescription className="font-semibold uppercase text-primary">Synastry</CardDescription>
+          <CardTitle>Синастрія</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Ім'я / назва другої карти">
+            <Input value={form.displayName} onChange={(event) => onUpdate("displayName", event.target.value)} />
+          </Field>
+          <Field label="Часовий пояс">
+            <Input value={form.timezone} onChange={(event) => onUpdate("timezone", event.target.value)} />
+          </Field>
+          <Field label="Дата">
+            <Input type="date" value={form.birthDate} onChange={(event) => onUpdate("birthDate", event.target.value)} />
+          </Field>
+          <Field label="Час">
+            <Input
+              type="time"
+              step={1}
+              disabled={!form.birthTimeKnown}
+              value={form.birthTime}
+              onChange={(event) => onUpdate("birthTime", event.target.value)}
+            />
+          </Field>
+        </div>
+
+        <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3 text-sm leading-5">
+          <Checkbox
+            checked={form.birthTimeKnown}
+            className="mt-0.5"
+            onCheckedChange={(checked) => onUpdate("birthTimeKnown", checked === true)}
+          />
+          <span>
+            <span className="block font-medium">Час другої карти відомий</span>
+            <span className="text-muted-foreground">Якщо вимкнути, синастрія рахується без кутів і домів другої карти.</span>
+          </span>
+        </label>
+
+        <div className="space-y-2">
+          <Label>Місце другої карти</Label>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <Input value={form.birthplaceName} onChange={(event) => onUpdate("birthplaceName", event.target.value)} />
+            <Button variant="secondary" type="button" disabled={placeSearchStatus === "loading"} onClick={onPlaceSearch}>
+              <Search />
+              {placeSearchStatus === "loading" ? "Шукаю" : "Пошук"}
+            </Button>
+          </div>
+          <PlaceSearchPanel error={placeError} results={placeResults} status={placeSearchStatus} onSelect={onPlaceSelect} />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Широта">
+            <Input value={form.latitude} onChange={(event) => onUpdate("latitude", event.target.value)} />
+          </Field>
+          <Field label="Довгота">
+            <Input value={form.longitude} onChange={(event) => onUpdate("longitude", event.target.value)} />
+          </Field>
+        </div>
+
+        <Button type="button" disabled={status === "loading"} onClick={onCalculate}>
+          <Activity />
+          {status === "loading" ? "Рахую" : "Порахувати синастрію"}
+        </Button>
+
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        {!preview && status !== "loading" && !error ? (
+          <p className="text-sm text-muted-foreground">
+            Синастрія порівнює поточну натальну карту "{subjectAName}" з другою картою і показує найточніші міжкартові аспекти.
+          </p>
+        ) : null}
+
+        {preview ? (
+          <div className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-5">
+              <SynastryMetric label="Усього" value={preview.summary.totalAspects} />
+              <SynastryMetric label="Гармонічні" value={preview.summary.harmoniousAspects} />
+              <SynastryMetric label="Напружені" value={preview.summary.tenseAspects} />
+              <SynastryMetric label="З'єднання" value={preview.summary.conjunctions} />
+              <SynastryMetric label="≤ 1°" value={preview.summary.exactAspects} />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Найточніші міжкартові аспекти</h3>
+              {preview.interAspects.length > 0 ? (
+                <div className="max-h-[360px] overflow-auto rounded-lg border">
+                  <Table>
+                    <TableHeader className="sticky top-0 z-10 bg-card">
+                      <TableRow>
+                        <TableHead>{subjectAName}</TableHead>
+                        <TableHead>Аспект</TableHead>
+                        <TableHead>{form.displayName}</TableHead>
+                        <TableHead>Орб</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {preview.interAspects.slice(0, 18).map((aspect) => {
+                        const pointA = subjectAPoints.get(aspect.bodyA);
+                        const pointB = subjectBPoints.get(aspect.bodyB);
+
+                        return (
+                          <TableRow key={`synastry-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
+                            <TableCell className="font-medium">
+                              {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointA?.label ?? aspect.bodyA}
+                            </TableCell>
+                            <TableCell className={getAspectTextClass(aspect.type)}>{aspectLabels[aspect.type] ?? aspect.type}</TableCell>
+                            <TableCell className="font-medium">
+                              {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointB?.label ?? aspect.bodyB}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Немає міжкартових major aspects у поточних орбах.</p>
+              )}
+            </div>
+
+            {preview.warnings.map((warning) => (
+              <div
+                className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
+                key={warning.code}
+              >
+                {warning.message}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SynastryMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3">
+      <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-semibold">{value}</p>
+    </div>
   );
 }
 

@@ -8,6 +8,8 @@ import type {
   PlaceSearchResponse,
   SaveBirthProfilePayload,
   SaveBirthProfileResult,
+  SynastryPreviewPayload,
+  SynastryPreviewResult,
   TransitPreviewPayload,
   TransitPreviewResult
 } from "./chart-types";
@@ -62,6 +64,22 @@ export const requestTransitPreview = async (payload: TransitPreviewPayload): Pro
   }
 
   return response.json() as Promise<TransitPreviewResult>;
+};
+
+export const requestSynastryPreview = async (payload: SynastryPreviewPayload): Promise<SynastryPreviewResult> => {
+  const response = await fetch(`${API_URL}/charts/synastry/preview`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<SynastryPreviewResult>;
 };
 
 export const saveBirthProfile = async (payload: SaveBirthProfilePayload): Promise<SaveBirthProfileResult> => {

@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
 const require = createRequire(import.meta.url);
-const { calculateNatalChart, calculateTransitPreview, generateNatalInterpretationPreview } = require("../dist");
+const {
+  calculateNatalChart,
+  calculateSynastryPreview,
+  calculateTransitPreview,
+  generateNatalInterpretationPreview
+} = require("../dist");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(__dirname, "../fixtures/smoke-charts/kyiv-natal.json");
@@ -132,6 +137,29 @@ assert.equal(
   "Unknown time transit preview should omit house placements"
 );
 
+const synastryPreview = calculateSynastryPreview({
+  subjectA: fixture.input,
+  subjectB: {
+    ...fixture.input,
+    birthDate: "1992-09-18",
+    birthTime: "09:15:00",
+    latitude: 49.8397,
+    longitude: 24.0297,
+    timezone: "Europe/Kyiv"
+  },
+  ephemerisPath
+});
+
+assert.equal(synastryPreview.chartType, "synastry");
+assert.equal(synastryPreview.subjectA.chartType, "natal");
+assert.equal(synastryPreview.subjectB.chartType, "natal");
+assert.ok(synastryPreview.interAspects.length > 0, "Expected synastry inter-chart aspects");
+assert.equal(
+  synastryPreview.summary.totalAspects,
+  synastryPreview.interAspects.length,
+  "Expected synastry summary to count inter-chart aspects"
+);
+
 console.log(
   JSON.stringify(
     {
@@ -140,6 +168,7 @@ console.log(
       bodies: chart.bodies.length,
       aspects: chart.aspects.length,
       transitAspects: transitPreview.transitToNatalAspects.length,
+      synastryAspects: synastryPreview.interAspects.length,
       moonPhase: transitPreview.moonPhase.name,
       interpretationHighlights: interpretation.highlights.length,
       unknownTimeWarnings: unknownTimeChart.warnings.map((warning) => warning.code),
