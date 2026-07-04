@@ -44,9 +44,11 @@ import type {
   ExactTransitEvent,
   ForecastPreviewResult,
   HouseConnection,
+  HouseRuler,
   MoonPhase,
   NatalInterpretationPreview,
   NatalPreviewPayload,
+  PlanetRulership,
   PlaceSearchResult,
   ReturnEvent,
   SavedBirthProfile,
@@ -227,12 +229,68 @@ const zodiacSignMetaByKey: Record<string, (typeof zodiacSigns)[number]> = Object
   zodiacSigns.map((sign) => [sign.key, sign])
 ) as Record<string, (typeof zodiacSigns)[number]>;
 
+const signRulers: Record<string, Array<{ key: string; label: string; rulerType: "modern" | "traditional" }>> = {
+  aries: [{ key: "mars", label: "Mars", rulerType: "modern" }],
+  taurus: [{ key: "venus", label: "Venus", rulerType: "modern" }],
+  gemini: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
+  cancer: [{ key: "moon", label: "Moon", rulerType: "modern" }],
+  leo: [{ key: "sun", label: "Sun", rulerType: "modern" }],
+  virgo: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
+  libra: [{ key: "venus", label: "Venus", rulerType: "modern" }],
+  scorpio: [
+    { key: "pluto", label: "Pluto", rulerType: "modern" },
+    { key: "mars", label: "Mars", rulerType: "traditional" }
+  ],
+  sagittarius: [{ key: "jupiter", label: "Jupiter", rulerType: "modern" }],
+  capricorn: [{ key: "saturn", label: "Saturn", rulerType: "modern" }],
+  aquarius: [
+    { key: "uranus", label: "Uranus", rulerType: "modern" },
+    { key: "saturn", label: "Saturn", rulerType: "traditional" }
+  ],
+  pisces: [
+    { key: "neptune", label: "Neptune", rulerType: "modern" },
+    { key: "jupiter", label: "Jupiter", rulerType: "traditional" }
+  ]
+};
+
+const rulerTypeLabelsUk: Record<string, string> = {
+  modern: "сучасний",
+  traditional: "традиційний"
+};
+
+const motionLabelsUk: Record<string, string> = {
+  direct: "директний",
+  retrograde: "ретроградний",
+  stationary: "стаціонарний"
+};
+
+const syntheticElementLabelsUk: Record<string, string> = {
+  fire: "вогонь",
+  earth: "земля",
+  air: "повітря",
+  water: "вода"
+};
+
+const syntheticCrossLabelsUk: Record<string, string> = {
+  cardinal: "кардинальний",
+  fixed: "фіксований",
+  mutable: "мутабельний"
+};
+
 const aspectLabels: Record<string, string> = {
   conjunction: "З'єднання",
   opposition: "Опозиція",
   trine: "Трин",
   square: "Квадрат",
   sextile: "Секстиль"
+};
+
+const aspectGlyphs: Record<string, string> = {
+  conjunction: "☌",
+  opposition: "☍",
+  trine: "△",
+  square: "□",
+  sextile: "⚹"
 };
 
 const signLabelsUk: Record<string, string> = {
@@ -348,17 +406,73 @@ const formatActiveWindow = ({
   return `${formatDateTimeCompact(activeFrom)} - ${formatDateTimeCompact(activeUntil)} · ${durationDays.toFixed(1)} дн.`;
 };
 
-const formatPointTooltip = (point: ChartPoint): string => {
+const formatHouseList = (houses: number[] | undefined): string => {
+  if (!houses || houses.length === 0) {
+    return "n/a";
+  }
+
+  return houses.join(", ");
+};
+
+const getRuledHouseNumbers = (chart: ChartResult | null | undefined, pointKey: string): number[] => {
+  const rulership = chart?.planetRulerships?.find((item) => item.pointKey === pointKey);
+
+  if (rulership) {
+    return rulership.houses;
+  }
+
+  return [
+    ...new Set(
+      chart?.houseRulers
+        ?.filter((ruler) => ruler.rulerKey === pointKey)
+        .map((ruler) => ruler.house) ?? []
+    )
+  ].sort((a, b) => a - b);
+};
+
+const motionLabelForPoint = (point: ChartPoint | undefined): string => {
+  if (!point || point.speed === undefined) {
+    return "рух n/a";
+  }
+
+  if (Math.abs(point.speed) < 0.0001) {
+    return motionLabelsUk.stationary ?? "стаціонарний";
+  }
+
+  return point.speed < 0
+    ? motionLabelsUk.retrograde ?? "ретроградний"
+    : motionLabelsUk.direct ?? "директний";
+};
+
+const formatPointTooltip = (point: ChartPoint, chart?: ChartResult | null): string => {
   const house = point.house ? `${point.house} дім` : "дім n/a";
   const speed = point.speed === undefined ? "" : `\nШвидкість: ${point.speed.toFixed(4)}°/день`;
+  const ruledHouses = formatHouseList(getRuledHouseNumbers(chart, point.key));
 
   return `${point.label}\nЗнак: ${signLabelsUk[point.sign] ?? point.sign}\nГрадус знака: ${point.signDegree.toFixed(
     2
-  )}°\nАбсолютна довгота: ${point.longitude.toFixed(2)}°\n${house}${speed}`;
+  )}°\nАбсолютна довгота: ${point.longitude.toFixed(2)}°\n${house}\nПравить домами: ${ruledHouses}${speed}`;
 };
 
-const formatSignTooltip = (sign: (typeof zodiacSigns)[number]): string =>
-  `${sign.label}\nСтать: ${sign.gender}\nХрест: ${sign.cross}\nСтихія: ${sign.element}`;
+const formatSignTooltip = (sign: (typeof zodiacSigns)[number], chart?: ChartResult | null): string => {
+  const pointsByKey = new Map(chart?.bodies.map((point) => [point.key, point]) ?? []);
+  const rulers = signRulers[sign.key] ?? [];
+  const directRulers = rulers.filter((ruler) => motionLabelForPoint(pointsByKey.get(ruler.key)) !== motionLabelsUk.retrograde);
+  const retrogradeRulers = rulers.filter((ruler) => motionLabelForPoint(pointsByKey.get(ruler.key)) === motionLabelsUk.retrograde);
+  const formatRuler = (ruler: (typeof rulers)[number]): string =>
+    `${planetGlyphs[ruler.key] ?? ""} ${ruler.label} (${rulerTypeLabelsUk[ruler.rulerType]}, ${motionLabelForPoint(
+      pointsByKey.get(ruler.key)
+    )})`;
+
+  return [
+    sign.label,
+    `Стать: ${sign.gender}`,
+    `Хрест: ${sign.cross}`,
+    `Стихія: ${sign.element}`,
+    `Директні правителі: ${directRulers.map(formatRuler).join(", ") || "немає"}`,
+    `Ретроградні правителі: ${retrogradeRulers.map(formatRuler).join(", ") || "немає"}`
+  ].join("\n");
+};
 
 const isPointVisible = (settings: VisiblePointSettings, key: string): boolean => settings[key] !== false;
 
@@ -2240,7 +2354,7 @@ function SynastryOverlayWheel({
 
           return (
             <g key={`syn-sign-${signMeta?.key ?? index}`}>
-              {signMeta ? <title>{formatSignTooltip(signMeta)}</title> : null}
+              {signMeta ? <title>{formatSignTooltip(signMeta, preview.subjectA)}</title> : null}
               <line x1={divider.x} y1={divider.y} x2={dividerEnd.x} y2={dividerEnd.y} className="stroke-border stroke-[1]" />
               <text
                 x={sign.x}
@@ -2285,7 +2399,7 @@ function SynastryOverlayWheel({
 
           return (
             <g key={`syn-a-${point.key}`}>
-              <title>{`${subjectAName}\n${formatPointTooltip(point)}`}</title>
+              <title>{`${subjectAName}\n${formatPointTooltip(point, preview.subjectA)}`}</title>
               <circle cx={position.x} cy={position.y} r="12" className="fill-background stroke-primary stroke-[1.3]" />
               <text
                 x={position.x}
@@ -2303,7 +2417,7 @@ function SynastryOverlayWheel({
 
           return (
             <g key={`syn-b-${point.key}`}>
-              <title>{`${subjectBName}\n${formatPointTooltip(point)}`}</title>
+              <title>{`${subjectBName}\n${formatPointTooltip(point, preview.subjectB)}`}</title>
               <circle cx={position.x} cy={position.y} r="11" className="fill-background stroke-astro-coral stroke-[1.3]" />
               <text
                 x={position.x}
@@ -2338,10 +2452,16 @@ function ProfessionalDataCard({
         <CardTitle>Професійні таблиці</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
+        <SyntheticSignatureCard chart={chart} />
+
+        <Separator />
         <BalanceSummary points={balancePoints} />
 
         <Separator />
         <PlacementsTable placements={placements} />
+
+        <Separator />
+        <PlanetRulershipsTable chart={chart} />
 
         <Separator />
         <DignitiesTable chart={chart} />
@@ -2353,7 +2473,7 @@ function ProfessionalDataCard({
         <HouseConnectionsTable chart={chart} />
 
         <Separator />
-        <AspectsTable aspects={aspects} />
+        <AspectsTable aspects={aspects} points={placements} />
 
         {chart?.warnings.map((warning) => (
           <div
@@ -2365,6 +2485,115 @@ function ProfessionalDataCard({
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
+  const signature = chart?.syntheticSignature;
+
+  if (!signature) {
+    return (
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold">Синтетична сигнатура</h3>
+        <p className="text-sm text-muted-foreground">Очікує перерахунок карти для балів синтетичного знаку.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">Синтетична сигнатура</h3>
+        <Badge variant="secondary">{signature.scores.total.toFixed(1)} балів</Badge>
+      </div>
+      <div className="grid gap-2">
+        <SyntheticLeader
+          label="Знак"
+          value={signLabelsUk[signature.sign.key] ?? signature.sign.key}
+          score={signature.sign.score}
+        />
+        <SyntheticLeader
+          label="Стихія"
+          value={syntheticElementLabelsUk[signature.element.key] ?? signature.element.key}
+          score={signature.element.score}
+        />
+        <SyntheticLeader
+          label="Хрест"
+          value={syntheticCrossLabelsUk[signature.cross.key] ?? signature.cross.key}
+          score={signature.cross.score}
+        />
+      </div>
+      <div className="grid gap-3">
+        <SyntheticScoreGroup
+          label="Топ знаків"
+          rows={signature.scores.signs.slice(0, 4).map((row) => ({
+            ...row,
+            label: signLabelsUk[row.key] ?? row.key
+          }))}
+          total={signature.scores.total}
+        />
+        <SyntheticScoreGroup
+          label="Стихії"
+          rows={signature.scores.elements.map((row) => ({
+            ...row,
+            label: syntheticElementLabelsUk[row.key] ?? row.key
+          }))}
+          total={signature.scores.total}
+        />
+        <SyntheticScoreGroup
+          label="Хрести"
+          rows={signature.scores.crosses.map((row) => ({
+            ...row,
+            label: syntheticCrossLabelsUk[row.key] ?? row.key
+          }))}
+          total={signature.scores.total}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SyntheticLeader({ label, score, value }: { label: string; score: number; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-semibold">
+        {value} · {score.toFixed(1)}
+      </span>
+    </div>
+  );
+}
+
+function SyntheticScoreGroup({
+  label,
+  rows,
+  total
+}: {
+  label: string;
+  rows: Array<{ key: string; label: string; score: number }>;
+  total: number;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+      <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
+      <div className="space-y-2">
+        {rows.map((row) => {
+          const percentage = total > 0 ? (row.score / total) * 100 : 0;
+
+          return (
+            <div className="grid gap-1" key={row.key}>
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="capitalize text-muted-foreground">{row.label}</span>
+                <span className="font-semibold">{row.score.toFixed(1)}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-border">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${percentage}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -2470,6 +2699,54 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
   );
 }
 
+function PlanetRulershipsTable({ chart }: { chart: ChartResult | null }) {
+  const rulerships = chart?.planetRulerships?.filter((rulership) => rulership.houses.length > 0) ?? [];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">Планети-управителі</h3>
+        <Badge variant="secondary">{rulerships.length}</Badge>
+      </div>
+      <div className="max-h-[300px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Планета</TableHead>
+              <TableHead>Доми</TableHead>
+              <TableHead>Сучасні</TableHead>
+              <TableHead>Традиц.</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rulerships.length > 0 ? (
+              rulerships.map((rulership) => (
+                <TableRow key={`rulership-${rulership.pointKey}`}>
+                  <TableCell className="font-medium">
+                    <span className="mr-2 inline-flex w-6 font-semibold text-primary">
+                      {planetGlyphs[rulership.pointKey] ?? "•"}
+                    </span>
+                    {rulership.pointLabel}
+                  </TableCell>
+                  <TableCell className="font-semibold text-foreground">({formatHouseList(rulership.houses)})</TableCell>
+                  <TableCell className="text-muted-foreground">{formatHouseList(rulership.modernHouses)}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatHouseList(rulership.traditionalHouses)}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  Для списку управителів потрібні розраховані доми. Перерахуй стару збережену карту, якщо таблиця порожня.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 function DignitiesTable({ chart }: { chart: ChartResult | null }) {
   const dignities = chart?.essentialDignities ?? [];
 
@@ -2564,6 +2841,7 @@ function HousesTable({ chart }: { chart: ChartResult | null }) {
 
 function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
   const connections = chart?.houseConnections ?? [];
+  const houseRulers = chart?.houseRulers ?? [];
   const connectionMap = new Map(connections.map((connection) => [`${connection.fromHouse}-${connection.toHouse}`, connection]));
   const houses = Array.from({ length: 12 }, (_, index) => index + 1);
 
@@ -2573,13 +2851,15 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
         <h3 className="text-sm font-semibold">Зв'язки домів</h3>
         <Badge variant="secondary">{connections.length}</Badge>
       </div>
-      {connections.length > 0 ? (
+      {connections.length > 0 || houseRulers.length > 0 ? (
         <>
+          <HouseRulersTable houseRulers={houseRulers} />
+
           <div className="overflow-auto rounded-lg border">
             <table className="min-w-[620px] border-collapse text-xs">
               <thead className="sticky top-0 z-10 bg-card">
                 <tr>
-                  <th className="h-8 w-9 border-b border-r px-2 text-left font-semibold text-muted-foreground">Дім</th>
+                  <th className="h-8 w-9 border-b border-r px-2 text-left font-semibold text-muted-foreground">→</th>
                   {houses.map((house) => (
                     <th className="h-8 border-b border-r px-2 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
                       {house}
@@ -2612,6 +2892,11 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
               </tbody>
             </table>
           </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline">+ гармонійні</Badge>
+            <Badge variant="outline">- напружені</Badge>
+            <Badge variant="outline">○ нейтральні</Badge>
+          </div>
           <div className="space-y-2">
             {connections.slice(0, 8).map((connection) => (
               <div className="rounded-lg border bg-muted/20 p-3 text-xs" key={`house-link-${connection.fromHouse}-${connection.toHouse}`}>
@@ -2632,6 +2917,46 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
           перерахуй її ще раз.
         </p>
       )}
+    </div>
+  );
+}
+
+function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
+  return (
+    <div className="max-h-[300px] overflow-auto rounded-lg border">
+      <Table>
+        <TableHeader className="sticky top-0 z-10 bg-card">
+          <TableRow>
+            <TableHead>Дім</TableHead>
+            <TableHead>Куспід</TableHead>
+            <TableHead>Управитель</TableHead>
+            <TableHead>Стоїть</TableHead>
+            <TableHead>Рух</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {houseRulers.length > 0 ? (
+            houseRulers.map((ruler) => (
+              <TableRow key={`house-ruler-${ruler.house}-${ruler.rulerKey}-${ruler.rulerType}`}>
+                <TableCell className="font-semibold">{ruler.house}</TableCell>
+                <TableCell className="text-muted-foreground">{signLabelsUk[ruler.sign] ?? ruler.sign}</TableCell>
+                <TableCell className="font-medium">
+                  {planetGlyphs[ruler.rulerKey] ?? ruler.rulerKey} {ruler.rulerLabel}{" "}
+                  <span className="text-xs text-muted-foreground">({rulerTypeLabelsUk[ruler.rulerType]})</span>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{ruler.rulerHouse ? `${ruler.rulerHouse} дім` : "n/a"}</TableCell>
+                <TableCell className="text-muted-foreground">{ruler.motion ? motionLabelsUk[ruler.motion] : "n/a"}</TableCell>
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={5} className="text-muted-foreground">
+                Очікує управителів домів.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -2679,36 +3004,113 @@ function formatHouseConnectionTitle(connection: HouseConnection): string {
     .join("; ");
 }
 
-function AspectsTable({ aspects }: { aspects: Aspect[] }) {
+function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoint[] }) {
+  const matrixPoints = points.slice(0, 18);
+  const pointsByKey = new Map(points.map((point) => [point.key, point]));
+  const aspectMap = new Map<string, Aspect>();
+
+  for (const aspect of aspects) {
+    aspectMap.set(`${aspect.bodyA}-${aspect.bodyB}`, aspect);
+    aspectMap.set(`${aspect.bodyB}-${aspect.bodyA}`, aspect);
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold">Аспекти</h3>
         <Badge variant="secondary">{aspects.length}</Badge>
       </div>
-      <div className="max-h-[338px] overflow-auto rounded-lg border">
+
+      <div className="overflow-auto rounded-lg border">
+        <table className="min-w-[760px] border-collapse text-xs">
+          <thead className="sticky top-0 z-10 bg-card">
+            <tr>
+              <th className="h-9 w-11 border-b border-r bg-card px-2 text-left font-semibold text-muted-foreground" />
+              {matrixPoints.map((point) => (
+                <th
+                  className="h-9 min-w-10 border-b border-r px-1 text-center font-semibold text-muted-foreground"
+                  key={`aspect-col-${point.key}`}
+                  title={point.label}
+                >
+                  {planetGlyphs[point.key] ?? point.label.slice(0, 2)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {matrixPoints.map((rowPoint, rowIndex) => (
+              <tr key={`aspect-row-${rowPoint.key}`}>
+                <th
+                  className="h-10 border-b border-r bg-muted/30 px-2 text-center font-semibold text-muted-foreground"
+                  title={rowPoint.label}
+                >
+                  {planetGlyphs[rowPoint.key] ?? rowPoint.label.slice(0, 2)}
+                </th>
+                {matrixPoints.map((columnPoint, columnIndex) => {
+                  const aspect = rowIndex > columnIndex ? aspectMap.get(`${rowPoint.key}-${columnPoint.key}`) : undefined;
+
+                  return (
+                    <td
+                      className={cn(
+                        "h-10 min-w-10 border-b border-r px-1 text-center align-middle",
+                        aspect ? getAspectMatrixCellClass(aspect.type) : "bg-background text-muted-foreground"
+                      )}
+                      key={`aspect-cell-${rowPoint.key}-${columnPoint.key}`}
+                      title={aspect ? formatAspectTitle(aspect, pointsByKey) : undefined}
+                    >
+                      {aspect ? (
+                        <span className="inline-grid gap-0.5">
+                          <span className="text-sm font-bold leading-none">{aspectGlyphs[aspect.type] ?? aspect.type}</span>
+                          <span className="text-[10px] leading-none">{aspect.orb.toFixed(1)}°</span>
+                        </span>
+                      ) : rowIndex === columnIndex ? (
+                        "·"
+                      ) : (
+                        ""
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="max-h-[260px] overflow-auto rounded-lg border">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
-              <TableHead>Пара</TableHead>
-              <TableHead>Тип</TableHead>
+              <TableHead>Планета A</TableHead>
+              <TableHead>Аспект</TableHead>
+              <TableHead>Планета B</TableHead>
               <TableHead>Орб</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {aspects.length > 0 ? (
-              aspects.map((aspect) => (
-                <TableRow key={`${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
-                  <TableCell className="font-medium">
-                    {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {planetGlyphs[aspect.bodyB] ?? aspect.bodyB}
-                  </TableCell>
-                  <TableCell className={getAspectTextClass(aspect.type)}>{aspectLabels[aspect.type] ?? aspect.type}</TableCell>
-                  <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
-                </TableRow>
-              ))
+              aspects.slice(0, 24).map((aspect) => {
+                const pointA = pointsByKey.get(aspect.bodyA);
+                const pointB = pointsByKey.get(aspect.bodyB);
+
+                return (
+                  <TableRow key={`${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
+                    <TableCell className="font-medium">
+                      {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointA?.label ?? aspect.bodyA}
+                    </TableCell>
+                    <TableCell className={cn("font-medium", getAspectTextClass(aspect.type))}>
+                      {aspectGlyphs[aspect.type] ?? ""} {aspectLabels[aspect.type] ?? aspect.type}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointB?.label ?? aspect.bodyB}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={3} className="text-muted-foreground">
+                <TableCell colSpan={4} className="text-muted-foreground">
                   Немає аспектів у поточних фільтрах.
                 </TableCell>
               </TableRow>
@@ -2859,6 +3261,7 @@ function ChartWheel({
   chart: ChartResult | null;
   visiblePointKeys: VisiblePointSettings;
 }) {
+  const [hoveredPointKey, setHoveredPointKey] = useState<string | null>(null);
   const center = 160;
   const outerRadius = 138;
   const signRadius = 119;
@@ -2882,6 +3285,7 @@ function ChartWheel({
   const points = chart ? [...chart.angles, ...chart.bodies].filter((point) => isPointVisible(visiblePointKeys, point.key)) : [];
   const pointMarkers = chart?.bodies.filter((point) => isPointVisible(visiblePointKeys, point.key)) ?? [];
   const pointsByKey = new Map(points.map((chartPoint) => [chartPoint.key, chartPoint]));
+  const highlightedHouses = new Set(hoveredPointKey ? getRuledHouseNumbers(chart, hoveredPointKey) : []);
   const angleMarkers = [
     ascendant,
     chart?.angles.find((angle) => angle.key === "desc") ??
@@ -2937,6 +3341,7 @@ function ChartWheel({
           : cusp.longitude;
         const label = toXY(houseCenterLongitude, houseLabelRadius);
         const isAngularHouse = cusp.house === 1 || cusp.house === 4 || cusp.house === 7 || cusp.house === 10;
+        const isHighlightedHouse = highlightedHouses.has(cusp.house);
 
         return (
           <g key={`house-${cusp.house}`}>
@@ -2945,12 +3350,21 @@ function ChartWheel({
               y1={start.y}
               x2={end.x}
               y2={end.y}
-              className={cn("stroke-[1]", isAngularHouse ? "stroke-primary" : "stroke-border")}
+              className={cn(
+                "stroke-[1]",
+                isHighlightedHouse ? "stroke-astro-coral stroke-[2]" : isAngularHouse ? "stroke-primary" : "stroke-border"
+              )}
             />
+            {isHighlightedHouse ? (
+              <circle cx={label.x} cy={label.y} r="11" className="fill-astro-coral/15 stroke-astro-coral stroke-[1]" />
+            ) : null}
             <text
               x={label.x}
               y={label.y}
-              className="fill-muted-foreground text-[10px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
+              className={cn(
+                "text-[10px] font-semibold [dominant-baseline:middle] [text-anchor:middle]",
+                isHighlightedHouse ? "fill-astro-coral" : "fill-muted-foreground"
+              )}
             >
               {cusp.house}
             </text>
@@ -2966,7 +3380,7 @@ function ChartWheel({
 
         return (
           <g key={signMeta?.key ?? index}>
-            {signMeta ? <title>{formatSignTooltip(signMeta)}</title> : null}
+            {signMeta ? <title>{formatSignTooltip(signMeta, chart)}</title> : null}
             <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-border stroke-[1]" />
             <text
               x={sign.x}
@@ -3013,7 +3427,7 @@ function ChartWheel({
 
         return (
           <g key={`angle-${anglePoint.key}`}>
-            {fullAnglePoint ? <title>{formatPointTooltip(fullAnglePoint)}</title> : null}
+            {fullAnglePoint ? <title>{formatPointTooltip(fullAnglePoint, chart)}</title> : null}
             <line
               x1={tail.x}
               y1={tail.y}
@@ -3040,9 +3454,22 @@ function ChartWheel({
         const position = toXY(chartPoint.longitude, pointRadius);
 
         return (
-          <g key={chartPoint.key}>
-            <title>{formatPointTooltip(chartPoint)}</title>
-            <circle cx={position.x} cy={position.y} r="13" className="fill-background stroke-primary stroke-[1.4]" />
+          <g
+            className="cursor-help"
+            key={chartPoint.key}
+            onMouseEnter={() => setHoveredPointKey(chartPoint.key)}
+            onMouseLeave={() => setHoveredPointKey(null)}
+          >
+            <title>{formatPointTooltip(chartPoint, chart)}</title>
+            <circle
+              cx={position.x}
+              cy={position.y}
+              r="13"
+              className={cn(
+                "fill-background stroke-[1.4]",
+                hoveredPointKey === chartPoint.key ? "stroke-astro-coral stroke-[2]" : "stroke-primary"
+              )}
+            />
             <text
               x={position.x}
               y={position.y}
@@ -3117,6 +3544,28 @@ function getAspectTextClass(type: string): string {
     default:
       return "text-primary";
   }
+}
+
+function getAspectMatrixCellClass(type: string): string {
+  switch (type) {
+    case "trine":
+    case "sextile":
+      return "bg-astro-coral/15 text-astro-coral";
+    case "square":
+    case "opposition":
+      return "bg-blue-600/15 text-blue-700";
+    default:
+      return "bg-primary/10 text-primary";
+  }
+}
+
+function formatAspectTitle(aspect: Aspect, pointsByKey: Map<string, ChartPoint>): string {
+  const pointA = pointsByKey.get(aspect.bodyA);
+  const pointB = pointsByKey.get(aspect.bodyB);
+
+  return `${pointA?.label ?? aspect.bodyA} ${aspectLabels[aspect.type] ?? aspect.type} ${
+    pointB?.label ?? aspect.bodyB
+  } · orb ${aspect.orb.toFixed(2)}°`;
 }
 
 function getDignityTextClass(type: string): string {

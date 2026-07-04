@@ -17,6 +17,41 @@ export type HouseCusp = {
   signDegree: number;
 };
 
+export type HouseRuler = {
+  house: number;
+  sign: string;
+  rulerKey: string;
+  rulerLabel: string;
+  rulerType: "modern" | "traditional";
+  rulerHouse?: number;
+  motion?: "direct" | "retrograde" | "stationary";
+};
+
+export type PlanetRulership = {
+  pointKey: string;
+  pointLabel: string;
+  houses: number[];
+  modernHouses: number[];
+  traditionalHouses: number[];
+};
+
+export type BalanceScore = {
+  key: string;
+  score: number;
+};
+
+export type SyntheticSignature = {
+  sign: BalanceScore;
+  element: BalanceScore;
+  cross: BalanceScore;
+  scores: {
+    signs: BalanceScore[];
+    elements: BalanceScore[];
+    crosses: BalanceScore[];
+    total: number;
+  };
+};
+
 export type Aspect = {
   bodyA: string;
   bodyB: string;
@@ -89,6 +124,9 @@ export type ChartResult = {
   angles: ChartPoint[];
   houses: HouseCusp[];
   houseConnections?: HouseConnection[];
+  houseRulers?: HouseRuler[];
+  planetRulerships?: PlanetRulership[];
+  syntheticSignature?: SyntheticSignature;
   essentialDignities?: EssentialDignity[];
   bodies: ChartPoint[];
   aspects: Aspect[];

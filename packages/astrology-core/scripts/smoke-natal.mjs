@@ -49,6 +49,13 @@ const minBodies = hasFallbackWarnings
 
 assert.ok(chart.bodies.length >= minBodies, `Expected at least ${minBodies} bodies, got ${chart.bodies.length}`);
 assert.ok(chart.houseConnections.length >= 12, "Expected house ruler connections for known birth time");
+assert.ok(chart.houseRulers.length >= 12, "Expected house rulers for known birth time");
+assert.ok(
+  chart.planetRulerships.some((rulership) => rulership.houses.length > 0),
+  "Expected planet-to-house rulership rows"
+);
+assert.ok(chart.syntheticSignature, "Expected synthetic signature");
+assert.ok(chart.syntheticSignature.scores.total > 0, "Expected synthetic signature score total");
 assert.ok(chart.essentialDignities.length >= minBodies, "Expected essential dignity rows for chart bodies");
 assert.ok(
   chart.essentialDignities.some((dignity) => dignity.chain.length > 1),
@@ -83,6 +90,8 @@ assert.equal(unknownTimeChart.subject.birthTimeKnown, false);
 assert.equal(unknownTimeChart.angles.length, 0, "Unknown time chart should omit angles");
 assert.equal(unknownTimeChart.houses.length, 0, "Unknown time chart should omit houses");
 assert.equal(unknownTimeChart.houseConnections.length, 0, "Unknown time chart should omit house connections");
+assert.equal(unknownTimeChart.houseRulers.length, 0, "Unknown time chart should omit house rulers");
+assert.ok(unknownTimeChart.syntheticSignature.scores.total > 0, "Unknown time chart should still have body signature");
 assert.ok(
   unknownTimeChart.warnings.some((warning) => warning.code === "UNKNOWN_BIRTH_TIME"),
   "Unknown time chart should include UNKNOWN_BIRTH_TIME warning"
@@ -196,6 +205,8 @@ console.log(
       bodies: chart.bodies.length,
       aspects: chart.aspects.length,
       houseConnections: chart.houseConnections.length,
+      houseRulers: chart.houseRulers.length,
+      syntheticSign: chart.syntheticSignature.sign.key,
       dignities: chart.essentialDignities.length,
       transitAspects: transitPreview.transitToNatalAspects.length,
       forecastExactTransits: forecastPreview.exactTransits.length,

@@ -28,11 +28,16 @@ import type {
   HouseConnectionRole,
   HouseConnectionTone,
   HouseCusp,
+  HouseRuler,
   HouseSystem,
   MoonPhase,
   NatalCalculationInput,
+  PlanetMotion,
+  PlanetRulership,
   PointOrbSettings,
+  RulerType,
   ReturnEvent,
+  SyntheticSignature,
   SynastryPreviewInput,
   SynastryPreviewResult,
   TransitAspect,
@@ -49,6 +54,12 @@ type BodyDefinition = {
   label: string;
   swephId: number;
   kind: ChartPoint["kind"];
+};
+
+type SignRulerDefinition = {
+  key: string;
+  label: string;
+  rulerType: RulerType;
 };
 
 const HOUSE_SYSTEM_CODES: Record<HouseSystem, HouseSystems> = {
@@ -84,7 +95,7 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
 
 const BODY_DEFINITION_BY_KEY = new Map(BODY_DEFINITIONS.map((body) => [body.key, body]));
 
-const SIGN_RULERS: Record<string, Array<{ key: string; label: string; rulerType: "modern" | "traditional" }>> = {
+const SIGN_RULERS: Record<string, SignRulerDefinition[]> = {
   aries: [{ key: "mars", label: "Mars", rulerType: "modern" }],
   taurus: [{ key: "venus", label: "Venus", rulerType: "modern" }],
   gemini: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
@@ -144,6 +155,52 @@ const OPPOSITE_SIGNS: Record<string, string> = {
   capricorn: "cancer",
   aquarius: "leo",
   pisces: "virgo"
+};
+
+const SIGN_ELEMENTS: Record<string, string> = {
+  aries: "fire",
+  taurus: "earth",
+  gemini: "air",
+  cancer: "water",
+  leo: "fire",
+  virgo: "earth",
+  libra: "air",
+  scorpio: "water",
+  sagittarius: "fire",
+  capricorn: "earth",
+  aquarius: "air",
+  pisces: "water"
+};
+
+const SIGN_CROSSES: Record<string, string> = {
+  aries: "cardinal",
+  taurus: "fixed",
+  gemini: "mutable",
+  cancer: "cardinal",
+  leo: "fixed",
+  virgo: "mutable",
+  libra: "cardinal",
+  scorpio: "fixed",
+  sagittarius: "mutable",
+  capricorn: "cardinal",
+  aquarius: "fixed",
+  pisces: "mutable"
+};
+
+const SYNTHETIC_POINT_WEIGHTS: Record<string, number> = {
+  sun: 2,
+  moon: 2,
+  mercury: 1.5,
+  venus: 1.5,
+  mars: 1.5,
+  asc: 1.5,
+  jupiter: 1,
+  saturn: 1,
+  uranus: 1,
+  neptune: 1,
+  pluto: 1,
+  "north-node": 0.5,
+  "south-node": 0.5
 };
 
 const ASPECT_SCORE_WEIGHTS: Record<AspectType, number> = {
@@ -329,6 +386,144 @@ const aspectTone = (aspectType: AspectType): HouseConnectionTone => {
   }
 
   return "neutral";
+};
+
+const motionForPoint = (point: ChartPoint | undefined): PlanetMotion | undefined => {
+  if (!point || point.speed === undefined) {
+    return undefined;
+  }
+
+  if (Math.abs(point.speed) < 0.0001) {
+    return "stationary";
+  }
+
+  return point.speed < 0 ? "retrograde" : "direct";
+};
+
+const calculateHouseRulers = (houses: HouseCusp[], bodies: ChartPoint[]): HouseRuler[] => {
+  if (houses.length === 0) {
+    return [];
+  }
+
+  const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
+
+  return houses.flatMap((house) =>
+    (SIGN_RULERS[house.sign] ?? []).map((ruler) => {
+      const rulerPoint = pointsByKey.get(ruler.key);
+
+      return {
+        house: house.house,
+        sign: house.sign,
+        rulerKey: ruler.key,
+        rulerLabel: ruler.label,
+        rulerType: ruler.rulerType,
+        rulerHouse: rulerPoint?.house,
+        motion: motionForPoint(rulerPoint)
+      };
+    })
+  );
+};
+
+const calculatePlanetRulerships = (houseRulers: HouseRuler[], bodies: ChartPoint[]): PlanetRulership[] => {
+  const rulershipsByPlanet = new Map<string, PlanetRulership>();
+
+  const ensureRulership = (pointKey: string, pointLabel: string): PlanetRulership => {
+    const existing = rulershipsByPlanet.get(pointKey);
+
+    if (existing) {
+      return existing;
+    }
+
+    const created = {
+      pointKey,
+      pointLabel,
+      houses: [],
+      modernHouses: [],
+      traditionalHouses: []
+    };
+
+    rulershipsByPlanet.set(pointKey, created);
+    return created;
+  };
+
+  for (const body of bodies) {
+    ensureRulership(body.key, body.label);
+  }
+
+  for (const houseRuler of houseRulers) {
+    const rulership = ensureRulership(houseRuler.rulerKey, houseRuler.rulerLabel);
+
+    rulership.houses.push(houseRuler.house);
+
+    if (houseRuler.rulerType === "modern") {
+      rulership.modernHouses.push(houseRuler.house);
+    } else {
+      rulership.traditionalHouses.push(houseRuler.house);
+    }
+  }
+
+  return [...rulershipsByPlanet.values()]
+    .map((rulership) => ({
+      ...rulership,
+      houses: [...new Set(rulership.houses)].sort((a, b) => a - b),
+      modernHouses: [...new Set(rulership.modernHouses)].sort((a, b) => a - b),
+      traditionalHouses: [...new Set(rulership.traditionalHouses)].sort((a, b) => a - b)
+    }))
+    .sort((a, b) => a.pointLabel.localeCompare(b.pointLabel));
+};
+
+const addScore = (scores: Map<string, number>, key: string | undefined, score: number): void => {
+  if (!key) {
+    return;
+  }
+
+  scores.set(key, round((scores.get(key) ?? 0) + score, 3));
+};
+
+const sortedScores = (scores: Map<string, number>, order: string[]): Array<{ key: string; score: number }> =>
+  order
+    .map((key) => ({
+      key,
+      score: round(scores.get(key) ?? 0, 3)
+    }))
+    .sort((a, b) => b.score - a.score || order.indexOf(a.key) - order.indexOf(b.key));
+
+const calculateSyntheticSignature = (points: ChartPoint[]): SyntheticSignature => {
+  const signScores = new Map(ZODIAC_SIGNS.map((sign) => [sign, 0]));
+  const elementOrder = ["fire", "earth", "air", "water"];
+  const crossOrder = ["cardinal", "fixed", "mutable"];
+  const elementScores = new Map(elementOrder.map((element) => [element, 0]));
+  const crossScores = new Map(crossOrder.map((cross) => [cross, 0]));
+  let total = 0;
+
+  for (const point of points) {
+    const weight = SYNTHETIC_POINT_WEIGHTS[point.key];
+
+    if (!weight) {
+      continue;
+    }
+
+    addScore(signScores, point.sign, weight);
+    addScore(elementScores, SIGN_ELEMENTS[point.sign], weight);
+    addScore(crossScores, SIGN_CROSSES[point.sign], weight);
+    total = round(total + weight, 3);
+  }
+
+  const signs = sortedScores(signScores, [...ZODIAC_SIGNS]);
+  const elements = sortedScores(elementScores, elementOrder);
+  const crosses = sortedScores(crossScores, crossOrder);
+
+  return {
+    sign: signs[0] ?? { key: "aries", score: 0 },
+    element: elements[0] ?? { key: "fire", score: 0 },
+    cross: crosses[0] ?? { key: "cardinal", score: 0 },
+    scores: {
+      signs,
+      elements,
+      crosses,
+      total
+    }
+  };
 };
 
 const calculateHouseConnections = (houses: HouseCusp[], bodies: ChartPoint[], aspects: Aspect[]): HouseConnection[] => {
@@ -971,8 +1166,11 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
 
   const aspectAngles = angles.filter((angle) => angle.key === "asc" || angle.key === "mc");
   const aspects = calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs);
+  const houseRulers = calculateHouseRulers(houses, bodies);
+  const planetRulerships = calculatePlanetRulerships(houseRulers, bodies);
   const houseConnections = calculateHouseConnections(houses, bodies, aspects);
   const essentialDignities = calculateEssentialDignities(bodies);
+  const syntheticSignature = calculateSyntheticSignature([...angles, ...bodies]);
 
   return {
     chartType: "natal",
@@ -991,6 +1189,9 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     angles,
     houses,
     houseConnections,
+    houseRulers,
+    planetRulerships,
+    syntheticSignature,
     essentialDignities,
     bodies,
     aspects,
@@ -1066,6 +1267,9 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
     angles: [],
     houses: [],
     houseConnections: [],
+    houseRulers: [],
+    planetRulerships: [],
+    syntheticSignature: calculateSyntheticSignature(bodies),
     essentialDignities: calculateEssentialDignities(bodies),
     bodies,
     aspects: calculateMajorAspects(bodies, undefined, settings.pointOrbs),
