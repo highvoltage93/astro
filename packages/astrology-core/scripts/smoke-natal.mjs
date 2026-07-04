@@ -96,12 +96,16 @@ assert.notEqual(
   placidusChart.houses[1]?.longitude,
   "Expected Koch and Placidus to produce distinct intermediate house cusps"
 );
-assert.ok(hasRuler("aries", "pluto", "direct"), "Expected Pluto as direct ruler of Aries");
-assert.ok(hasRuler("aries", "mars", "retrograde"), "Expected retrograde Mars as ruler of Aries");
+assert.ok(hasRuler("aries", "pluto", "retrograde"), "Expected retrograde Pluto as active ruler of Aries");
+assert.ok(!hasRuler("aries", "mars", "retrograde"), "Expected inactive retrograde Mars rulership omitted while Mars is direct");
 assert.ok(hasRuler("scorpio", "mars", "direct"), "Expected Mars as direct ruler of Scorpio");
-assert.ok(hasRuler("scorpio", "pluto", "retrograde"), "Expected retrograde Pluto as ruler of Scorpio");
+assert.ok(hasRuler("scorpio", "pluto", "retrograde"), "Expected retrograde Pluto as active ruler of Scorpio");
+assert.ok(hasRuler("sagittarius", "jupiter", "retrograde"), "Expected retrograde Jupiter as active ruler of Sagittarius");
+assert.ok(!hasRuler("sagittarius", "neptune", "retrograde"), "Expected inactive retrograde Neptune rulership omitted while Neptune is direct");
 assert.ok(hasRuler("pisces", "neptune", "direct"), "Expected Neptune as direct ruler of Pisces");
-assert.ok(hasRuler("pisces", "jupiter", "retrograde"), "Expected retrograde Jupiter as ruler of Pisces");
+assert.ok(hasRuler("pisces", "jupiter", "retrograde"), "Expected retrograde Jupiter as active ruler of Pisces");
+assert.ok(hasRuler("capricorn", "saturn", "direct"), "Expected Saturn as direct ruler of Capricorn");
+assert.ok(!hasRuler("capricorn", "uranus", "retrograde"), "Expected inactive retrograde Uranus rulership omitted while Uranus is direct");
 
 const interpretation = generateNatalInterpretationPreview(chart);
 

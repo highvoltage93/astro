@@ -138,6 +138,32 @@ const SIGN_RULERS: Record<string, SignRulerDefinition[]> = Object.fromEntries(
   })
 ) as Record<string, SignRulerDefinition[]>;
 
+const isRetrograde = (point: ChartPoint | undefined): boolean => (point?.speed ?? 0) < -0.0001;
+
+const createSignRuler = (key: string, rulerType: RulerType): SignRulerDefinition => ({
+  key,
+  label: BODY_DEFINITION_BY_KEY.get(key)?.label ?? key,
+  rulerType
+});
+
+const activeSignRulers = (sign: string, pointsByKey: Map<string, ChartPoint>): SignRulerDefinition[] => {
+  const directRulers = Object.entries(PLANET_DIRECT_RULERS)
+    .filter(([key, signs]) => {
+      const hasRetrogradeModel = (PLANET_RETROGRADE_RULERS[key]?.length ?? 0) > 0;
+      return signs.includes(sign) && (!isRetrograde(pointsByKey.get(key)) || !hasRetrogradeModel);
+    })
+    .map(([key]) => createSignRuler(key, "direct"));
+
+  const retrogradeRulers = Object.entries(PLANET_RETROGRADE_RULERS)
+    .filter(([key, signs]) => signs.includes(sign) && isRetrograde(pointsByKey.get(key)))
+    .map(([key]) => createSignRuler(key, "retrograde"));
+
+  return [...directRulers, ...retrogradeRulers];
+};
+
+const primaryActiveSignRuler = (sign: string, pointsByKey: Map<string, ChartPoint>): SignRulerDefinition | undefined =>
+  activeSignRulers(sign, pointsByKey)[0] ?? SIGN_RULERS[sign]?.[0];
+
 const PLANET_EXALTATIONS: Record<string, string> = {
   sun: "aries",
   moon: "taurus",
@@ -429,7 +455,7 @@ const calculateHouseRulers = (houses: HouseCusp[], bodies: ChartPoint[]): HouseR
   const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
 
   return houses.flatMap((house) =>
-    (SIGN_RULERS[house.sign] ?? []).map((ruler) => {
+    activeSignRulers(house.sign, pointsByKey).map((ruler) => {
       const rulerPoint = pointsByKey.get(ruler.key);
 
       return {
@@ -601,7 +627,7 @@ const calculateHouseConnections = (houses: HouseCusp[], bodies: ChartPoint[], as
   }
 
   for (const house of houses) {
-    const rulers = SIGN_RULERS[house.sign] ?? [];
+    const rulers = activeSignRulers(house.sign, pointsByKey);
 
     for (const ruler of rulers) {
       const rulerPoint = pointsByKey.get(ruler.key);
@@ -691,7 +717,7 @@ const buildDispositorChain = (point: ChartPoint, pointsByKey: Map<string, ChartP
   let current = point;
 
   for (let index = 0; index < 12; index += 1) {
-    const dispositorKey = SIGN_RULERS[current.sign]?.[0]?.key;
+    const dispositorKey = primaryActiveSignRuler(current.sign, pointsByKey)?.key;
 
     if (!dispositorKey) {
       return { chain, cycle: false };
@@ -721,7 +747,7 @@ const calculateEssentialDignities = (bodies: ChartPoint[]): EssentialDignity[] =
 
   return bodies.map((body) => {
     const dignity = dignityForPoint(body);
-    const dispositor = SIGN_RULERS[body.sign]?.[0];
+    const dispositor = primaryActiveSignRuler(body.sign, pointsByKey);
     const chain = buildDispositorChain(body, pointsByKey);
 
     return {
