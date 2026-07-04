@@ -56,6 +56,7 @@ assert.ok(
 );
 assert.ok(chart.syntheticSignature, "Expected synthetic signature");
 assert.ok(chart.syntheticSignature.scores.total > 0, "Expected synthetic signature score total");
+assert.ok(chart.syntheticSignature.polarity.score > 0, "Expected synthetic polarity score");
 assert.ok(chart.essentialDignities.length >= minBodies, "Expected essential dignity rows for chart bodies");
 assert.ok(
   chart.essentialDignities.some((dignity) => dignity.chain.length > 1),

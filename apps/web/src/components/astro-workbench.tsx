@@ -196,18 +196,10 @@ const defaultVisiblePointKeys: VisiblePointSettings = Object.fromEntries(
   chartObjectRows.map(([key]) => [key, true])
 ) as VisiblePointSettings;
 
-const classicalBalancePointKeys = new Set([
-  "sun",
-  "moon",
-  "mercury",
-  "venus",
-  "mars",
-  "jupiter",
-  "saturn",
-  "uranus",
-  "neptune",
-  "pluto"
-]);
+const primaryPlanetOrder = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
+const secondaryPointOrder = ["north-node", "south-node", "chiron", "lilith"];
+const anglePointOrder = ["asc", "desc", "ic", "mc"];
+const placementOrder = [...primaryPlanetOrder, ...secondaryPointOrder, ...anglePointOrder];
 
 const zodiacSigns = [
   { key: "aries", glyph: "♈", label: "Овен", gender: "чоловічий", cross: "кардинальний", element: "вогонь" },
@@ -225,9 +217,6 @@ const zodiacSigns = [
 ] as const;
 
 const signGlyphs = zodiacSigns.map((sign) => sign.glyph);
-const zodiacSignMetaByKey: Record<string, (typeof zodiacSigns)[number]> = Object.fromEntries(
-  zodiacSigns.map((sign) => [sign.key, sign])
-) as Record<string, (typeof zodiacSigns)[number]>;
 
 const signRulers: Record<string, Array<{ key: string; label: string; rulerType: "direct" | "retrograde" }>> = {
   aries: [
@@ -284,6 +273,11 @@ const syntheticCrossLabelsUk: Record<string, string> = {
   cardinal: "кардинальний",
   fixed: "фіксований",
   mutable: "мутабельний"
+};
+
+const syntheticPolarityLabelsUk: Record<string, string> = {
+  masculine: "чоловічий",
+  feminine: "жіночий"
 };
 
 const aspectLabels: Record<string, string> = {
@@ -572,7 +566,14 @@ export function AstroWorkbench() {
       return [];
     }
 
-    return [...chart.angles, ...chart.bodies].sort((a, b) => a.longitude - b.longitude);
+    return [...chart.bodies, ...chart.angles].sort((a, b) => {
+      const rankA = placementOrder.indexOf(a.key);
+      const rankB = placementOrder.indexOf(b.key);
+      const normalizedRankA = rankA === -1 ? placementOrder.length : rankA;
+      const normalizedRankB = rankB === -1 ? placementOrder.length : rankB;
+
+      return normalizedRankA - normalizedRankB || a.longitude - b.longitude;
+    });
   }, [chart]);
 
   const visiblePlacements = useMemo(
@@ -674,7 +675,7 @@ export function AstroWorkbench() {
       Object.fromEntries(
         chartObjectRows.map(([key]) => [
           key,
-          preset === "all" || classicalBalancePointKeys.has(key) || key === "asc" || key === "mc"
+          preset === "all" || primaryPlanetOrder.includes(key) || key === "asc" || key === "mc"
         ])
       ) as VisiblePointSettings
     );
@@ -2474,8 +2475,6 @@ function ProfessionalDataCard({
   chart: ChartResult | null;
   placements: ChartPoint[];
 }) {
-  const balancePoints = placements.filter((point) => classicalBalancePointKeys.has(point.key));
-
   return (
     <Card className="min-w-0 xl:sticky xl:top-5">
       <CardHeader>
@@ -2484,9 +2483,6 @@ function ProfessionalDataCard({
       </CardHeader>
       <CardContent className="space-y-5">
         <SyntheticSignatureCard chart={chart} />
-
-        <Separator />
-        <BalanceSummary points={balancePoints} />
 
         <Separator />
         <PlacementsTable placements={placements} />
@@ -2553,6 +2549,11 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
           value={syntheticCrossLabelsUk[signature.cross.key] ?? signature.cross.key}
           score={signature.cross.score}
         />
+        <SyntheticLeader
+          label="Полярність"
+          value={syntheticPolarityLabelsUk[signature.polarity.key] ?? signature.polarity.key}
+          score={signature.polarity.score}
+        />
       </div>
       <div className="grid gap-3">
         <SyntheticScoreGroup
@@ -2576,6 +2577,14 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
           rows={signature.scores.crosses.map((row) => ({
             ...row,
             label: syntheticCrossLabelsUk[row.key] ?? row.key
+          }))}
+          total={signature.scores.total}
+        />
+        <SyntheticScoreGroup
+          label="Полярність"
+          rows={signature.scores.polarities.map((row) => ({
+            ...row,
+            label: syntheticPolarityLabelsUk[row.key] ?? row.key
           }))}
           total={signature.scores.total}
         />
@@ -2616,63 +2625,6 @@ function SyntheticScoreGroup({
               <div className="flex items-center justify-between gap-2 text-xs">
                 <span className="capitalize text-muted-foreground">{row.label}</span>
                 <span className="font-semibold">{row.score.toFixed(1)}</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-border">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${percentage}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function BalanceSummary({ points }: { points: ChartPoint[] }) {
-  const elementRows = buildBalanceRows(points, "element", ["вогонь", "земля", "повітря", "вода"]);
-  const crossRows = buildBalanceRows(points, "cross", ["кардинальний", "фіксований", "мутабельний"]);
-  const genderRows = buildBalanceRows(points, "gender", ["чоловічий", "жіночий"]);
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold">Баланс карти</h3>
-        <Badge variant="secondary">{points.length} планет</Badge>
-      </div>
-      {points.length > 0 ? (
-        <div className="grid gap-3">
-          <BalanceGroup title="Стихії" rows={elementRows} total={points.length} />
-          <BalanceGroup title="Хрести" rows={crossRows} total={points.length} />
-          <BalanceGroup title="Полярність" rows={genderRows} total={points.length} />
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">Очікує видимі класичні планети.</p>
-      )}
-    </div>
-  );
-}
-
-function BalanceGroup({
-  rows,
-  title,
-  total
-}: {
-  rows: Array<{ count: number; key: string; label: string }>;
-  title: string;
-  total: number;
-}) {
-  return (
-    <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-      <p className="text-xs font-semibold uppercase text-muted-foreground">{title}</p>
-      <div className="space-y-2">
-        {rows.map((row) => {
-          const percentage = total > 0 ? (row.count / total) * 100 : 0;
-
-          return (
-            <div className="grid gap-1" key={row.key}>
-              <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="capitalize text-muted-foreground">{row.label}</span>
-                <span className="font-semibold">{row.count}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-border">
                 <div className="h-full rounded-full bg-primary" style={{ width: `${percentage}%` }} />
@@ -3151,31 +3103,6 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
       </div>
     </div>
   );
-}
-
-function buildBalanceRows(
-  points: ChartPoint[],
-  field: "cross" | "element" | "gender",
-  order: string[]
-): Array<{ count: number; key: string; label: string }> {
-  const counts = new Map(order.map((key) => [key, 0]));
-
-  for (const point of points) {
-    const signMeta = zodiacSignMetaByKey[point.sign];
-
-    if (!signMeta) {
-      continue;
-    }
-
-    const value = signMeta[field];
-    counts.set(value, (counts.get(value) ?? 0) + 1);
-  }
-
-  return order.map((key) => ({
-    key,
-    label: key,
-    count: counts.get(key) ?? 0
-  }));
 }
 
 function PlaceSearchPanel({

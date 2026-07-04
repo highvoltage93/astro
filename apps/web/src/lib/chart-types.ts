@@ -44,10 +44,12 @@ export type SyntheticSignature = {
   sign: BalanceScore;
   element: BalanceScore;
   cross: BalanceScore;
+  polarity: BalanceScore;
   scores: {
     signs: BalanceScore[];
     elements: BalanceScore[];
     crosses: BalanceScore[];
+    polarities: BalanceScore[];
     total: number;
   };
 };

@@ -196,6 +196,21 @@ const SIGN_CROSSES: Record<string, string> = {
   pisces: "mutable"
 };
 
+const SIGN_POLARITIES: Record<string, string> = {
+  aries: "masculine",
+  taurus: "feminine",
+  gemini: "masculine",
+  cancer: "feminine",
+  leo: "masculine",
+  virgo: "feminine",
+  libra: "masculine",
+  scorpio: "feminine",
+  sagittarius: "masculine",
+  capricorn: "feminine",
+  aquarius: "masculine",
+  pisces: "feminine"
+};
+
 const SYNTHETIC_POINT_WEIGHTS: Record<string, number> = {
   sun: 2,
   moon: 2,
@@ -501,8 +516,10 @@ const calculateSyntheticSignature = (points: ChartPoint[]): SyntheticSignature =
   const signScores = new Map(ZODIAC_SIGNS.map((sign) => [sign, 0]));
   const elementOrder = ["fire", "earth", "air", "water"];
   const crossOrder = ["cardinal", "fixed", "mutable"];
+  const polarityOrder = ["masculine", "feminine"];
   const elementScores = new Map(elementOrder.map((element) => [element, 0]));
   const crossScores = new Map(crossOrder.map((cross) => [cross, 0]));
+  const polarityScores = new Map(polarityOrder.map((polarity) => [polarity, 0]));
   let total = 0;
 
   for (const point of points) {
@@ -515,21 +532,25 @@ const calculateSyntheticSignature = (points: ChartPoint[]): SyntheticSignature =
     addScore(signScores, point.sign, weight);
     addScore(elementScores, SIGN_ELEMENTS[point.sign], weight);
     addScore(crossScores, SIGN_CROSSES[point.sign], weight);
+    addScore(polarityScores, SIGN_POLARITIES[point.sign], weight);
     total = round(total + weight, 3);
   }
 
   const signs = sortedScores(signScores, [...ZODIAC_SIGNS]);
   const elements = sortedScores(elementScores, elementOrder);
   const crosses = sortedScores(crossScores, crossOrder);
+  const polarities = sortedScores(polarityScores, polarityOrder);
 
   return {
     sign: signs[0] ?? { key: "aries", score: 0 },
     element: elements[0] ?? { key: "fire", score: 0 },
     cross: crosses[0] ?? { key: "cardinal", score: 0 },
+    polarity: polarities[0] ?? { key: "masculine", score: 0 },
     scores: {
       signs,
       elements,
       crosses,
+      polarities,
       total
     }
   };
