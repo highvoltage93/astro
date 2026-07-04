@@ -2827,6 +2827,7 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
   const houseRulers = chart?.houseRulers ?? [];
   const connectionMap = new Map(connections.map((connection) => [`${connection.fromHouse}-${connection.toHouse}`, connection]));
   const houses = Array.from({ length: 12 }, (_, index) => index + 1);
+  const targetTotals = summarizeHouseConnectionsByTarget(connections, houses);
 
   return (
     <div className="space-y-3">
@@ -2873,6 +2874,27 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="sticky bottom-0 bg-card">
+                <tr>
+                  <th className="h-9 border-r px-2 text-left font-semibold text-primary">Σ</th>
+                  {houses.map((house) => {
+                    const total = targetTotals.get(house);
+
+                    return (
+                      <td
+                        className={cn(
+                          "h-9 min-w-12 border-r px-1 text-center align-middle font-semibold",
+                          getHouseConnectionSummaryCellClass(total)
+                        )}
+                        key={`house-total-${house}`}
+                        title={total ? formatHouseConnectionSummaryTitle(total) : undefined}
+                      >
+                        {total ? formatHouseConnectionSummaryScore(total) : ""}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
             </table>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
@@ -2942,6 +2964,79 @@ function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
       </Table>
     </div>
   );
+}
+
+type HouseConnectionSummary = {
+  house: number;
+  harmonious: number;
+  tense: number;
+  neutral: number;
+  total: number;
+};
+
+function summarizeHouseConnectionsByTarget(
+  connections: HouseConnection[],
+  houses: number[]
+): Map<number, HouseConnectionSummary> {
+  const totals = new Map(
+    houses.map((house) => [
+      house,
+      {
+        house,
+        harmonious: 0,
+        tense: 0,
+        neutral: 0,
+        total: 0
+      }
+    ])
+  );
+
+  for (const connection of connections) {
+    const total = totals.get(connection.toHouse);
+
+    if (!total) {
+      continue;
+    }
+
+    total.harmonious += connection.harmonious;
+    total.tense += connection.tense;
+    total.neutral += connection.neutral;
+    total.total += connection.total;
+  }
+
+  return new Map([...totals.entries()].filter(([, total]) => total.total > 0));
+}
+
+function getHouseConnectionSummaryCellClass(summary: HouseConnectionSummary | undefined): string {
+  if (!summary) {
+    return "bg-muted/20 text-muted-foreground";
+  }
+
+  if (summary.tense > summary.harmonious) {
+    return "bg-blue-600/20 text-blue-800";
+  }
+
+  if (summary.harmonious > 0) {
+    return "bg-astro-coral/20 text-astro-coral";
+  }
+
+  return "bg-muted/60 text-muted-foreground";
+}
+
+function formatHouseConnectionSummaryScore(summary: HouseConnectionSummary): string {
+  return formatHouseConnectionScore({
+    fromHouse: 0,
+    toHouse: summary.house,
+    harmonious: summary.harmonious,
+    tense: summary.tense,
+    neutral: summary.neutral,
+    total: summary.total,
+    details: []
+  });
+}
+
+function formatHouseConnectionSummaryTitle(summary: HouseConnectionSummary): string {
+  return `${summary.house} дім: гармонійні ${summary.harmonious}, напружені ${summary.tense}, нейтральні ${summary.neutral}, усього ${summary.total}`;
 }
 
 function getHouseConnectionCellClass(connection: HouseConnection | undefined): string {

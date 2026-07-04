@@ -84,12 +84,13 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - Synastry preview contract for two natal charts with planet-to-planet inter-chart aspects, an overlay chart, and a compact relationship aspect summary.
 - Per-point orb settings for natal and transit aspect filtering.
 - House rulers, planet rulership lists, and house ruler connections for professional "house-to-house" analysis.
+- Koch is the default house system for new charts, while other systems remain selectable.
 - Essential dignities and dispositor chains for professional planet condition analysis.
-- Synthetic signature scoring for sign, element, and cross dominance.
+- Synthetic signature scoring for sign, element, cross, and polarity dominance.
 - Natal interpretation preview endpoint backed by seed content for Sun, Moon, Ascendant, and exact aspects.
 - Birth profile persistence endpoint backed by Prisma.
 - Recent saved birth profiles list with detail loading and deletion for the MVP workspace.
-- First shadcn/ui product workspace for birth data intake, interactive chart preview, saving, orb tuning, point visibility, professional data tables, sign/ruler hover details, ruled-house hover highlights, synthetic signature, house connections, SOTIS-style aspect matrix, dignities/dispositors, forecast returns, exact transit dates, transit preview, and synastry preview.
+- First shadcn/ui product workspace for birth data intake, interactive chart preview, saving, orb tuning, point visibility, professional data tables, direct/retrograde sign-ruler hover details, ruled-house hover highlights, degree-minute-second position display, synthetic signature, house connections with per-house totals, SOTIS-style aspect matrix, dignities/dispositors, forecast returns, exact transit dates, transit preview, and synastry preview.
 
 ## Licensing Note
 
