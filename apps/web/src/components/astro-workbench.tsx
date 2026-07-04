@@ -73,6 +73,14 @@ type FormState = {
 
 type PointOrbSettings = Record<string, number>;
 type VisiblePointSettings = Record<string, boolean>;
+type WorkspaceTab = "interpretation" | "forecast" | "transits" | "synastry";
+
+const workspaceTabs: Array<{ key: WorkspaceTab; label: string }> = [
+  { key: "interpretation", label: "Базова трактовка" },
+  { key: "forecast", label: "Прогностичний модуль" },
+  { key: "transits", label: "Транзити" },
+  { key: "synastry", label: "Синастрія" }
+];
 
 const initialForm: FormState = {
   displayName: "Натальна карта",
@@ -585,6 +593,7 @@ export function AstroWorkbench() {
   const [partnerForm, setPartnerForm] = useState<FormState>(initialPartnerForm);
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
   const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>("interpretation");
   const [chart, setChart] = useState<ChartResult | null>(null);
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
   const [transitDateTime, setTransitDateTime] = useState("");
@@ -1140,15 +1149,17 @@ export function AstroWorkbench() {
             <h1 className="text-3xl font-semibold tracking-normal">Натальна карта</h1>
           </div>
           <nav className="flex w-full gap-1 overflow-x-auto rounded-lg border bg-card p-1 lg:w-auto" aria-label="Розділи">
-            <Button size="sm" type="button">
-              Натал
-            </Button>
-            <Button size="sm" variant="ghost" type="button">
-              Транзити
-            </Button>
-            <Button size="sm" variant="ghost" type="button">
-              Синастрія
-            </Button>
+            {workspaceTabs.map((tab) => (
+              <Button
+                key={`top-tab-${tab.key}`}
+                size="sm"
+                variant={activeWorkspaceTab === tab.key ? "default" : "ghost"}
+                type="button"
+                onClick={() => setActiveWorkspaceTab(tab.key)}
+              >
+                {tab.label}
+              </Button>
+            ))}
           </nav>
         </header>
 
@@ -1221,56 +1232,103 @@ export function AstroWorkbench() {
               </CardContent>
             </Card>
 
-            <InterpretationCard error={interpretationError} interpretation={interpretation} status={status} />
-            <ForecastModuleCard
-              days={forecastDays}
-              error={forecastError}
-              fromDateTime={forecastFromDateTime}
-              preview={forecastPreview}
-              status={forecastStatus}
-              targetYear={forecastTargetYear}
-              onCalculate={calculateForecast}
-              onDaysChange={(value) => {
-                setForecastDays(value);
-                clearForecastState();
-              }}
-              onFromDateTimeChange={(value) => {
-                setForecastFromDateTime(value);
-                clearForecastState();
-              }}
-              onTargetYearChange={(value) => {
-                setForecastTargetYear(value);
-                clearForecastState();
-              }}
-            />
-            <TransitForecastCard
-              error={transitError}
-              preview={transitPreview}
-              status={transitStatus}
-              transitDateTime={transitDateTime}
-              onCalculate={calculateTransits}
-              onTransitDateTimeChange={setTransitDateTime}
-            />
-            <SynastryCard
-              error={synastryError}
-              form={partnerForm}
-              placeError={partnerPlaceError}
-              placeResults={partnerPlaceResults}
-              placeSearchStatus={partnerPlaceSearchStatus}
-              preview={synastryPreview}
-              status={synastryStatus}
-              subjectAName={form.displayName}
-              onCalculate={calculateSynastry}
-              onPlaceSearch={searchPartnerBirthplace}
-              onPlaceSelect={selectPartnerBirthplace}
-              onUpdate={updatePartnerForm}
-            />
+            <div className="space-y-3">
+              <WorkspaceTabList activeTab={activeWorkspaceTab} onChange={setActiveWorkspaceTab} />
+
+              <div role="tabpanel">
+                {activeWorkspaceTab === "interpretation" ? (
+                  <InterpretationCard error={interpretationError} interpretation={interpretation} status={status} />
+                ) : null}
+
+                {activeWorkspaceTab === "forecast" ? (
+                  <ForecastModuleCard
+                    days={forecastDays}
+                    error={forecastError}
+                    fromDateTime={forecastFromDateTime}
+                    preview={forecastPreview}
+                    status={forecastStatus}
+                    targetYear={forecastTargetYear}
+                    onCalculate={calculateForecast}
+                    onDaysChange={(value) => {
+                      setForecastDays(value);
+                      clearForecastState();
+                    }}
+                    onFromDateTimeChange={(value) => {
+                      setForecastFromDateTime(value);
+                      clearForecastState();
+                    }}
+                    onTargetYearChange={(value) => {
+                      setForecastTargetYear(value);
+                      clearForecastState();
+                    }}
+                  />
+                ) : null}
+
+                {activeWorkspaceTab === "transits" ? (
+                  <TransitForecastCard
+                    error={transitError}
+                    preview={transitPreview}
+                    status={transitStatus}
+                    transitDateTime={transitDateTime}
+                    onCalculate={calculateTransits}
+                    onTransitDateTimeChange={setTransitDateTime}
+                  />
+                ) : null}
+
+                {activeWorkspaceTab === "synastry" ? (
+                  <SynastryCard
+                    error={synastryError}
+                    form={partnerForm}
+                    placeError={partnerPlaceError}
+                    placeResults={partnerPlaceResults}
+                    placeSearchStatus={partnerPlaceSearchStatus}
+                    preview={synastryPreview}
+                    status={synastryStatus}
+                    subjectAName={form.displayName}
+                    onCalculate={calculateSynastry}
+                    onPlaceSearch={searchPartnerBirthplace}
+                    onPlaceSelect={selectPartnerBirthplace}
+                    onUpdate={updatePartnerForm}
+                  />
+                ) : null}
+              </div>
+            </div>
           </div>
 
           <ProfessionalDataCard aspects={visibleAspects} chart={chart} placements={visiblePlacements} />
         </section>
       </div>
     </main>
+  );
+}
+
+function WorkspaceTabList({
+  activeTab,
+  onChange
+}: {
+  activeTab: WorkspaceTab;
+  onChange: (tab: WorkspaceTab) => void;
+}) {
+  return (
+    <div className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1" role="tablist" aria-label="Робочі модулі">
+      {workspaceTabs.map((tab) => (
+        <button
+          aria-selected={activeTab === tab.key}
+          className={cn(
+            "min-h-9 shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            activeTab === tab.key
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          )}
+          key={`workspace-tab-${tab.key}`}
+          role="tab"
+          type="button"
+          onClick={() => onChange(tab.key)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
