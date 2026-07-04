@@ -48,6 +48,18 @@ const interpretation = generateNatalInterpretationPreview(chart);
 assert.ok(interpretation.summary.length > 0, "Expected interpretation summary");
 assert.ok(interpretation.highlights.length >= 3, "Expected at least 3 interpretation highlights");
 
+const tightOrbChart = calculateNatalChart({
+  ...fixture.input,
+  pointOrbs: Object.fromEntries(pointKeys.values().map((key) => [key, 0])),
+  ephemerisPath
+});
+
+assert.equal(tightOrbChart.settings.pointOrbs.sun, 0, "Expected custom point orb settings in chart result");
+assert.ok(
+  tightOrbChart.aspects.length <= chart.aspects.length,
+  "Tight per-point orbs should not increase major aspect count"
+);
+
 const unknownTimeChart = calculateNatalChart({
   ...fixture.input,
   birthTimeKnown: false,

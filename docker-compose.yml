@@ -43,7 +43,8 @@ services:
       postgres:
         condition: service_healthy
     command: >
-      sh -c "pnpm --filter @astroprocessor/astrology-core build &&
+      sh -c "pnpm --filter @astroprocessor/astrology-core ephemeris:download &&
+             pnpm --filter @astroprocessor/astrology-core build &&
              pnpm --filter @astroprocessor/api prisma:generate &&
              pnpm --filter @astroprocessor/api db:push &&
              pnpm --filter @astroprocessor/api dev"

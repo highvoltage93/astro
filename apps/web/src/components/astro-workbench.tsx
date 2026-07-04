@@ -36,6 +36,7 @@ import {
 } from "@/lib/api";
 import type {
   Aspect,
+  ChartPoint,
   ChartResult,
   MoonPhase,
   NatalInterpretationPreview,
@@ -59,6 +60,8 @@ type FormState = {
   houseSystem: string;
   zodiac: NatalPreviewPayload["zodiac"];
 };
+
+type PointOrbSettings = Record<string, number>;
 
 const initialForm: FormState = {
   displayName: "Натальна карта",
@@ -104,7 +107,60 @@ const planetGlyphs: Record<string, string> = {
   mc: "MC"
 };
 
-const signGlyphs = ["♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓"];
+const defaultPointOrbs: PointOrbSettings = {
+  sun: 8,
+  moon: 8,
+  mercury: 6,
+  venus: 6,
+  mars: 6,
+  jupiter: 6,
+  saturn: 6,
+  uranus: 5,
+  neptune: 5,
+  pluto: 5,
+  "north-node": 3,
+  "south-node": 3,
+  chiron: 3,
+  lilith: 3,
+  asc: 5,
+  mc: 5
+};
+
+const orbSettingRows = [
+  ["sun", "Sun"],
+  ["moon", "Moon"],
+  ["mercury", "Mercury"],
+  ["venus", "Venus"],
+  ["mars", "Mars"],
+  ["jupiter", "Jupiter"],
+  ["saturn", "Saturn"],
+  ["uranus", "Uranus"],
+  ["neptune", "Neptune"],
+  ["pluto", "Pluto"],
+  ["north-node", "North Node"],
+  ["south-node", "South Node"],
+  ["chiron", "Chiron"],
+  ["lilith", "Lilith"],
+  ["asc", "Ascendant"],
+  ["mc", "Midheaven"]
+] as const;
+
+const zodiacSigns = [
+  { key: "aries", glyph: "♈", label: "Овен", gender: "чоловічий", cross: "кардинальний", element: "вогонь" },
+  { key: "taurus", glyph: "♉", label: "Телець", gender: "жіночий", cross: "фіксований", element: "земля" },
+  { key: "gemini", glyph: "♊", label: "Близнюки", gender: "чоловічий", cross: "мутабельний", element: "повітря" },
+  { key: "cancer", glyph: "♋", label: "Рак", gender: "жіночий", cross: "кардинальний", element: "вода" },
+  { key: "leo", glyph: "♌", label: "Лев", gender: "чоловічий", cross: "фіксований", element: "вогонь" },
+  { key: "virgo", glyph: "♍", label: "Діва", gender: "жіночий", cross: "мутабельний", element: "земля" },
+  { key: "libra", glyph: "♎", label: "Терези", gender: "чоловічий", cross: "кардинальний", element: "повітря" },
+  { key: "scorpio", glyph: "♏", label: "Скорпіон", gender: "жіночий", cross: "фіксований", element: "вода" },
+  { key: "sagittarius", glyph: "♐", label: "Стрілець", gender: "чоловічий", cross: "мутабельний", element: "вогонь" },
+  { key: "capricorn", glyph: "♑", label: "Козеріг", gender: "жіночий", cross: "кардинальний", element: "земля" },
+  { key: "aquarius", glyph: "♒", label: "Водолій", gender: "чоловічий", cross: "фіксований", element: "повітря" },
+  { key: "pisces", glyph: "♓", label: "Риби", gender: "жіночий", cross: "мутабельний", element: "вода" }
+] as const;
+
+const signGlyphs = zodiacSigns.map((sign) => sign.glyph);
 
 const aspectLabels: Record<string, string> = {
   conjunction: "З'єднання",
@@ -219,8 +275,21 @@ const formatActiveWindow = ({
   return `${formatDateTimeCompact(activeFrom)} - ${formatDateTimeCompact(activeUntil)} · ${durationDays.toFixed(1)} дн.`;
 };
 
+const formatPointTooltip = (point: ChartPoint): string => {
+  const house = point.house ? `${point.house} дім` : "дім n/a";
+  const speed = point.speed === undefined ? "" : `\nШвидкість: ${point.speed.toFixed(4)}°/день`;
+
+  return `${point.label}\nЗнак: ${signLabelsUk[point.sign] ?? point.sign}\nГрадус знака: ${point.signDegree.toFixed(
+    2
+  )}°\nАбсолютна довгота: ${point.longitude.toFixed(2)}°\n${house}${speed}`;
+};
+
+const formatSignTooltip = (sign: (typeof zodiacSigns)[number]): string =>
+  `${sign.label}\nСтать: ${sign.gender}\nХрест: ${sign.cross}\nСтихія: ${sign.element}`;
+
 export function AstroWorkbench() {
   const [form, setForm] = useState<FormState>(initialForm);
+  const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
   const [chart, setChart] = useState<ChartResult | null>(null);
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
   const [transitDateTime, setTransitDateTime] = useState("");
@@ -273,8 +342,28 @@ export function AstroWorkbench() {
     }
   };
 
+  const updatePointOrb = (key: string, value: string): void => {
+    const nextValue = Number(value);
+
+    setPointOrbs((current) => ({
+      ...current,
+      [key]: Number.isFinite(nextValue) ? Math.max(0, Math.min(15, nextValue)) : 0
+    }));
+    setSaveStatus("idle");
+    setSaveError(null);
+    setSavedProfileId(null);
+    setChart(null);
+    setInterpretation(null);
+    setInterpretationError(null);
+    setTransitPreview(null);
+    setTransitError(null);
+    setTransitStatus("idle");
+    setStatus("idle");
+  };
+
   const resetForm = (): void => {
     setForm(initialForm);
+    setPointOrbs(defaultPointOrbs);
     setChart(null);
     setInterpretation(null);
     setInterpretationError(null);
@@ -342,7 +431,8 @@ export function AstroWorkbench() {
     latitude: Number(form.latitude),
     longitude: Number(form.longitude),
     houseSystem: form.houseSystem,
-    zodiac: form.zodiac
+    zodiac: form.zodiac,
+    pointOrbs
   });
 
   const refreshSavedProfiles = async (): Promise<void> => {
@@ -386,6 +476,7 @@ export function AstroWorkbench() {
         houseSystem: detailedProfile.latestCalculation?.houseSystem ?? "placidus",
         zodiac: detailedProfile.latestCalculation?.zodiacType ?? "tropical"
       });
+      setPointOrbs(calculation?.result.settings.pointOrbs ?? defaultPointOrbs);
       setChart(calculation?.result ?? null);
       setInterpretation(response.interpretation);
       setInterpretationError(null);
@@ -517,7 +608,8 @@ export function AstroWorkbench() {
       const result = await requestTransitPreview({
         transitDateTime: selectedTransitDate.toISOString(),
         natal: buildNatalPayload(),
-        zodiac: form.zodiac
+        zodiac: form.zodiac,
+        pointOrbs
       });
 
       setTransitPreview(result);
@@ -564,6 +656,7 @@ export function AstroWorkbench() {
               onSubmit={submit}
               onUpdate={updateForm}
             />
+            <OrbSettingsCard pointOrbs={pointOrbs} onUpdate={updatePointOrb} />
             <SavedProfilesCard
               deletingProfileId={deletingProfileId}
               error={savedProfilesError}
@@ -843,6 +936,48 @@ function BirthDataCard({
             </div>
           ) : null}
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OrbSettingsCard({
+  pointOrbs,
+  onUpdate
+}: {
+  pointOrbs: PointOrbSettings;
+  onUpdate: (key: string, value: string) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Settings2 className="h-5 w-5" />
+        </div>
+        <div className="space-y-1">
+          <CardDescription className="font-semibold uppercase text-primary">Orbs</CardDescription>
+          <CardTitle>Налаштування орбісів</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+          {orbSettingRows.map(([key, label]) => (
+            <label className="grid grid-cols-[minmax(0,1fr)_92px] items-center gap-2 text-sm" key={key}>
+              <span className="min-w-0 truncate">
+                <span className="mr-2 inline-flex w-7 font-semibold text-primary">{planetGlyphs[key] ?? "•"}</span>
+                {label}
+              </span>
+              <Input
+                type="number"
+                min={0}
+                max={15}
+                step={0.5}
+                value={pointOrbs[key] ?? 0}
+                onChange={(event) => onUpdate(key, event.target.value)}
+              />
+            </label>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
@@ -1358,10 +1493,10 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
   const aspectRadius = 70;
   const ascendant = chart?.angles.find((angle) => angle.key === "asc") ?? null;
   const midheaven = chart?.angles.find((angle) => angle.key === "mc") ?? null;
-  const wheelOffset = ascendant ? normalizeDegrees(270 - ascendant.longitude) : 0;
+  const wheelOffset = ascendant ? normalizeDegrees(270 + ascendant.longitude) : 0;
 
   const toXY = (longitude: number, radius: number): { x: number; y: number } => {
-    const visualLongitude = normalizeDegrees(longitude + wheelOffset);
+    const visualLongitude = normalizeDegrees(wheelOffset - longitude);
     const angle = ((visualLongitude - 90) * Math.PI) / 180;
 
     return {
@@ -1447,12 +1582,14 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
       })}
 
       {Array.from({ length: 12 }, (_, index) => {
+        const signMeta = zodiacSigns[index];
         const start = toXY(index * 30, outerRadius);
         const end = toXY(index * 30, aspectRadius);
         const sign = toXY(index * 30 + 15, signRadius);
 
         return (
-          <g key={signGlyphs[index]}>
+          <g key={signMeta?.key ?? index}>
+            {signMeta ? <title>{formatSignTooltip(signMeta)}</title> : null}
             <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-border stroke-[1]" />
             <text
               x={sign.x}
@@ -1492,9 +1629,11 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
         const tail = toXY(anglePoint.longitude, outerRadius + 26);
         const head = toXY(anglePoint.longitude, outerRadius + 3);
         const label = toXY(anglePoint.longitude, outerRadius + 42);
+        const fullAnglePoint = pointsByKey.get(anglePoint.key);
 
         return (
           <g key={`angle-${anglePoint.key}`}>
+            {fullAnglePoint ? <title>{formatPointTooltip(fullAnglePoint)}</title> : null}
             <line
               x1={tail.x}
               y1={tail.y}
@@ -1522,6 +1661,7 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
 
         return (
           <g key={chartPoint.key}>
+            <title>{formatPointTooltip(chartPoint)}</title>
             <circle cx={position.x} cy={position.y} r="13" className="fill-background stroke-primary stroke-[1.4]" />
             <text
               x={position.x}
@@ -1562,7 +1702,7 @@ function AspectList({ aspects }: { aspects: Aspect[] }) {
                 {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {aspectLabels[aspect.type] ?? aspect.type}{" "}
                 {planetGlyphs[aspect.bodyB] ?? aspect.bodyB}
               </span>
-              <strong className="text-astro-coral">{aspect.orb.toFixed(2)}°</strong>
+              <strong className={getAspectTextClass(aspect.type)}>{aspect.orb.toFixed(2)}°</strong>
             </div>
           ))}
         </div>
@@ -1575,12 +1715,27 @@ function AspectList({ aspects }: { aspects: Aspect[] }) {
 
 function getAspectStrokeClass(type: string): string {
   switch (type) {
-    case "square":
+    case "trine":
+    case "sextile":
       return "stroke-astro-coral";
+    case "square":
     case "opposition":
-      return "stroke-astro-violet";
+      return "stroke-blue-600";
     default:
       return "stroke-primary";
+  }
+}
+
+function getAspectTextClass(type: string): string {
+  switch (type) {
+    case "trine":
+    case "sextile":
+      return "text-astro-coral";
+    case "square":
+    case "opposition":
+      return "text-blue-600";
+    default:
+      return "text-primary";
   }
 }
 

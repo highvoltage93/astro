@@ -1,5 +1,5 @@
 import { DEFAULT_MAJOR_ASPECT_ORBS, MAJOR_ASPECT_ANGLES } from "./constants";
-import type { Aspect, AspectType, ChartPoint } from "./types";
+import type { Aspect, AspectType, ChartPoint, PointOrbSettings } from "./types";
 
 const normalizeAngle = (angle: number): number => ((angle % 360) + 360) % 360;
 
@@ -8,9 +8,25 @@ const shortestDistance = (a: number, b: number): number => {
   return diff > 180 ? 360 - diff : diff;
 };
 
+const allowedOrbForPair = (
+  type: AspectType,
+  pointA: ChartPoint,
+  pointB: ChartPoint,
+  aspectOrbs: Partial<Record<AspectType, number>>,
+  pointOrbs: PointOrbSettings = {}
+): number => {
+  const fallbackOrb = DEFAULT_MAJOR_ASPECT_ORBS[type];
+  const aspectOrb = aspectOrbs[type] ?? fallbackOrb;
+  const pointAOrb = pointOrbs[pointA.key] ?? aspectOrb;
+  const pointBOrb = pointOrbs[pointB.key] ?? aspectOrb;
+
+  return Math.min(aspectOrb, pointAOrb, pointBOrb);
+};
+
 export const calculateMajorAspects = (
   points: ChartPoint[],
-  orbs: Partial<Record<AspectType, number>> = DEFAULT_MAJOR_ASPECT_ORBS
+  aspectOrbs: Partial<Record<AspectType, number>> = DEFAULT_MAJOR_ASPECT_ORBS,
+  pointOrbs: PointOrbSettings = {}
 ): Aspect[] => {
   const aspects: Aspect[] = [];
 
@@ -27,7 +43,7 @@ export const calculateMajorAspects = (
 
       for (const [type, exactAngle] of Object.entries(MAJOR_ASPECT_ANGLES) as Array<[AspectType, number]>) {
         const orb = Math.abs(distance - exactAngle);
-        const allowedOrb = orbs[type] ?? DEFAULT_MAJOR_ASPECT_ORBS[type];
+        const allowedOrb = allowedOrbForPair(type, pointA, pointB, aspectOrbs, pointOrbs);
 
         if (orb <= allowedOrb) {
           aspects.push({
@@ -48,7 +64,8 @@ export const calculateMajorAspects = (
 export const calculateAspectsBetween = (
   pointsA: ChartPoint[],
   pointsB: ChartPoint[],
-  orbs: Partial<Record<AspectType, number>> = DEFAULT_MAJOR_ASPECT_ORBS
+  aspectOrbs: Partial<Record<AspectType, number>> = DEFAULT_MAJOR_ASPECT_ORBS,
+  pointOrbs: PointOrbSettings = {}
 ): Aspect[] => {
   const aspects: Aspect[] = [];
 
@@ -58,7 +75,7 @@ export const calculateAspectsBetween = (
 
       for (const [type, exactAngle] of Object.entries(MAJOR_ASPECT_ANGLES) as Array<[AspectType, number]>) {
         const orb = Math.abs(distance - exactAngle);
-        const allowedOrb = orbs[type] ?? DEFAULT_MAJOR_ASPECT_ORBS[type];
+        const allowedOrb = allowedOrbForPair(type, pointA, pointB, aspectOrbs, pointOrbs);
 
         if (orb <= allowedOrb) {
           aspects.push({

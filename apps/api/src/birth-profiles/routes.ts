@@ -28,7 +28,8 @@ const createBirthProfileSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   houseSystem: z.enum(houseSystemValues).default("placidus"),
-  zodiac: z.enum(["tropical", "sidereal"]).default("tropical")
+  zodiac: z.enum(["tropical", "sidereal"]).default("tropical"),
+  pointOrbs: z.record(z.number().min(0).max(15)).optional()
 });
 
 const listBirthProfilesSchema = z.object({
@@ -252,6 +253,7 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
         longitude: input.longitude,
         houseSystem: input.houseSystem,
         zodiac: input.zodiac,
+        pointOrbs: input.pointOrbs,
         ephemerisPath: env.swissEphEphePath
       });
     } catch (error) {

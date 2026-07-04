@@ -44,6 +44,8 @@ export type Aspect = {
   orb: number;
 };
 
+export type PointOrbSettings = Partial<Record<string, number>>;
+
 export type TransitAspectPhase = "applying" | "separating" | "exact" | "stationary";
 
 export type TransitAspectStrength = "high" | "medium" | "low";
@@ -68,6 +70,7 @@ export type ChartSettings = {
   zodiac: ZodiacType;
   ayanamsa?: Ayanamsa;
   houseSystem: HouseSystem;
+  pointOrbs?: PointOrbSettings;
 };
 
 export type ChartSubject = {
@@ -103,6 +106,7 @@ export type NatalPreviewInput = {
   houseSystem?: HouseSystem;
   zodiac?: ZodiacType;
   ayanamsa?: Ayanamsa;
+  pointOrbs?: PointOrbSettings;
   ephemerisPath?: string;
 };
 
@@ -115,6 +119,7 @@ export type TransitCalculationInput = {
   zodiac?: ZodiacType;
   ayanamsa?: Ayanamsa;
   houseSystem?: HouseSystem;
+  pointOrbs?: PointOrbSettings;
   ephemerisPath?: string;
 };
 
@@ -123,6 +128,7 @@ export type TransitPreviewInput = {
   natal: NatalPreviewInput;
   zodiac?: ZodiacType;
   ayanamsa?: Ayanamsa;
+  pointOrbs?: PointOrbSettings;
   ephemerisPath?: string;
 };
 

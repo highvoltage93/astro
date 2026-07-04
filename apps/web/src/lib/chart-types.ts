@@ -3,6 +3,8 @@ export type ChartPoint = {
   label: string;
   kind: string;
   longitude: number;
+  latitude?: number;
+  speed?: number;
   sign: string;
   signDegree: number;
   house?: number;
@@ -44,6 +46,7 @@ export type ChartResult = {
   settings: {
     zodiac: string;
     houseSystem: string;
+    pointOrbs?: Record<string, number>;
   };
   subject: {
     utcDateTime: string;
@@ -70,12 +73,14 @@ export type NatalPreviewPayload = {
   longitude: number;
   houseSystem: string;
   zodiac: "tropical" | "sidereal";
+  pointOrbs?: Record<string, number>;
 };
 
 export type TransitPreviewPayload = {
   transitDateTime: string;
   natal: NatalPreviewPayload;
   zodiac?: "tropical" | "sidereal";
+  pointOrbs?: Record<string, number>;
 };
 
 export type MoonPhaseName =

@@ -22,6 +22,7 @@ import type {
   HouseSystem,
   MoonPhase,
   NatalCalculationInput,
+  PointOrbSettings,
   TransitAspect,
   TransitAspectStrength,
   TransitDayForecast,
@@ -96,6 +97,22 @@ const TRANSIT_BODY_SCORE_WEIGHTS: Record<string, number> = {
 const normalizeLongitude = (longitude: number): number => ((longitude % 360) + 360) % 360;
 
 const round = (value: number, digits = 6): number => Number(value.toFixed(digits));
+
+const cleanPointOrbs = (pointOrbs: PointOrbSettings | undefined): PointOrbSettings | undefined => {
+  if (!pointOrbs) {
+    return undefined;
+  }
+
+  const cleaned: PointOrbSettings = {};
+
+  for (const [key, value] of Object.entries(pointOrbs)) {
+    if (value !== undefined && Number.isFinite(value) && value >= 0) {
+      cleaned[key] = round(value, 2);
+    }
+  }
+
+  return cleaned;
+};
 
 const shortestForwardArc = (start: number, end: number): number => normalizeLongitude(end - start);
 
@@ -232,6 +249,16 @@ const addCalculationWarning = (
   if (!warnings.some((warning) => warning.code === code && warning.message === message)) {
     warnings.push({ code, message });
   }
+};
+
+const formatEphemerisBodyWarning = (bodyLabel: string, rawError: string): string => {
+  const trimmedError = rawError.trim();
+
+  if (/file .*\.se1 not found/i.test(trimmedError) || /not found in PATH/i.test(trimmedError)) {
+    return `${bodyLabel}: Swiss Ephemeris data files are missing. Run "pnpm ephemeris:download" before starting the API, or mount the ephemeris directory in Docker.`;
+  }
+
+  return `${bodyLabel}: ${trimmedError}`;
 };
 
 const getMoonPhaseName = (phaseAngle: number): MoonPhase["name"] => {
@@ -437,7 +464,7 @@ const calculateBody = ({
     addCalculationWarning(
       warnings,
       fallback ? "EPHEMERIS_FALLBACK" : "BODY_UNAVAILABLE",
-      `${body.label}: ${result.error.trim()}`
+      formatEphemerisBodyWarning(body.label, result.error)
     );
 
     if (!fallback) {
@@ -467,7 +494,8 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
   const settings = {
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
-    houseSystem: input.houseSystem ?? "placidus"
+    houseSystem: input.houseSystem ?? "placidus",
+    pointOrbs: cleanPointOrbs(input.pointOrbs)
   };
 
   if (input.ephemerisPath) {
@@ -595,7 +623,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     angles,
     houses,
     bodies,
-    aspects: calculateMajorAspects([...aspectAngles, ...bodies]),
+    aspects: calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs),
     warnings
   };
 };
@@ -605,7 +633,8 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
   const settings = {
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
-    houseSystem: input.houseSystem ?? "placidus"
+    houseSystem: input.houseSystem ?? "placidus",
+    pointOrbs: cleanPointOrbs(input.pointOrbs)
   };
 
   if (input.ephemerisPath) {
@@ -667,7 +696,7 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
     angles: [],
     houses: [],
     bodies,
-    aspects: calculateMajorAspects(bodies),
+    aspects: calculateMajorAspects(bodies, undefined, settings.pointOrbs),
     warnings
   };
 };
@@ -678,6 +707,7 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     ...input.natal,
     ephemerisPath: input.ephemerisPath
   });
+  const previewPointOrbs = cleanPointOrbs(input.pointOrbs) ?? natal.settings.pointOrbs;
   const transit = calculateTransitChart({
     transitDateTime: input.transitDateTime,
     latitude: natal.subject.latitude,
@@ -685,12 +715,13 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     zodiac: input.zodiac ?? natal.settings.zodiac,
     ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
     houseSystem: natal.settings.houseSystem,
+    pointOrbs: previewPointOrbs,
     ephemerisPath: input.ephemerisPath
   });
   const natalPoints = [...natal.angles, ...natal.bodies];
   const transitHousePlacements = assignNatalHousesToTransitPoints(transit.bodies, natal.houses);
   const transitToNatalAspects = enrichTransitAspects({
-    aspects: calculateAspectsBetween(transit.bodies, natalPoints),
+    aspects: calculateAspectsBetween(transit.bodies, natalPoints, undefined, previewPointOrbs),
     baseDateTime: baseTransitDateTime,
     natalPoints,
     transitPoints: transit.bodies
@@ -704,6 +735,7 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
       zodiac: input.zodiac ?? natal.settings.zodiac,
       ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
       houseSystem: natal.settings.houseSystem,
+      pointOrbs: previewPointOrbs,
       ephemerisPath: input.ephemerisPath
     });
     const dayTransitHousePlacements = assignNatalHousesToTransitPoints(dayTransit.bodies, natal.houses);
@@ -714,7 +746,7 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
       moon: dayTransitHousePlacements.find((body) => body.key === "moon") ?? dayTransit.bodies.find((body) => body.key === "moon") ?? null,
       moonPhase: calculateMoonPhase(dayTransit.bodies),
       strongestAspects: enrichTransitAspects({
-        aspects: calculateAspectsBetween(dayTransit.bodies, natalPoints),
+        aspects: calculateAspectsBetween(dayTransit.bodies, natalPoints, undefined, previewPointOrbs),
         baseDateTime: dayTransitDateTime,
         natalPoints,
         transitPoints: dayTransit.bodies

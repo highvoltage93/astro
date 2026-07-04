@@ -24,7 +24,7 @@ Services:
 - API: http://localhost:4000
 - PostgreSQL: localhost:5432
 
-The API container runs Prisma generate and `prisma db push` on startup for the development database.
+The API container downloads the required Swiss Ephemeris files, then runs Prisma generate and `prisma db push` on startup for the development database.
 
 ## Birthplace Search
 
@@ -48,7 +48,7 @@ The calculation adapter uses the `sweph` Node binding. For high precision calcul
 corepack pnpm ephemeris:download
 ```
 
-The files are saved to `ephemeris/` and ignored by Git. Docker uses this path through `SWISSEPH_EPHE_PATH=/app/ephemeris`.
+The files are saved to `ephemeris/` and ignored by Git. Docker downloads them automatically on API startup and uses this path through `SWISSEPH_EPHE_PATH=/app/ephemeris`.
 
 Without these files, the API can still run, but some bodies may use lower-precision fallback data and Chiron may be unavailable. Responses include warnings when this happens.
 
@@ -80,10 +80,11 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - Birthplace search endpoint backed by Open-Meteo Geocoding.
 - Natal chart preview contract backed by the first Swiss Ephemeris adapter.
 - Transit preview contract for current-sky positions, Moon phase, transit planets in natal houses, scored transit-to-natal aspects, approximate exact times, active windows, and a 7 day outlook.
+- Per-point orb settings for natal and transit aspect filtering.
 - Natal interpretation preview endpoint backed by seed content for Sun, Moon, Ascendant, and exact aspects.
 - Birth profile persistence endpoint backed by Prisma.
 - Recent saved birth profiles list with detail loading and deletion for the MVP workspace.
-- First shadcn/ui product workspace for birth data intake, chart preview, saving, and transit preview.
+- First shadcn/ui product workspace for birth data intake, interactive chart preview, saving, orb tuning, and transit preview.
 
 ## Licensing Note
 
