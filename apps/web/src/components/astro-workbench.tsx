@@ -1976,6 +1976,9 @@ function ProfessionalDataCard({
         <HousesTable chart={chart} />
 
         <Separator />
+        <HouseConnectionsTable chart={chart} />
+
+        <Separator />
         <AspectsTable aspects={aspects} />
 
         {chart?.warnings.map((warning) => (
@@ -2121,6 +2124,60 @@ function HousesTable({ chart }: { chart: ChartResult | null }) {
               <TableRow>
                 <TableCell colSpan={3} className="text-muted-foreground">
                   Для домів потрібен відомий час народження.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
+  const connections = chart?.houseConnections ?? [];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">Зв'язки домів</h3>
+        <Badge variant="secondary">{connections.length}</Badge>
+      </div>
+      <div className="max-h-[320px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Формула</TableHead>
+              <TableHead>Управитель</TableHead>
+              <TableHead>Позиція</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {connections.length > 0 ? (
+              connections.map((connection) => (
+                <TableRow key={`${connection.fromHouse}-${connection.rulerKey}-${connection.rulerType}`}>
+                  <TableCell className="font-medium">
+                    {connection.fromHouse} дім → {connection.toHouse ? `${connection.toHouse} дім` : "n/a"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    <span className="mr-2 inline-flex w-6 font-semibold text-primary">
+                      {planetGlyphs[connection.rulerKey] ?? "•"}
+                    </span>
+                    {connection.rulerLabel}
+                    {connection.rulerType === "traditional" ? " · trad." : ""}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {signLabelsUk[connection.cuspSign] ?? connection.cuspSign}
+                    {connection.rulerSign
+                      ? ` / ${signLabelsUk[connection.rulerSign] ?? connection.rulerSign} ${connection.rulerSignDegree?.toFixed(2) ?? "n/a"}°`
+                      : " / n/a"}
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={3} className="text-muted-foreground">
+                  Для зв'язків домів потрібен відомий час народження і розраховані доми.
                 </TableCell>
               </TableRow>
             )}

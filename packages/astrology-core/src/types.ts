@@ -34,6 +34,17 @@ export type HouseCusp = {
   signDegree: number;
 };
 
+export type HouseConnection = {
+  fromHouse: number;
+  toHouse?: number;
+  cuspSign: string;
+  rulerKey: string;
+  rulerLabel: string;
+  rulerType: "modern" | "traditional";
+  rulerSign?: string;
+  rulerSignDegree?: number;
+};
+
 export type AspectType = "conjunction" | "opposition" | "trine" | "square" | "sextile";
 
 export type Aspect = {
@@ -91,6 +102,7 @@ export type ChartResult = {
   subject: ChartSubject;
   angles: ChartPoint[];
   houses: HouseCusp[];
+  houseConnections?: HouseConnection[];
   bodies: ChartPoint[];
   aspects: Aspect[];
   warnings: CalculationWarning[];

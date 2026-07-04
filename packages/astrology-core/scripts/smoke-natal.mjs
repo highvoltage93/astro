@@ -47,6 +47,7 @@ const minBodies = hasFallbackWarnings
   : fixture.expect.minBodiesWithEphemerisFiles;
 
 assert.ok(chart.bodies.length >= minBodies, `Expected at least ${minBodies} bodies, got ${chart.bodies.length}`);
+assert.ok(chart.houseConnections.length >= 12, "Expected house ruler connections for known birth time");
 
 const interpretation = generateNatalInterpretationPreview(chart);
 
@@ -75,6 +76,7 @@ const unknownTimeInterpretation = generateNatalInterpretationPreview(unknownTime
 assert.equal(unknownTimeChart.subject.birthTimeKnown, false);
 assert.equal(unknownTimeChart.angles.length, 0, "Unknown time chart should omit angles");
 assert.equal(unknownTimeChart.houses.length, 0, "Unknown time chart should omit houses");
+assert.equal(unknownTimeChart.houseConnections.length, 0, "Unknown time chart should omit house connections");
 assert.ok(
   unknownTimeChart.warnings.some((warning) => warning.code === "UNKNOWN_BIRTH_TIME"),
   "Unknown time chart should include UNKNOWN_BIRTH_TIME warning"
@@ -167,6 +169,7 @@ console.log(
       engine: chart.engine,
       bodies: chart.bodies.length,
       aspects: chart.aspects.length,
+      houseConnections: chart.houseConnections.length,
       transitAspects: transitPreview.transitToNatalAspects.length,
       synastryAspects: synastryPreview.interAspects.length,
       moonPhase: transitPreview.moonPhase.name,

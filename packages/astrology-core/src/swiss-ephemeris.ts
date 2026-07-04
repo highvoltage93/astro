@@ -18,6 +18,7 @@ import type {
   CalculationWarning,
   ChartPoint,
   ChartResult,
+  HouseConnection,
   HouseCusp,
   HouseSystem,
   MoonPhase,
@@ -70,6 +71,30 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
   { key: "chiron", label: "Chiron", swephId: constants.SE_CHIRON, kind: "body" },
   { key: "lilith", label: "Lilith", swephId: constants.SE_MEAN_APOG, kind: "calculated" }
 ];
+
+const SIGN_RULERS: Record<string, Array<{ key: string; label: string; rulerType: HouseConnection["rulerType"] }>> = {
+  aries: [{ key: "mars", label: "Mars", rulerType: "modern" }],
+  taurus: [{ key: "venus", label: "Venus", rulerType: "modern" }],
+  gemini: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
+  cancer: [{ key: "moon", label: "Moon", rulerType: "modern" }],
+  leo: [{ key: "sun", label: "Sun", rulerType: "modern" }],
+  virgo: [{ key: "mercury", label: "Mercury", rulerType: "modern" }],
+  libra: [{ key: "venus", label: "Venus", rulerType: "modern" }],
+  scorpio: [
+    { key: "pluto", label: "Pluto", rulerType: "modern" },
+    { key: "mars", label: "Mars", rulerType: "traditional" }
+  ],
+  sagittarius: [{ key: "jupiter", label: "Jupiter", rulerType: "modern" }],
+  capricorn: [{ key: "saturn", label: "Saturn", rulerType: "modern" }],
+  aquarius: [
+    { key: "uranus", label: "Uranus", rulerType: "modern" },
+    { key: "saturn", label: "Saturn", rulerType: "traditional" }
+  ],
+  pisces: [
+    { key: "neptune", label: "Neptune", rulerType: "modern" },
+    { key: "jupiter", label: "Jupiter", rulerType: "traditional" }
+  ]
+};
 
 const ASPECT_SCORE_WEIGHTS: Record<AspectType, number> = {
   conjunction: 1,
@@ -210,6 +235,36 @@ const findHouse = (longitude: number, cusps: HouseCusp[]): number | undefined =>
   }
 
   return undefined;
+};
+
+const calculateHouseConnections = (houses: HouseCusp[], bodies: ChartPoint[]): HouseConnection[] => {
+  if (houses.length === 0) {
+    return [];
+  }
+
+  const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
+  const connections: HouseConnection[] = [];
+
+  for (const house of houses) {
+    const rulers = SIGN_RULERS[house.sign] ?? [];
+
+    for (const ruler of rulers) {
+      const rulerPoint = pointsByKey.get(ruler.key);
+
+      connections.push({
+        fromHouse: house.house,
+        toHouse: rulerPoint?.house,
+        cuspSign: house.sign,
+        rulerKey: ruler.key,
+        rulerLabel: ruler.label,
+        rulerType: ruler.rulerType,
+        rulerSign: rulerPoint?.sign,
+        rulerSignDegree: rulerPoint?.signDegree
+      });
+    }
+  }
+
+  return connections;
 };
 
 const buildPoint = ({
@@ -607,6 +662,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
   }
 
   const aspectAngles = angles.filter((angle) => angle.key === "asc" || angle.key === "mc");
+  const houseConnections = calculateHouseConnections(houses, bodies);
 
   return {
     chartType: "natal",
@@ -624,6 +680,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     },
     angles,
     houses,
+    houseConnections,
     bodies,
     aspects: calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs),
     warnings
