@@ -62,6 +62,7 @@ type FormState = {
 };
 
 type PointOrbSettings = Record<string, number>;
+type VisiblePointSettings = Record<string, boolean>;
 
 const initialForm: FormState = {
   displayName: "Натальна карта",
@@ -99,6 +100,7 @@ const planetGlyphs: Record<string, string> = {
   neptune: "♆",
   pluto: "♇",
   "north-node": "☊",
+  "south-node": "☋",
   chiron: "⚷",
   lilith: "⚸",
   asc: "AC",
@@ -145,6 +147,44 @@ const orbSettingRows = [
   ["mc", "Midheaven"]
 ] as const;
 
+const chartObjectRows = [
+  ["sun", "Sun"],
+  ["moon", "Moon"],
+  ["mercury", "Mercury"],
+  ["venus", "Venus"],
+  ["mars", "Mars"],
+  ["jupiter", "Jupiter"],
+  ["saturn", "Saturn"],
+  ["uranus", "Uranus"],
+  ["neptune", "Neptune"],
+  ["pluto", "Pluto"],
+  ["north-node", "North Node"],
+  ["south-node", "South Node"],
+  ["chiron", "Chiron"],
+  ["lilith", "Lilith"],
+  ["asc", "Ascendant"],
+  ["desc", "Descendant"],
+  ["ic", "Imum Coeli"],
+  ["mc", "Midheaven"]
+] as const;
+
+const defaultVisiblePointKeys: VisiblePointSettings = Object.fromEntries(
+  chartObjectRows.map(([key]) => [key, true])
+) as VisiblePointSettings;
+
+const classicalBalancePointKeys = new Set([
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto"
+]);
+
 const zodiacSigns = [
   { key: "aries", glyph: "♈", label: "Овен", gender: "чоловічий", cross: "кардинальний", element: "вогонь" },
   { key: "taurus", glyph: "♉", label: "Телець", gender: "жіночий", cross: "фіксований", element: "земля" },
@@ -161,6 +201,9 @@ const zodiacSigns = [
 ] as const;
 
 const signGlyphs = zodiacSigns.map((sign) => sign.glyph);
+const zodiacSignMetaByKey: Record<string, (typeof zodiacSigns)[number]> = Object.fromEntries(
+  zodiacSigns.map((sign) => [sign.key, sign])
+) as Record<string, (typeof zodiacSigns)[number]>;
 
 const aspectLabels: Record<string, string> = {
   conjunction: "З'єднання",
@@ -287,9 +330,24 @@ const formatPointTooltip = (point: ChartPoint): string => {
 const formatSignTooltip = (sign: (typeof zodiacSigns)[number]): string =>
   `${sign.label}\nСтать: ${sign.gender}\nХрест: ${sign.cross}\nСтихія: ${sign.element}`;
 
+const isPointVisible = (settings: VisiblePointSettings, key: string): boolean => settings[key] !== false;
+
+const formatMotion = (point: ChartPoint): string => {
+  if (point.speed === undefined) {
+    return "n/a";
+  }
+
+  if (Math.abs(point.speed) < 0.0001) {
+    return "S";
+  }
+
+  return point.speed < 0 ? `R ${Math.abs(point.speed).toFixed(4)}` : `D ${point.speed.toFixed(4)}`;
+};
+
 export function AstroWorkbench() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
+  const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
   const [chart, setChart] = useState<ChartResult | null>(null);
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
   const [transitDateTime, setTransitDateTime] = useState("");
@@ -318,6 +376,21 @@ export function AstroWorkbench() {
 
     return [...chart.angles, ...chart.bodies].sort((a, b) => a.longitude - b.longitude);
   }, [chart]);
+
+  const visiblePlacements = useMemo(
+    () => placements.filter((placement) => isPointVisible(visiblePointKeys, placement.key)),
+    [placements, visiblePointKeys]
+  );
+
+  const visibleAspects = useMemo(() => {
+    if (!chart) {
+      return [];
+    }
+
+    return chart.aspects.filter(
+      (aspect) => isPointVisible(visiblePointKeys, aspect.bodyA) && isPointVisible(visiblePointKeys, aspect.bodyB)
+    );
+  }, [chart, visiblePointKeys]);
 
   const updateForm = <Field extends keyof FormState>(field: Field, value: FormState[Field]): void => {
     setForm((current) => ({
@@ -361,9 +434,28 @@ export function AstroWorkbench() {
     setStatus("idle");
   };
 
+  const updatePointVisibility = (key: string, checked: boolean): void => {
+    setVisiblePointKeys((current) => ({
+      ...current,
+      [key]: checked
+    }));
+  };
+
+  const setVisibilityPreset = (preset: "all" | "classical"): void => {
+    setVisiblePointKeys(
+      Object.fromEntries(
+        chartObjectRows.map(([key]) => [
+          key,
+          preset === "all" || classicalBalancePointKeys.has(key) || key === "asc" || key === "mc"
+        ])
+      ) as VisiblePointSettings
+    );
+  };
+
   const resetForm = (): void => {
     setForm(initialForm);
     setPointOrbs(defaultPointOrbs);
+    setVisiblePointKeys(defaultVisiblePointKeys);
     setChart(null);
     setInterpretation(null);
     setInterpretationError(null);
@@ -657,6 +749,11 @@ export function AstroWorkbench() {
               onUpdate={updateForm}
             />
             <OrbSettingsCard pointOrbs={pointOrbs} onUpdate={updatePointOrb} />
+            <ChartObjectSettingsCard
+              visiblePointKeys={visiblePointKeys}
+              onPreset={setVisibilityPreset}
+              onToggle={updatePointVisibility}
+            />
             <SavedProfilesCard
               deletingProfileId={deletingProfileId}
               error={savedProfilesError}
@@ -690,14 +787,14 @@ export function AstroWorkbench() {
                 </Button>
               </CardHeader>
               <CardContent>
-                <ChartWheel chart={chart} />
+                <ChartWheel chart={chart} visiblePointKeys={visiblePointKeys} />
                 <div className="mt-5 grid grid-cols-3 gap-2">
                   <StatusBadge status={chart?.engine.status ?? "idle"} />
                   <Badge variant="secondary" className="justify-center py-2">
-                    {chart ? `${chart.bodies.length} об'єктів` : "0 об'єктів"}
+                    {chart ? `${visiblePlacements.length}/${placements.length} точок` : "0 точок"}
                   </Badge>
                   <Badge variant="secondary" className="justify-center py-2">
-                    {chart ? `${chart.aspects.length} аспектів` : "0 аспектів"}
+                    {chart ? `${visibleAspects.length}/${chart.aspects.length} аспектів` : "0 аспектів"}
                   </Badge>
                 </div>
 
@@ -716,58 +813,7 @@ export function AstroWorkbench() {
             />
           </div>
 
-          <Card className="min-w-0 xl:sticky xl:top-5">
-            <CardHeader>
-              <CardDescription className="font-semibold uppercase text-primary">Data</CardDescription>
-              <CardTitle>Положення</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="max-h-[348px] overflow-auto rounded-lg border">
-                <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-card">
-                    <TableRow>
-                      <TableHead>Точка</TableHead>
-                      <TableHead>Знак</TableHead>
-                      <TableHead>Дім</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {placements.length > 0 ? (
-                      placements.map((placement) => (
-                        <TableRow key={placement.key}>
-                          <TableCell className="font-medium">
-                            <span className="mr-2 inline-flex w-6 font-semibold text-primary">
-                              {planetGlyphs[placement.key] ?? "•"}
-                            </span>
-                            {placement.label}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {placement.sign} {placement.signDegree.toFixed(2)}°
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">{placement.house ?? "n/a"}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-muted-foreground">
-                          Очікує дані карти
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <Separator />
-              <AspectList aspects={chart?.aspects ?? []} />
-
-              {chart?.warnings.map((warning) => (
-                <div className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900" key={warning.code}>
-                  {warning.message}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <ProfessionalDataCard aspects={visibleAspects} chart={chart} placements={visiblePlacements} />
         </section>
       </div>
     </main>
@@ -975,6 +1021,54 @@ function OrbSettingsCard({
                 value={pointOrbs[key] ?? 0}
                 onChange={(event) => onUpdate(key, event.target.value)}
               />
+            </label>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ChartObjectSettingsCard({
+  visiblePointKeys,
+  onPreset,
+  onToggle
+}: {
+  visiblePointKeys: VisiblePointSettings;
+  onPreset: (preset: "all" | "classical") => void;
+  onToggle: (key: string, checked: boolean) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Settings2 className="h-5 w-5" />
+        </div>
+        <div className="space-y-1">
+          <CardDescription className="font-semibold uppercase text-primary">Objects</CardDescription>
+          <CardTitle>Планети і точки</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Button size="sm" variant="secondary" type="button" onClick={() => onPreset("all")}>
+            Усі точки
+          </Button>
+          <Button size="sm" variant="secondary" type="button" onClick={() => onPreset("classical")}>
+            Базові
+          </Button>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+          {chartObjectRows.map(([key, label]) => (
+            <label
+              className="flex min-h-9 items-center gap-3 rounded-md border bg-muted/20 px-3 py-2 text-sm"
+              key={key}
+            >
+              <Checkbox checked={isPointVisible(visiblePointKeys, key)} onCheckedChange={(checked) => onToggle(key, checked === true)} />
+              <span className="min-w-0 flex-1 truncate">
+                <span className="mr-2 inline-flex w-7 font-semibold text-primary">{planetGlyphs[key] ?? "•"}</span>
+                {label}
+              </span>
             </label>
           ))}
         </div>
@@ -1377,6 +1471,254 @@ function TransitForecastCard({
   );
 }
 
+function ProfessionalDataCard({
+  aspects,
+  chart,
+  placements
+}: {
+  aspects: Aspect[];
+  chart: ChartResult | null;
+  placements: ChartPoint[];
+}) {
+  const balancePoints = placements.filter((point) => classicalBalancePointKeys.has(point.key));
+
+  return (
+    <Card className="min-w-0 xl:sticky xl:top-5">
+      <CardHeader>
+        <CardDescription className="font-semibold uppercase text-primary">Data</CardDescription>
+        <CardTitle>Професійні таблиці</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <BalanceSummary points={balancePoints} />
+
+        <Separator />
+        <PlacementsTable placements={placements} />
+
+        <Separator />
+        <HousesTable chart={chart} />
+
+        <Separator />
+        <AspectsTable aspects={aspects} />
+
+        {chart?.warnings.map((warning) => (
+          <div
+            className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
+            key={warning.code}
+          >
+            {warning.message}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BalanceSummary({ points }: { points: ChartPoint[] }) {
+  const elementRows = buildBalanceRows(points, "element", ["вогонь", "земля", "повітря", "вода"]);
+  const crossRows = buildBalanceRows(points, "cross", ["кардинальний", "фіксований", "мутабельний"]);
+  const genderRows = buildBalanceRows(points, "gender", ["чоловічий", "жіночий"]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">Баланс карти</h3>
+        <Badge variant="secondary">{points.length} планет</Badge>
+      </div>
+      {points.length > 0 ? (
+        <div className="grid gap-3">
+          <BalanceGroup title="Стихії" rows={elementRows} total={points.length} />
+          <BalanceGroup title="Хрести" rows={crossRows} total={points.length} />
+          <BalanceGroup title="Полярність" rows={genderRows} total={points.length} />
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Очікує видимі класичні планети.</p>
+      )}
+    </div>
+  );
+}
+
+function BalanceGroup({
+  rows,
+  title,
+  total
+}: {
+  rows: Array<{ count: number; key: string; label: string }>;
+  title: string;
+  total: number;
+}) {
+  return (
+    <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+      <p className="text-xs font-semibold uppercase text-muted-foreground">{title}</p>
+      <div className="space-y-2">
+        {rows.map((row) => {
+          const percentage = total > 0 ? (row.count / total) * 100 : 0;
+
+          return (
+            <div className="grid gap-1" key={row.key}>
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="capitalize text-muted-foreground">{row.label}</span>
+                <span className="font-semibold">{row.count}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-border">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${percentage}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold">Положення</h3>
+      <div className="max-h-[338px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Точка</TableHead>
+              <TableHead>Позиція</TableHead>
+              <TableHead>Дім</TableHead>
+              <TableHead>Рух</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {placements.length > 0 ? (
+              placements.map((placement) => (
+                <TableRow key={placement.key}>
+                  <TableCell className="font-medium">
+                    <span className="mr-2 inline-flex w-6 font-semibold text-primary">
+                      {planetGlyphs[placement.key] ?? "•"}
+                    </span>
+                    {placement.label}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {signLabelsUk[placement.sign] ?? placement.sign} {placement.signDegree.toFixed(2)}°
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{placement.house ?? "n/a"}</TableCell>
+                  <TableCell className="text-muted-foreground">{formatMotion(placement)}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  Очікує дані карти
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function HousesTable({ chart }: { chart: ChartResult | null }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold">Доми</h3>
+      <div className="max-h-[260px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Дім</TableHead>
+              <TableHead>Куспід</TableHead>
+              <TableHead>Тема</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {chart && chart.houses.length > 0 ? (
+              chart.houses.map((house) => (
+                <TableRow key={house.house}>
+                  <TableCell className="font-medium">{house.house}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {signLabelsUk[house.sign] ?? house.sign} {house.signDegree.toFixed(2)}°
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{houseTopicsUk[house.house] ?? "n/a"}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={3} className="text-muted-foreground">
+                  Для домів потрібен відомий час народження.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function AspectsTable({ aspects }: { aspects: Aspect[] }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">Аспекти</h3>
+        <Badge variant="secondary">{aspects.length}</Badge>
+      </div>
+      <div className="max-h-[338px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Пара</TableHead>
+              <TableHead>Тип</TableHead>
+              <TableHead>Орб</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {aspects.length > 0 ? (
+              aspects.map((aspect) => (
+                <TableRow key={`${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
+                  <TableCell className="font-medium">
+                    {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {planetGlyphs[aspect.bodyB] ?? aspect.bodyB}
+                  </TableCell>
+                  <TableCell className={getAspectTextClass(aspect.type)}>{aspectLabels[aspect.type] ?? aspect.type}</TableCell>
+                  <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={3} className="text-muted-foreground">
+                  Немає аспектів у поточних фільтрах.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function buildBalanceRows(
+  points: ChartPoint[],
+  field: "cross" | "element" | "gender",
+  order: string[]
+): Array<{ count: number; key: string; label: string }> {
+  const counts = new Map(order.map((key) => [key, 0]));
+
+  for (const point of points) {
+    const signMeta = zodiacSignMetaByKey[point.sign];
+
+    if (!signMeta) {
+      continue;
+    }
+
+    const value = signMeta[field];
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+
+  return order.map((key) => ({
+    key,
+    label: key,
+    count: counts.get(key) ?? 0
+  }));
+}
+
 function PlaceSearchPanel({
   error,
   results,
@@ -1484,7 +1826,13 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ChartWheel({ chart }: { chart: ChartResult | null }) {
+function ChartWheel({
+  chart,
+  visiblePointKeys
+}: {
+  chart: ChartResult | null;
+  visiblePointKeys: VisiblePointSettings;
+}) {
   const center = 160;
   const outerRadius = 138;
   const signRadius = 119;
@@ -1505,8 +1853,8 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
     };
   };
 
-  const points = chart ? [...chart.angles, ...chart.bodies] : [];
-  const pointMarkers = chart?.bodies ?? [];
+  const points = chart ? [...chart.angles, ...chart.bodies].filter((point) => isPointVisible(visiblePointKeys, point.key)) : [];
+  const pointMarkers = chart?.bodies.filter((point) => isPointVisible(visiblePointKeys, point.key)) ?? [];
   const pointsByKey = new Map(points.map((chartPoint) => [chartPoint.key, chartPoint]));
   const angleMarkers = [
     ascendant,
@@ -1527,7 +1875,10 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
           }
         : null),
     midheaven
-  ].filter((angle): angle is { key: string; label: string; longitude: number } => angle !== null && angle !== undefined);
+  ].filter(
+    (angle): angle is { key: string; label: string; longitude: number } =>
+      angle !== null && angle !== undefined && isPointVisible(visiblePointKeys, angle.key)
+  );
 
   return (
     <svg
@@ -1602,7 +1953,10 @@ function ChartWheel({ chart }: { chart: ChartResult | null }) {
         );
       })}
 
-      {chart?.aspects.slice(0, 24).map((aspect) => {
+      {chart?.aspects
+        .filter((aspect) => isPointVisible(visiblePointKeys, aspect.bodyA) && isPointVisible(visiblePointKeys, aspect.bodyB))
+        .slice(0, 24)
+        .map((aspect) => {
         const pointA = pointsByKey.get(aspect.bodyA);
         const pointB = pointsByKey.get(aspect.bodyB);
 

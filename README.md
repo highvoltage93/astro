@@ -84,7 +84,7 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - Natal interpretation preview endpoint backed by seed content for Sun, Moon, Ascendant, and exact aspects.
 - Birth profile persistence endpoint backed by Prisma.
 - Recent saved birth profiles list with detail loading and deletion for the MVP workspace.
-- First shadcn/ui product workspace for birth data intake, interactive chart preview, saving, orb tuning, and transit preview.
+- First shadcn/ui product workspace for birth data intake, interactive chart preview, saving, orb tuning, point visibility, professional data tables, and transit preview.
 
 ## Licensing Note
 
