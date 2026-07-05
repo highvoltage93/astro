@@ -20,6 +20,8 @@ export type HouseCusp = {
 export type HouseRuler = {
   house: number;
   sign: string;
+  signCoverageDegrees?: number;
+  rulerSource?: "cusp" | "contained-sign";
   rulerKey: string;
   rulerLabel: string;
   rulerType: "direct" | "retrograde";

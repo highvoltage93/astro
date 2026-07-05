@@ -231,7 +231,8 @@ const planetLabels: Record<string, string> = {
   saturn: "Saturn",
   uranus: "Uranus",
   neptune: "Neptune",
-  pluto: "Pluto"
+  pluto: "Pluto",
+  lilith: "Lilith"
 };
 
 const planetDirectRulers: Record<string, string[]> = {
@@ -244,7 +245,8 @@ const planetDirectRulers: Record<string, string[]> = {
   saturn: ["capricorn"],
   uranus: ["aquarius"],
   neptune: ["pisces"],
-  pluto: ["aries"]
+  pluto: ["aries"],
+  lilith: ["scorpio"]
 };
 
 const planetRetrogradeRulers: Record<string, string[]> = {
@@ -2967,7 +2969,7 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
             <table className="min-w-[620px] border-collapse text-xs">
               <thead className="sticky top-0 z-10 bg-card">
                 <tr>
-                  <th className="h-8 w-9 border-b border-r px-2 text-left font-semibold text-muted-foreground">→</th>
+                  <th className="h-8 w-9 border-b border-r px-2 text-left font-semibold text-muted-foreground">+</th>
                   {houses.map((house) => (
                     <th className="h-8 border-b border-r px-2 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
                       {house}
@@ -3031,7 +3033,7 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
               <div className="rounded-lg border bg-muted/20 p-3 text-xs" key={`house-link-${connection.fromHouse}-${connection.toHouse}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-semibold">
-                    {connection.fromHouse} дім → {connection.toHouse} дім
+                    {connection.fromHouse} дім + {connection.toHouse} дім
                   </span>
                   <span className="text-muted-foreground">{formatHouseConnectionScore(connection)}</span>
                 </div>
@@ -3057,7 +3059,8 @@ function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
         <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow>
             <TableHead>Дім</TableHead>
-            <TableHead>Куспід</TableHead>
+            <TableHead>Знак</TableHead>
+            <TableHead>Основа</TableHead>
             <TableHead>Управитель</TableHead>
             <TableHead>Стоїть</TableHead>
             <TableHead>Рух</TableHead>
@@ -3066,9 +3069,12 @@ function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
         <TableBody>
           {houseRulers.length > 0 ? (
             houseRulers.map((ruler) => (
-              <TableRow key={`house-ruler-${ruler.house}-${ruler.rulerKey}-${ruler.rulerType}`}>
+              <TableRow key={`house-ruler-${ruler.house}-${ruler.sign}-${ruler.rulerKey}-${ruler.rulerType}-${ruler.rulerSource ?? "cusp"}`}>
                 <TableCell className="font-semibold">{ruler.house}</TableCell>
                 <TableCell className="text-muted-foreground">{signLabelsUk[ruler.sign] ?? ruler.sign}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {ruler.rulerSource === "contained-sign" ? `>12.5° · ${ruler.signCoverageDegrees?.toFixed(1) ?? "n/a"}°` : "куспід"}
+                </TableCell>
                 <TableCell className="font-medium">
                   {planetGlyphs[ruler.rulerKey] ?? ruler.rulerKey} {ruler.rulerLabel}{" "}
                   <span className="text-xs text-muted-foreground">({rulerTypeLabelsUk[ruler.rulerType]})</span>
@@ -3079,7 +3085,7 @@ function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={5} className="text-muted-foreground">
+              <TableCell colSpan={6} className="text-muted-foreground">
                 Очікує управителів домів.
               </TableCell>
             </TableRow>
@@ -3200,8 +3206,8 @@ function formatHouseConnectionTitle(connection: HouseConnection): string {
       const aspect = detail.aspectType ? ` ${aspectLabels[detail.aspectType] ?? detail.aspectType} ` : " → ";
 
       return detail.source === "aspect"
-        ? `${planetA}${roleA}${connection.fromHouse}${aspect}${planetB}${roleB}${connection.toHouse}`
-        : `${planetA} R${connection.fromHouse} → D${connection.toHouse}`;
+        ? `${planetA}${roleA} ${aspect.trim()} ${planetB}${roleB}: ${connection.fromHouse}+${connection.toHouse}`
+        : `${planetA}: ${connection.fromHouse}+${connection.toHouse}`;
     })
     .join("; ");
 }

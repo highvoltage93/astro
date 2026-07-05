@@ -62,6 +62,19 @@ type SignRulerDefinition = {
   rulerType: RulerType;
 };
 
+type HouseSignSegment = {
+  house: number;
+  sign: string;
+  coverageDegrees: number;
+  source: "cusp" | "contained-sign";
+};
+
+type PlanetHouseResponsibility = {
+  house: number;
+  role: HouseConnectionRole;
+  planetKey: string;
+};
+
 const HOUSE_SYSTEM_CODES: Record<HouseSystem, HouseSystems> = {
   placidus: "P",
   "whole-sign": "W",
@@ -105,7 +118,8 @@ const PLANET_DIRECT_RULERS: Record<string, string[]> = {
   saturn: ["capricorn"],
   uranus: ["aquarius"],
   neptune: ["pisces"],
-  pluto: ["aries"]
+  pluto: ["aries"],
+  lilith: ["scorpio"]
 };
 
 const PLANET_RETROGRADE_RULERS: Record<string, string[]> = {
@@ -279,6 +293,7 @@ const FORECAST_DEFAULT_DAYS = 90;
 const FORECAST_MAX_DAYS = 366;
 const FORECAST_EXACT_TRANSIT_BODY_KEYS = [...BODY_DEFINITIONS.map((body) => body.key), "south-node"];
 const EXACT_CROSSING_EPSILON = 0.00001;
+const CONTAINED_HOUSE_SIGN_MIN_DEGREES = 12.5;
 
 const normalizeLongitude = (longitude: number): number => ((longitude % 360) + 360) % 360;
 
@@ -423,6 +438,50 @@ const findHouse = (longitude: number, cusps: HouseCusp[]): number | undefined =>
   return undefined;
 };
 
+const calculateHouseSignSegments = (houses: HouseCusp[]): HouseSignSegment[] => {
+  const segments: HouseSignSegment[] = [];
+
+  for (let index = 0; index < houses.length; index += 1) {
+    const house = houses[index];
+    const next = houses[(index + 1) % houses.length];
+
+    if (!house || !next) {
+      continue;
+    }
+
+    const houseLength = shortestForwardArc(house.longitude, next.longitude);
+
+    for (const sign of ZODIAC_SIGNS) {
+      const signIndex = ZODIAC_SIGNS.indexOf(sign);
+      const signStart = signIndex * 30;
+      const signEnd = signStart + 30;
+      const isCuspSign = sign === house.sign;
+      const startsAfterCusp = shortestForwardArc(house.longitude, signStart);
+      const endsAfterCusp = shortestForwardArc(house.longitude, signEnd);
+      const segmentStart = isCuspSign ? 0 : startsAfterCusp;
+      const segmentEnd = Math.min(houseLength, endsAfterCusp);
+      const coverageDegrees = round(segmentEnd - segmentStart, 4);
+
+      if (coverageDegrees <= 0) {
+        continue;
+      }
+
+      if (!isCuspSign && coverageDegrees <= CONTAINED_HOUSE_SIGN_MIN_DEGREES) {
+        continue;
+      }
+
+      segments.push({
+        house: house.house,
+        sign,
+        coverageDegrees,
+        source: isCuspSign ? "cusp" : "contained-sign"
+      });
+    }
+  }
+
+  return segments.sort((a, b) => a.house - b.house || (a.source === b.source ? 0 : a.source === "cusp" ? -1 : 1));
+};
+
 const aspectTone = (aspectType: AspectType): HouseConnectionTone => {
   if (aspectType === "trine" || aspectType === "sextile") {
     return "harmonious";
@@ -453,14 +512,17 @@ const calculateHouseRulers = (houses: HouseCusp[], bodies: ChartPoint[]): HouseR
   }
 
   const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
+  const signSegments = calculateHouseSignSegments(houses);
 
-  return houses.flatMap((house) =>
-    activeSignRulers(house.sign, pointsByKey).map((ruler) => {
+  return signSegments.flatMap((segment) =>
+    activeSignRulers(segment.sign, pointsByKey).map((ruler) => {
       const rulerPoint = pointsByKey.get(ruler.key);
 
       return {
-        house: house.house,
-        sign: house.sign,
+        house: segment.house,
+        sign: segment.sign,
+        signCoverageDegrees: segment.coverageDegrees,
+        rulerSource: segment.source,
         rulerKey: ruler.key,
         rulerLabel: ruler.label,
         rulerType: ruler.rulerType,
@@ -579,36 +641,42 @@ const calculateSyntheticSignature = (points: ChartPoint[]): SyntheticSignature =
   };
 };
 
-const calculateHouseConnections = (houses: HouseCusp[], bodies: ChartPoint[], aspects: Aspect[]): HouseConnection[] => {
-  if (houses.length === 0) {
+const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint[], aspects: Aspect[]): HouseConnection[] => {
+  if (houseRulers.length === 0) {
     return [];
   }
 
   const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
-  const rolesByPlanet = new Map<string, Array<{ house: number; role: HouseConnectionRole }>>();
+  const responsibilitiesByPlanet = new Map<string, PlanetHouseResponsibility[]>();
   const connectionMap = new Map<string, HouseConnection>();
 
-  const addRole = (planetKey: string, house: number | undefined, role: HouseConnectionRole): void => {
+  const addResponsibility = (planetKey: string, house: number | undefined, role: HouseConnectionRole): void => {
     if (!house) {
       return;
     }
 
-    const roles = rolesByPlanet.get(planetKey) ?? [];
-    roles.push({ house, role });
-    rolesByPlanet.set(planetKey, roles);
+    const responsibilities = responsibilitiesByPlanet.get(planetKey) ?? [];
+    const exists = responsibilities.some((responsibility) => responsibility.house === house && responsibility.role === role);
+
+    if (!exists) {
+      responsibilities.push({ house, role, planetKey });
+      responsibilitiesByPlanet.set(planetKey, responsibilities);
+    }
   };
 
   const addConnection = (fromHouse: number, toHouse: number | undefined, detail: HouseConnectionDetail): void => {
-    if (!toHouse) {
+    if (!toHouse || fromHouse === toHouse) {
       return;
     }
 
-    const key = `${fromHouse}-${toHouse}`;
+    const [orderedFromHouse, orderedToHouse] =
+      fromHouse < toHouse ? [fromHouse, toHouse] : [toHouse, fromHouse];
+    const key = `${orderedFromHouse}-${orderedToHouse}`;
     const connection =
       connectionMap.get(key) ??
       ({
-        fromHouse,
-        toHouse,
+        fromHouse: orderedFromHouse,
+        toHouse: orderedToHouse,
         harmonious: 0,
         tense: 0,
         neutral: 0,
@@ -623,43 +691,62 @@ const calculateHouseConnections = (houses: HouseCusp[], bodies: ChartPoint[], as
   };
 
   for (const body of bodies) {
-    addRole(body.key, body.house, "placement");
+    addResponsibility(body.key, body.house, "placement");
   }
 
-  for (const house of houses) {
-    const rulers = activeSignRulers(house.sign, pointsByKey);
+  for (const houseRuler of houseRulers) {
+    const rulerPoint = pointsByKey.get(houseRuler.rulerKey);
 
-    for (const ruler of rulers) {
-      const rulerPoint = pointsByKey.get(ruler.key);
-      addRole(ruler.key, house.house, "ruler");
-      addConnection(house.house, rulerPoint?.house, {
-        source: "ruler-position",
-        tone: "neutral",
-        planetA: ruler.key,
-        fromRole: "ruler",
-        toRole: "placement"
-      });
-    }
+    addResponsibility(houseRuler.rulerKey, houseRuler.house, "ruler");
+    addConnection(houseRuler.house, rulerPoint?.house, {
+      source: "ruler-position",
+      tone: "neutral",
+      planetA: houseRuler.rulerKey,
+      fromRole: "ruler",
+      toRole: "placement"
+    });
   }
 
   for (const aspect of aspects) {
-    const rolesA = rolesByPlanet.get(aspect.bodyA) ?? [];
-    const rolesB = rolesByPlanet.get(aspect.bodyB) ?? [];
+    const responsibilities = [
+      ...(responsibilitiesByPlanet.get(aspect.bodyA) ?? []),
+      ...(responsibilitiesByPlanet.get(aspect.bodyB) ?? [])
+    ];
     const tone = aspectTone(aspect.type);
+    const aspectPairs = new Set<string>();
 
-    for (const roleA of rolesA) {
-      for (const roleB of rolesB) {
-        if (roleA.house === roleB.house && roleA.role === roleB.role) {
+    for (let indexA = 0; indexA < responsibilities.length; indexA += 1) {
+      const responsibilityA = responsibilities[indexA];
+
+      if (!responsibilityA) {
+        continue;
+      }
+
+      for (let indexB = indexA + 1; indexB < responsibilities.length; indexB += 1) {
+        const responsibilityB = responsibilities[indexB];
+
+        if (!responsibilityB || responsibilityA.house === responsibilityB.house) {
           continue;
         }
 
-        addConnection(roleA.house, roleB.house, {
+        const [fromHouse, toHouse] =
+          responsibilityA.house < responsibilityB.house
+            ? [responsibilityA.house, responsibilityB.house]
+            : [responsibilityB.house, responsibilityA.house];
+        const aspectPairKey = `${fromHouse}-${toHouse}`;
+
+        if (aspectPairs.has(aspectPairKey)) {
+          continue;
+        }
+
+        aspectPairs.add(aspectPairKey);
+        addConnection(fromHouse, toHouse, {
           source: "aspect",
           tone,
-          planetA: aspect.bodyA,
-          planetB: aspect.bodyB,
-          fromRole: roleA.role,
-          toRole: roleB.role,
+          planetA: responsibilityA.planetKey,
+          planetB: responsibilityB.planetKey,
+          fromRole: responsibilityA.role,
+          toRole: responsibilityB.role,
           aspectType: aspect.type
         });
       }
@@ -1225,7 +1312,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
   const aspects = calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs);
   const houseRulers = calculateHouseRulers(houses, bodies);
   const planetRulerships = calculatePlanetRulerships(houseRulers, bodies);
-  const houseConnections = calculateHouseConnections(houses, bodies, aspects);
+  const houseConnections = calculateHouseConnections(houseRulers, bodies, aspects);
   const essentialDignities = calculateEssentialDignities(bodies);
   const syntheticSignature = calculateSyntheticSignature([...angles, ...bodies]);
 

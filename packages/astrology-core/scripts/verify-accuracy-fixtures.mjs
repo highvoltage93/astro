@@ -82,6 +82,8 @@ const actualHouseRulers = (chart) =>
   chart.houseRulers.map((ruler) => ({
     house: ruler.house,
     sign: ruler.sign,
+    signCoverageDegrees: ruler.signCoverageDegrees,
+    rulerSource: ruler.rulerSource,
     rulerKey: ruler.rulerKey,
     rulerType: ruler.rulerType,
     rulerHouse: ruler.rulerHouse,
