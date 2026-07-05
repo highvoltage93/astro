@@ -1,0 +1,976 @@
+{
+  "name": "Kyiv 1995 spring reference",
+  "purpose": "Mixed direct and retrograde rulerships with Koch/Placidus divergence.",
+  "reference": {
+    "source": "Generated from the local Swiss Ephemeris adapter as a regression baseline.",
+    "engine": {
+      "name": "swiss-ephemeris",
+      "version": "sweph-2.10.3-7",
+      "status": "swiss-ephemeris"
+    }
+  },
+  "input": {
+    "birthDate": "1995-04-12",
+    "birthTime": "14:30:27",
+    "birthTimeKnown": true,
+    "timezone": "Europe/Kyiv",
+    "latitude": 50.4501,
+    "longitude": 30.5234,
+    "zodiac": "tropical"
+  },
+  "tolerances": {
+    "longitude": 0.02,
+    "signDegree": 0.02,
+    "orb": 0.03
+  },
+  "expect": {
+    "bodies": {
+      "sun": {
+        "longitude": 22.099,
+        "sign": "aries",
+        "signDegree": 22.099,
+        "motion": "direct"
+      },
+      "moon": {
+        "longitude": 162.2076,
+        "sign": "virgo",
+        "signDegree": 12.2076,
+        "motion": "direct"
+      },
+      "mercury": {
+        "longitude": 19.846,
+        "sign": "aries",
+        "signDegree": 19.846,
+        "motion": "direct"
+      },
+      "venus": {
+        "longitude": 348.3202,
+        "sign": "pisces",
+        "signDegree": 18.3202,
+        "motion": "direct"
+      },
+      "mars": {
+        "longitude": 135.1411,
+        "sign": "leo",
+        "signDegree": 15.1411,
+        "motion": "direct"
+      },
+      "jupiter": {
+        "longitude": 255.1956,
+        "sign": "sagittarius",
+        "signDegree": 15.1956,
+        "motion": "retrograde"
+      },
+      "saturn": {
+        "longitude": 349.4469,
+        "sign": "pisces",
+        "signDegree": 19.4469,
+        "motion": "direct"
+      },
+      "uranus": {
+        "longitude": 300.2562,
+        "sign": "aquarius",
+        "signDegree": 0.2562,
+        "motion": "direct"
+      },
+      "neptune": {
+        "longitude": 295.4843,
+        "sign": "capricorn",
+        "signDegree": 25.4843,
+        "motion": "direct"
+      },
+      "pluto": {
+        "longitude": 240.186,
+        "sign": "sagittarius",
+        "signDegree": 0.186,
+        "motion": "retrograde"
+      },
+      "north-node": {
+        "longitude": 215.6369,
+        "sign": "scorpio",
+        "signDegree": 5.6369,
+        "motion": "retrograde"
+      }
+    },
+    "houseSystems": {
+      "koch": {
+        "angles": {
+          "asc": {
+            "longitude": 146.7969,
+            "sign": "leo",
+            "signDegree": 26.7969
+          },
+          "desc": {
+            "longitude": 326.7969,
+            "sign": "aquarius",
+            "signDegree": 26.7969
+          },
+          "ic": {
+            "longitude": 225.8036,
+            "sign": "scorpio",
+            "signDegree": 15.8036
+          },
+          "mc": {
+            "longitude": 45.8036,
+            "sign": "taurus",
+            "signDegree": 15.8036
+          }
+        },
+        "houses": [
+          {
+            "house": 1,
+            "longitude": 146.7969,
+            "sign": "leo",
+            "signDegree": 26.7969
+          },
+          {
+            "house": 2,
+            "longitude": 173.124,
+            "sign": "virgo",
+            "signDegree": 23.124
+          },
+          {
+            "house": 3,
+            "longitude": 199.5581,
+            "sign": "libra",
+            "signDegree": 19.5581
+          },
+          {
+            "house": 4,
+            "longitude": 225.8036,
+            "sign": "scorpio",
+            "signDegree": 15.8036
+          },
+          {
+            "house": 5,
+            "longitude": 270.8451,
+            "sign": "capricorn",
+            "signDegree": 0.8451
+          },
+          {
+            "house": 6,
+            "longitude": 300.364,
+            "sign": "aquarius",
+            "signDegree": 0.364
+          },
+          {
+            "house": 7,
+            "longitude": 326.7969,
+            "sign": "aquarius",
+            "signDegree": 26.7969
+          },
+          {
+            "house": 8,
+            "longitude": 353.124,
+            "sign": "pisces",
+            "signDegree": 23.124
+          },
+          {
+            "house": 9,
+            "longitude": 19.5581,
+            "sign": "aries",
+            "signDegree": 19.5581
+          },
+          {
+            "house": 10,
+            "longitude": 45.8036,
+            "sign": "taurus",
+            "signDegree": 15.8036
+          },
+          {
+            "house": 11,
+            "longitude": 90.8451,
+            "sign": "cancer",
+            "signDegree": 0.8451
+          },
+          {
+            "house": 12,
+            "longitude": 120.364,
+            "sign": "leo",
+            "signDegree": 0.364
+          }
+        ],
+        "bodyHouses": {
+          "sun": 9,
+          "moon": 1,
+          "mercury": 9,
+          "venus": 7,
+          "mars": 12,
+          "jupiter": 4,
+          "saturn": 7,
+          "uranus": 5,
+          "neptune": 5,
+          "pluto": 4,
+          "north-node": 3
+        },
+        "houseRulers": [
+          {
+            "house": 1,
+            "sign": "leo",
+            "rulerKey": "sun",
+            "rulerType": "direct",
+            "rulerHouse": 9,
+            "motion": "direct"
+          },
+          {
+            "house": 2,
+            "sign": "virgo",
+            "rulerKey": "mercury",
+            "rulerType": "direct",
+            "rulerHouse": 9,
+            "motion": "direct"
+          },
+          {
+            "house": 3,
+            "sign": "libra",
+            "rulerKey": "venus",
+            "rulerType": "direct",
+            "rulerHouse": 7,
+            "motion": "direct"
+          },
+          {
+            "house": 4,
+            "sign": "scorpio",
+            "rulerKey": "mars",
+            "rulerType": "direct",
+            "rulerHouse": 12,
+            "motion": "direct"
+          },
+          {
+            "house": 4,
+            "sign": "scorpio",
+            "rulerKey": "pluto",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 5,
+            "sign": "capricorn",
+            "rulerKey": "saturn",
+            "rulerType": "direct",
+            "rulerHouse": 7,
+            "motion": "direct"
+          },
+          {
+            "house": 6,
+            "sign": "aquarius",
+            "rulerKey": "uranus",
+            "rulerType": "direct",
+            "rulerHouse": 5,
+            "motion": "direct"
+          },
+          {
+            "house": 7,
+            "sign": "aquarius",
+            "rulerKey": "uranus",
+            "rulerType": "direct",
+            "rulerHouse": 5,
+            "motion": "direct"
+          },
+          {
+            "house": 8,
+            "sign": "pisces",
+            "rulerKey": "neptune",
+            "rulerType": "direct",
+            "rulerHouse": 5,
+            "motion": "direct"
+          },
+          {
+            "house": 8,
+            "sign": "pisces",
+            "rulerKey": "jupiter",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 9,
+            "sign": "aries",
+            "rulerKey": "pluto",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 10,
+            "sign": "taurus",
+            "rulerKey": "venus",
+            "rulerType": "direct",
+            "rulerHouse": 7,
+            "motion": "direct"
+          },
+          {
+            "house": 11,
+            "sign": "cancer",
+            "rulerKey": "moon",
+            "rulerType": "direct",
+            "rulerHouse": 1,
+            "motion": "direct"
+          },
+          {
+            "house": 12,
+            "sign": "leo",
+            "rulerKey": "sun",
+            "rulerType": "direct",
+            "rulerHouse": 9,
+            "motion": "direct"
+          }
+        ],
+        "planetRulerships": [
+          {
+            "pointKey": "jupiter",
+            "houses": [
+              8
+            ],
+            "directHouses": [],
+            "retrogradeHouses": [
+              8
+            ]
+          },
+          {
+            "pointKey": "mars",
+            "houses": [
+              4
+            ],
+            "directHouses": [
+              4
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "mercury",
+            "houses": [
+              2
+            ],
+            "directHouses": [
+              2
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "moon",
+            "houses": [
+              11
+            ],
+            "directHouses": [
+              11
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "neptune",
+            "houses": [
+              8
+            ],
+            "directHouses": [
+              8
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "pluto",
+            "houses": [
+              4,
+              9
+            ],
+            "directHouses": [],
+            "retrogradeHouses": [
+              4,
+              9
+            ]
+          },
+          {
+            "pointKey": "saturn",
+            "houses": [
+              5
+            ],
+            "directHouses": [
+              5
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "sun",
+            "houses": [
+              1,
+              12
+            ],
+            "directHouses": [
+              1,
+              12
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "uranus",
+            "houses": [
+              6,
+              7
+            ],
+            "directHouses": [
+              6,
+              7
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "venus",
+            "houses": [
+              3,
+              10
+            ],
+            "directHouses": [
+              3,
+              10
+            ],
+            "retrogradeHouses": []
+          }
+        ],
+        "aspects": [
+          {
+            "bodyA": "mars",
+            "type": "trine",
+            "bodyB": "jupiter",
+            "orb": 0.05
+          },
+          {
+            "bodyA": "uranus",
+            "type": "sextile",
+            "bodyB": "pluto",
+            "orb": 0.07
+          },
+          {
+            "bodyA": "venus",
+            "type": "conjunction",
+            "bodyB": "saturn",
+            "orb": 1.13
+          },
+          {
+            "bodyA": "sun",
+            "type": "conjunction",
+            "bodyB": "mercury",
+            "orb": 2.25
+          },
+          {
+            "bodyA": "moon",
+            "type": "square",
+            "bodyB": "jupiter",
+            "orb": 2.99
+          },
+          {
+            "bodyA": "venus",
+            "type": "square",
+            "bodyB": "jupiter",
+            "orb": 3.12
+          },
+          {
+            "bodyA": "sun",
+            "type": "square",
+            "bodyB": "neptune",
+            "orb": 3.39
+          },
+          {
+            "bodyA": "jupiter",
+            "type": "square",
+            "bodyB": "saturn",
+            "orb": 4.25
+          },
+          {
+            "bodyA": "mercury",
+            "type": "trine",
+            "bodyB": "jupiter",
+            "orb": 4.65
+          },
+          {
+            "bodyA": "mercury",
+            "type": "trine",
+            "bodyB": "mars",
+            "orb": 4.7
+          },
+          {
+            "bodyA": "neptune",
+            "type": "sextile",
+            "bodyB": "pluto",
+            "orb": 4.7
+          },
+          {
+            "bodyA": "uranus",
+            "type": "conjunction",
+            "bodyB": "neptune",
+            "orb": 4.77
+          },
+          {
+            "bodyA": "mercury",
+            "type": "square",
+            "bodyB": "neptune",
+            "orb": 5.64
+          },
+          {
+            "bodyA": "moon",
+            "type": "opposition",
+            "bodyB": "venus",
+            "orb": 6.11
+          },
+          {
+            "bodyA": "sun",
+            "type": "trine",
+            "bodyB": "jupiter",
+            "orb": 6.9
+          },
+          {
+            "bodyA": "sun",
+            "type": "trine",
+            "bodyB": "mars",
+            "orb": 6.96
+          },
+          {
+            "bodyA": "moon",
+            "type": "opposition",
+            "bodyB": "saturn",
+            "orb": 7.24
+          }
+        ]
+      },
+      "placidus": {
+        "angles": {
+          "asc": {
+            "longitude": 146.7969,
+            "sign": "leo",
+            "signDegree": 26.7969
+          },
+          "desc": {
+            "longitude": 326.7969,
+            "sign": "aquarius",
+            "signDegree": 26.7969
+          },
+          "ic": {
+            "longitude": 225.8036,
+            "sign": "scorpio",
+            "signDegree": 15.8036
+          },
+          "mc": {
+            "longitude": 45.8036,
+            "sign": "taurus",
+            "signDegree": 15.8036
+          }
+        },
+        "houses": [
+          {
+            "house": 1,
+            "longitude": 146.7969,
+            "sign": "leo",
+            "signDegree": 26.7969
+          },
+          {
+            "house": 2,
+            "longitude": 166.5665,
+            "sign": "virgo",
+            "signDegree": 16.5665
+          },
+          {
+            "house": 3,
+            "longitude": 192.3508,
+            "sign": "libra",
+            "signDegree": 12.3508
+          },
+          {
+            "house": 4,
+            "longitude": 225.8036,
+            "sign": "scorpio",
+            "signDegree": 15.8036
+          },
+          {
+            "house": 5,
+            "longitude": 264.331,
+            "sign": "sagittarius",
+            "signDegree": 24.331
+          },
+          {
+            "house": 6,
+            "longitude": 298.9999,
+            "sign": "capricorn",
+            "signDegree": 28.9999
+          },
+          {
+            "house": 7,
+            "longitude": 326.7969,
+            "sign": "aquarius",
+            "signDegree": 26.7969
+          },
+          {
+            "house": 8,
+            "longitude": 346.5665,
+            "sign": "pisces",
+            "signDegree": 16.5665
+          },
+          {
+            "house": 9,
+            "longitude": 12.3508,
+            "sign": "aries",
+            "signDegree": 12.3508
+          },
+          {
+            "house": 10,
+            "longitude": 45.8036,
+            "sign": "taurus",
+            "signDegree": 15.8036
+          },
+          {
+            "house": 11,
+            "longitude": 84.331,
+            "sign": "gemini",
+            "signDegree": 24.331
+          },
+          {
+            "house": 12,
+            "longitude": 118.9999,
+            "sign": "cancer",
+            "signDegree": 28.9999
+          }
+        ],
+        "bodyHouses": {
+          "sun": 9,
+          "moon": 1,
+          "mercury": 9,
+          "venus": 8,
+          "mars": 12,
+          "jupiter": 4,
+          "saturn": 8,
+          "uranus": 6,
+          "neptune": 5,
+          "pluto": 4,
+          "north-node": 3
+        },
+        "houseRulers": [
+          {
+            "house": 1,
+            "sign": "leo",
+            "rulerKey": "sun",
+            "rulerType": "direct",
+            "rulerHouse": 9,
+            "motion": "direct"
+          },
+          {
+            "house": 2,
+            "sign": "virgo",
+            "rulerKey": "mercury",
+            "rulerType": "direct",
+            "rulerHouse": 9,
+            "motion": "direct"
+          },
+          {
+            "house": 3,
+            "sign": "libra",
+            "rulerKey": "venus",
+            "rulerType": "direct",
+            "rulerHouse": 8,
+            "motion": "direct"
+          },
+          {
+            "house": 4,
+            "sign": "scorpio",
+            "rulerKey": "mars",
+            "rulerType": "direct",
+            "rulerHouse": 12,
+            "motion": "direct"
+          },
+          {
+            "house": 4,
+            "sign": "scorpio",
+            "rulerKey": "pluto",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 5,
+            "sign": "sagittarius",
+            "rulerKey": "jupiter",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 6,
+            "sign": "capricorn",
+            "rulerKey": "saturn",
+            "rulerType": "direct",
+            "rulerHouse": 8,
+            "motion": "direct"
+          },
+          {
+            "house": 7,
+            "sign": "aquarius",
+            "rulerKey": "uranus",
+            "rulerType": "direct",
+            "rulerHouse": 6,
+            "motion": "direct"
+          },
+          {
+            "house": 8,
+            "sign": "pisces",
+            "rulerKey": "neptune",
+            "rulerType": "direct",
+            "rulerHouse": 5,
+            "motion": "direct"
+          },
+          {
+            "house": 8,
+            "sign": "pisces",
+            "rulerKey": "jupiter",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 9,
+            "sign": "aries",
+            "rulerKey": "pluto",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 10,
+            "sign": "taurus",
+            "rulerKey": "venus",
+            "rulerType": "direct",
+            "rulerHouse": 8,
+            "motion": "direct"
+          },
+          {
+            "house": 11,
+            "sign": "gemini",
+            "rulerKey": "mercury",
+            "rulerType": "direct",
+            "rulerHouse": 9,
+            "motion": "direct"
+          },
+          {
+            "house": 12,
+            "sign": "cancer",
+            "rulerKey": "moon",
+            "rulerType": "direct",
+            "rulerHouse": 1,
+            "motion": "direct"
+          }
+        ],
+        "planetRulerships": [
+          {
+            "pointKey": "jupiter",
+            "houses": [
+              5,
+              8
+            ],
+            "directHouses": [],
+            "retrogradeHouses": [
+              5,
+              8
+            ]
+          },
+          {
+            "pointKey": "mars",
+            "houses": [
+              4
+            ],
+            "directHouses": [
+              4
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "mercury",
+            "houses": [
+              2,
+              11
+            ],
+            "directHouses": [
+              2,
+              11
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "moon",
+            "houses": [
+              12
+            ],
+            "directHouses": [
+              12
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "neptune",
+            "houses": [
+              8
+            ],
+            "directHouses": [
+              8
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "pluto",
+            "houses": [
+              4,
+              9
+            ],
+            "directHouses": [],
+            "retrogradeHouses": [
+              4,
+              9
+            ]
+          },
+          {
+            "pointKey": "saturn",
+            "houses": [
+              6
+            ],
+            "directHouses": [
+              6
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "sun",
+            "houses": [
+              1
+            ],
+            "directHouses": [
+              1
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "uranus",
+            "houses": [
+              7
+            ],
+            "directHouses": [
+              7
+            ],
+            "retrogradeHouses": []
+          },
+          {
+            "pointKey": "venus",
+            "houses": [
+              3,
+              10
+            ],
+            "directHouses": [
+              3,
+              10
+            ],
+            "retrogradeHouses": []
+          }
+        ],
+        "aspects": [
+          {
+            "bodyA": "mars",
+            "type": "trine",
+            "bodyB": "jupiter",
+            "orb": 0.05
+          },
+          {
+            "bodyA": "uranus",
+            "type": "sextile",
+            "bodyB": "pluto",
+            "orb": 0.07
+          },
+          {
+            "bodyA": "venus",
+            "type": "conjunction",
+            "bodyB": "saturn",
+            "orb": 1.13
+          },
+          {
+            "bodyA": "sun",
+            "type": "conjunction",
+            "bodyB": "mercury",
+            "orb": 2.25
+          },
+          {
+            "bodyA": "moon",
+            "type": "square",
+            "bodyB": "jupiter",
+            "orb": 2.99
+          },
+          {
+            "bodyA": "venus",
+            "type": "square",
+            "bodyB": "jupiter",
+            "orb": 3.12
+          },
+          {
+            "bodyA": "sun",
+            "type": "square",
+            "bodyB": "neptune",
+            "orb": 3.39
+          },
+          {
+            "bodyA": "jupiter",
+            "type": "square",
+            "bodyB": "saturn",
+            "orb": 4.25
+          },
+          {
+            "bodyA": "mercury",
+            "type": "trine",
+            "bodyB": "jupiter",
+            "orb": 4.65
+          },
+          {
+            "bodyA": "mercury",
+            "type": "trine",
+            "bodyB": "mars",
+            "orb": 4.7
+          },
+          {
+            "bodyA": "neptune",
+            "type": "sextile",
+            "bodyB": "pluto",
+            "orb": 4.7
+          },
+          {
+            "bodyA": "uranus",
+            "type": "conjunction",
+            "bodyB": "neptune",
+            "orb": 4.77
+          },
+          {
+            "bodyA": "mercury",
+            "type": "square",
+            "bodyB": "neptune",
+            "orb": 5.64
+          },
+          {
+            "bodyA": "moon",
+            "type": "opposition",
+            "bodyB": "venus",
+            "orb": 6.11
+          },
+          {
+            "bodyA": "sun",
+            "type": "trine",
+            "bodyB": "jupiter",
+            "orb": 6.9
+          },
+          {
+            "bodyA": "sun",
+            "type": "trine",
+            "bodyB": "mars",
+            "orb": 6.96
+          },
+          {
+            "bodyA": "moon",
+            "type": "opposition",
+            "bodyB": "saturn",
+            "orb": 7.24
+          }
+        ]
+      }
+    }
+  }
+}

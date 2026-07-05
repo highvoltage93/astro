@@ -11,6 +11,8 @@
     "lint": "corepack pnpm --recursive lint",
     "ephemeris:download": "corepack pnpm --filter @astroprocessor/astrology-core ephemeris:download",
     "smoke:natal": "corepack pnpm --filter @astroprocessor/astrology-core smoke:natal",
+    "accuracy:generate": "corepack pnpm --filter @astroprocessor/astrology-core accuracy:generate",
+    "accuracy:verify": "corepack pnpm --filter @astroprocessor/astrology-core accuracy:verify",
     "prisma:generate": "corepack pnpm --filter @astroprocessor/api prisma:generate",
     "db:push": "corepack pnpm --filter @astroprocessor/api db:push"
   },
