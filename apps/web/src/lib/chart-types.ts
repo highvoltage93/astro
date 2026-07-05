@@ -21,7 +21,7 @@ export type HouseRuler = {
   house: number;
   sign: string;
   signCoverageDegrees?: number;
-  rulerSource?: "cusp" | "contained-sign";
+  rulerSource?: "cusp" | "contained-sign" | "fixed-house";
   rulerKey: string;
   rulerLabel: string;
   rulerType: "direct" | "retrograde";
@@ -65,7 +65,7 @@ export type Aspect = {
 };
 
 export type HouseConnectionDetail = {
-  source: "ruler-position" | "aspect";
+  source: "ruler-position" | "rulership" | "aspect";
   tone: "harmonious" | "tense" | "neutral";
   planetA: string;
   planetB?: string;

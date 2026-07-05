@@ -206,16 +206,6 @@
         "houseRulers": [
           {
             "house": 1,
-            "sign": "leo",
-            "signCoverageDegrees": 3.2031,
-            "rulerSource": "cusp",
-            "rulerKey": "sun",
-            "rulerType": "direct",
-            "rulerHouse": 9,
-            "motion": "direct"
-          },
-          {
-            "house": 1,
             "sign": "virgo",
             "signCoverageDegrees": 23.124,
             "rulerSource": "contained-sign",
@@ -225,11 +215,11 @@
             "motion": "direct"
           },
           {
-            "house": 2,
-            "sign": "virgo",
-            "signCoverageDegrees": 6.876,
+            "house": 1,
+            "sign": "leo",
+            "signCoverageDegrees": 3.2031,
             "rulerSource": "cusp",
-            "rulerKey": "mercury",
+            "rulerKey": "sun",
             "rulerType": "direct",
             "rulerHouse": 9,
             "motion": "direct"
@@ -245,6 +235,36 @@
             "motion": "direct"
           },
           {
+            "house": 2,
+            "sign": "virgo",
+            "signCoverageDegrees": 6.876,
+            "rulerSource": "cusp",
+            "rulerKey": "mercury",
+            "rulerType": "direct",
+            "rulerHouse": 9,
+            "motion": "direct"
+          },
+          {
+            "house": 3,
+            "sign": "scorpio",
+            "signCoverageDegrees": 15.8036,
+            "rulerSource": "contained-sign",
+            "rulerKey": "mars",
+            "rulerType": "direct",
+            "rulerHouse": 12,
+            "motion": "direct"
+          },
+          {
+            "house": 3,
+            "sign": "scorpio",
+            "signCoverageDegrees": 15.8036,
+            "rulerSource": "contained-sign",
+            "rulerKey": "pluto",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
             "house": 3,
             "sign": "libra",
             "signCoverageDegrees": 10.4419,
@@ -255,71 +275,31 @@
             "motion": "direct"
           },
           {
-            "house": 3,
-            "sign": "scorpio",
-            "signCoverageDegrees": 15.8036,
-            "rulerSource": "contained-sign",
-            "rulerKey": "mars",
-            "rulerType": "direct",
-            "rulerHouse": 12,
-            "motion": "direct"
-          },
-          {
-            "house": 3,
-            "sign": "scorpio",
-            "signCoverageDegrees": 15.8036,
-            "rulerSource": "contained-sign",
-            "rulerKey": "lilith",
-            "rulerType": "direct",
-            "rulerHouse": 10,
-            "motion": "direct"
-          },
-          {
-            "house": 3,
-            "sign": "scorpio",
-            "signCoverageDegrees": 15.8036,
-            "rulerSource": "contained-sign",
-            "rulerKey": "pluto",
-            "rulerType": "retrograde",
-            "rulerHouse": 4,
-            "motion": "retrograde"
-          },
-          {
-            "house": 4,
-            "sign": "scorpio",
-            "signCoverageDegrees": 14.1964,
-            "rulerSource": "cusp",
-            "rulerKey": "mars",
-            "rulerType": "direct",
-            "rulerHouse": 12,
-            "motion": "direct"
-          },
-          {
-            "house": 4,
-            "sign": "scorpio",
-            "signCoverageDegrees": 14.1964,
-            "rulerSource": "cusp",
-            "rulerKey": "lilith",
-            "rulerType": "direct",
-            "rulerHouse": 10,
-            "motion": "direct"
-          },
-          {
-            "house": 4,
-            "sign": "scorpio",
-            "signCoverageDegrees": 14.1964,
-            "rulerSource": "cusp",
-            "rulerKey": "pluto",
-            "rulerType": "retrograde",
-            "rulerHouse": 4,
-            "motion": "retrograde"
-          },
-          {
             "house": 4,
             "sign": "sagittarius",
             "signCoverageDegrees": 30,
             "rulerSource": "contained-sign",
             "rulerKey": "jupiter",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 4,
+            "sign": "scorpio",
+            "signCoverageDegrees": 14.1964,
+            "rulerSource": "cusp",
+            "rulerKey": "mars",
+            "rulerType": "direct",
+            "rulerHouse": 12,
+            "motion": "direct"
+          },
+          {
+            "house": 4,
+            "sign": "scorpio",
+            "signCoverageDegrees": 14.1964,
+            "rulerSource": "cusp",
+            "rulerKey": "pluto",
             "rulerType": "retrograde",
             "rulerHouse": 4,
             "motion": "retrograde"
@@ -346,6 +326,26 @@
           },
           {
             "house": 7,
+            "sign": "pisces",
+            "signCoverageDegrees": 23.124,
+            "rulerSource": "contained-sign",
+            "rulerKey": "jupiter",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 7,
+            "sign": "pisces",
+            "signCoverageDegrees": 23.124,
+            "rulerSource": "contained-sign",
+            "rulerKey": "neptune",
+            "rulerType": "direct",
+            "rulerHouse": 5,
+            "motion": "direct"
+          },
+          {
+            "house": 7,
             "sign": "aquarius",
             "signCoverageDegrees": 3.2031,
             "rulerSource": "cusp",
@@ -353,46 +353,6 @@
             "rulerType": "direct",
             "rulerHouse": 5,
             "motion": "direct"
-          },
-          {
-            "house": 7,
-            "sign": "pisces",
-            "signCoverageDegrees": 23.124,
-            "rulerSource": "contained-sign",
-            "rulerKey": "neptune",
-            "rulerType": "direct",
-            "rulerHouse": 5,
-            "motion": "direct"
-          },
-          {
-            "house": 7,
-            "sign": "pisces",
-            "signCoverageDegrees": 23.124,
-            "rulerSource": "contained-sign",
-            "rulerKey": "jupiter",
-            "rulerType": "retrograde",
-            "rulerHouse": 4,
-            "motion": "retrograde"
-          },
-          {
-            "house": 8,
-            "sign": "pisces",
-            "signCoverageDegrees": 6.876,
-            "rulerSource": "cusp",
-            "rulerKey": "neptune",
-            "rulerType": "direct",
-            "rulerHouse": 5,
-            "motion": "direct"
-          },
-          {
-            "house": 8,
-            "sign": "pisces",
-            "signCoverageDegrees": 6.876,
-            "rulerSource": "cusp",
-            "rulerKey": "jupiter",
-            "rulerType": "retrograde",
-            "rulerHouse": 4,
-            "motion": "retrograde"
           },
           {
             "house": 8,
@@ -405,14 +365,33 @@
             "motion": "retrograde"
           },
           {
-            "house": 9,
-            "sign": "aries",
-            "signCoverageDegrees": 10.4419,
+            "house": 8,
+            "sign": "pisces",
+            "signCoverageDegrees": 6.876,
             "rulerSource": "cusp",
-            "rulerKey": "pluto",
+            "rulerKey": "jupiter",
             "rulerType": "retrograde",
             "rulerHouse": 4,
             "motion": "retrograde"
+          },
+          {
+            "house": 8,
+            "sign": "pisces",
+            "signCoverageDegrees": 6.876,
+            "rulerSource": "cusp",
+            "rulerKey": "neptune",
+            "rulerType": "direct",
+            "rulerHouse": 5,
+            "motion": "direct"
+          },
+          {
+            "house": 8,
+            "sign": "pisces",
+            "rulerSource": "fixed-house",
+            "rulerKey": "lilith",
+            "rulerType": "direct",
+            "rulerHouse": 10,
+            "motion": "direct"
           },
           {
             "house": 9,
@@ -425,14 +404,14 @@
             "motion": "direct"
           },
           {
-            "house": 10,
-            "sign": "taurus",
-            "signCoverageDegrees": 14.1964,
+            "house": 9,
+            "sign": "aries",
+            "signCoverageDegrees": 10.4419,
             "rulerSource": "cusp",
-            "rulerKey": "venus",
-            "rulerType": "direct",
-            "rulerHouse": 7,
-            "motion": "direct"
+            "rulerKey": "pluto",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
           },
           {
             "house": 10,
@@ -442,6 +421,16 @@
             "rulerKey": "mercury",
             "rulerType": "direct",
             "rulerHouse": 9,
+            "motion": "direct"
+          },
+          {
+            "house": 10,
+            "sign": "taurus",
+            "signCoverageDegrees": 14.1964,
+            "rulerSource": "cusp",
+            "rulerKey": "venus",
+            "rulerType": "direct",
+            "rulerHouse": 7,
             "motion": "direct"
           },
           {
@@ -483,12 +472,10 @@
           {
             "pointKey": "lilith",
             "houses": [
-              3,
-              4
+              8
             ],
             "directHouses": [
-              3,
-              4
+              8
             ],
             "retrogradeHouses": []
           },
@@ -825,20 +812,20 @@
         "houseRulers": [
           {
             "house": 1,
-            "sign": "leo",
-            "signCoverageDegrees": 3.2031,
-            "rulerSource": "cusp",
-            "rulerKey": "sun",
+            "sign": "virgo",
+            "signCoverageDegrees": 16.5665,
+            "rulerSource": "contained-sign",
+            "rulerKey": "mercury",
             "rulerType": "direct",
             "rulerHouse": 9,
             "motion": "direct"
           },
           {
             "house": 1,
-            "sign": "virgo",
-            "signCoverageDegrees": 16.5665,
-            "rulerSource": "contained-sign",
-            "rulerKey": "mercury",
+            "sign": "leo",
+            "signCoverageDegrees": 3.2031,
+            "rulerSource": "cusp",
+            "rulerKey": "sun",
             "rulerType": "direct",
             "rulerHouse": 9,
             "motion": "direct"
@@ -855,6 +842,26 @@
           },
           {
             "house": 3,
+            "sign": "scorpio",
+            "signCoverageDegrees": 15.8036,
+            "rulerSource": "contained-sign",
+            "rulerKey": "mars",
+            "rulerType": "direct",
+            "rulerHouse": 12,
+            "motion": "direct"
+          },
+          {
+            "house": 3,
+            "sign": "scorpio",
+            "signCoverageDegrees": 15.8036,
+            "rulerSource": "contained-sign",
+            "rulerKey": "pluto",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 3,
             "sign": "libra",
             "signCoverageDegrees": 17.6492,
             "rulerSource": "cusp",
@@ -862,66 +869,6 @@
             "rulerType": "direct",
             "rulerHouse": 8,
             "motion": "direct"
-          },
-          {
-            "house": 3,
-            "sign": "scorpio",
-            "signCoverageDegrees": 15.8036,
-            "rulerSource": "contained-sign",
-            "rulerKey": "mars",
-            "rulerType": "direct",
-            "rulerHouse": 12,
-            "motion": "direct"
-          },
-          {
-            "house": 3,
-            "sign": "scorpio",
-            "signCoverageDegrees": 15.8036,
-            "rulerSource": "contained-sign",
-            "rulerKey": "lilith",
-            "rulerType": "direct",
-            "rulerHouse": 10,
-            "motion": "direct"
-          },
-          {
-            "house": 3,
-            "sign": "scorpio",
-            "signCoverageDegrees": 15.8036,
-            "rulerSource": "contained-sign",
-            "rulerKey": "pluto",
-            "rulerType": "retrograde",
-            "rulerHouse": 4,
-            "motion": "retrograde"
-          },
-          {
-            "house": 4,
-            "sign": "scorpio",
-            "signCoverageDegrees": 14.1964,
-            "rulerSource": "cusp",
-            "rulerKey": "mars",
-            "rulerType": "direct",
-            "rulerHouse": 12,
-            "motion": "direct"
-          },
-          {
-            "house": 4,
-            "sign": "scorpio",
-            "signCoverageDegrees": 14.1964,
-            "rulerSource": "cusp",
-            "rulerKey": "lilith",
-            "rulerType": "direct",
-            "rulerHouse": 10,
-            "motion": "direct"
-          },
-          {
-            "house": 4,
-            "sign": "scorpio",
-            "signCoverageDegrees": 14.1964,
-            "rulerSource": "cusp",
-            "rulerKey": "pluto",
-            "rulerType": "retrograde",
-            "rulerHouse": 4,
-            "motion": "retrograde"
           },
           {
             "house": 4,
@@ -934,11 +881,21 @@
             "motion": "retrograde"
           },
           {
-            "house": 5,
-            "sign": "sagittarius",
-            "signCoverageDegrees": 5.669,
+            "house": 4,
+            "sign": "scorpio",
+            "signCoverageDegrees": 14.1964,
             "rulerSource": "cusp",
-            "rulerKey": "jupiter",
+            "rulerKey": "mars",
+            "rulerType": "direct",
+            "rulerHouse": 12,
+            "motion": "direct"
+          },
+          {
+            "house": 4,
+            "sign": "scorpio",
+            "signCoverageDegrees": 14.1964,
+            "rulerSource": "cusp",
+            "rulerKey": "pluto",
             "rulerType": "retrograde",
             "rulerHouse": 4,
             "motion": "retrograde"
@@ -954,6 +911,26 @@
             "motion": "direct"
           },
           {
+            "house": 5,
+            "sign": "sagittarius",
+            "signCoverageDegrees": 5.669,
+            "rulerSource": "cusp",
+            "rulerKey": "jupiter",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 6,
+            "sign": "aquarius",
+            "signCoverageDegrees": 26.7969,
+            "rulerSource": "contained-sign",
+            "rulerKey": "uranus",
+            "rulerType": "direct",
+            "rulerHouse": 6,
+            "motion": "direct"
+          },
+          {
             "house": 6,
             "sign": "capricorn",
             "signCoverageDegrees": 1.0001,
@@ -964,13 +941,23 @@
             "motion": "direct"
           },
           {
-            "house": 6,
-            "sign": "aquarius",
-            "signCoverageDegrees": 26.7969,
+            "house": 7,
+            "sign": "pisces",
+            "signCoverageDegrees": 16.5665,
             "rulerSource": "contained-sign",
-            "rulerKey": "uranus",
+            "rulerKey": "jupiter",
+            "rulerType": "retrograde",
+            "rulerHouse": 4,
+            "motion": "retrograde"
+          },
+          {
+            "house": 7,
+            "sign": "pisces",
+            "signCoverageDegrees": 16.5665,
+            "rulerSource": "contained-sign",
+            "rulerKey": "neptune",
             "rulerType": "direct",
-            "rulerHouse": 6,
+            "rulerHouse": 5,
             "motion": "direct"
           },
           {
@@ -984,20 +971,10 @@
             "motion": "direct"
           },
           {
-            "house": 7,
+            "house": 8,
             "sign": "pisces",
-            "signCoverageDegrees": 16.5665,
-            "rulerSource": "contained-sign",
-            "rulerKey": "neptune",
-            "rulerType": "direct",
-            "rulerHouse": 5,
-            "motion": "direct"
-          },
-          {
-            "house": 7,
-            "sign": "pisces",
-            "signCoverageDegrees": 16.5665,
-            "rulerSource": "contained-sign",
+            "signCoverageDegrees": 13.4335,
+            "rulerSource": "cusp",
             "rulerKey": "jupiter",
             "rulerType": "retrograde",
             "rulerHouse": 4,
@@ -1016,12 +993,21 @@
           {
             "house": 8,
             "sign": "pisces",
-            "signCoverageDegrees": 13.4335,
-            "rulerSource": "cusp",
-            "rulerKey": "jupiter",
-            "rulerType": "retrograde",
-            "rulerHouse": 4,
-            "motion": "retrograde"
+            "rulerSource": "fixed-house",
+            "rulerKey": "lilith",
+            "rulerType": "direct",
+            "rulerHouse": 10,
+            "motion": "direct"
+          },
+          {
+            "house": 9,
+            "sign": "taurus",
+            "signCoverageDegrees": 15.8036,
+            "rulerSource": "contained-sign",
+            "rulerKey": "venus",
+            "rulerType": "direct",
+            "rulerHouse": 8,
+            "motion": "direct"
           },
           {
             "house": 9,
@@ -1034,13 +1020,13 @@
             "motion": "retrograde"
           },
           {
-            "house": 9,
-            "sign": "taurus",
-            "signCoverageDegrees": 15.8036,
+            "house": 10,
+            "sign": "gemini",
+            "signCoverageDegrees": 24.331,
             "rulerSource": "contained-sign",
-            "rulerKey": "venus",
+            "rulerKey": "mercury",
             "rulerType": "direct",
-            "rulerHouse": 8,
+            "rulerHouse": 9,
             "motion": "direct"
           },
           {
@@ -1054,13 +1040,13 @@
             "motion": "direct"
           },
           {
-            "house": 10,
-            "sign": "gemini",
-            "signCoverageDegrees": 24.331,
+            "house": 11,
+            "sign": "cancer",
+            "signCoverageDegrees": 28.9999,
             "rulerSource": "contained-sign",
-            "rulerKey": "mercury",
+            "rulerKey": "moon",
             "rulerType": "direct",
-            "rulerHouse": 9,
+            "rulerHouse": 1,
             "motion": "direct"
           },
           {
@@ -1074,13 +1060,13 @@
             "motion": "direct"
           },
           {
-            "house": 11,
-            "sign": "cancer",
-            "signCoverageDegrees": 28.9999,
+            "house": 12,
+            "sign": "leo",
+            "signCoverageDegrees": 26.7969,
             "rulerSource": "contained-sign",
-            "rulerKey": "moon",
+            "rulerKey": "sun",
             "rulerType": "direct",
-            "rulerHouse": 1,
+            "rulerHouse": 9,
             "motion": "direct"
           },
           {
@@ -1091,16 +1077,6 @@
             "rulerKey": "moon",
             "rulerType": "direct",
             "rulerHouse": 1,
-            "motion": "direct"
-          },
-          {
-            "house": 12,
-            "sign": "leo",
-            "signCoverageDegrees": 26.7969,
-            "rulerSource": "contained-sign",
-            "rulerKey": "sun",
-            "rulerType": "direct",
-            "rulerHouse": 9,
             "motion": "direct"
           }
         ],
@@ -1124,12 +1100,10 @@
           {
             "pointKey": "lilith",
             "houses": [
-              3,
-              4
+              8
             ],
             "directHouses": [
-              3,
-              4
+              8
             ],
             "retrogradeHouses": []
           },

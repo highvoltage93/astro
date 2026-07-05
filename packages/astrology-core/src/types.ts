@@ -42,7 +42,7 @@ export type HouseRuler = {
   house: number;
   sign: string;
   signCoverageDegrees?: number;
-  rulerSource?: "cusp" | "contained-sign";
+  rulerSource?: "cusp" | "contained-sign" | "fixed-house";
   rulerKey: string;
   rulerLabel: string;
   rulerType: RulerType;
@@ -92,7 +92,7 @@ export type HouseConnectionRole = "placement" | "ruler";
 export type HouseConnectionTone = "harmonious" | "tense" | "neutral";
 
 export type HouseConnectionDetail = {
-  source: "ruler-position" | "aspect";
+  source: "ruler-position" | "rulership" | "aspect";
   tone: HouseConnectionTone;
   planetA: string;
   planetB?: string;

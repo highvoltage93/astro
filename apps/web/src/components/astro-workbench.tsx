@@ -245,8 +245,7 @@ const planetDirectRulers: Record<string, string[]> = {
   saturn: ["capricorn"],
   uranus: ["aquarius"],
   neptune: ["pisces"],
-  pluto: ["aries"],
-  lilith: ["scorpio"]
+  pluto: ["aries"]
 };
 
 const planetRetrogradeRulers: Record<string, string[]> = {
@@ -513,6 +512,8 @@ const motionLabelForPoint = (point: ChartPoint | undefined): string => {
     ? motionLabelsUk.retrograde ?? "ретроградний"
     : motionLabelsUk.direct ?? "директний";
 };
+
+const isRetrogradePoint = (point: ChartPoint): boolean => (point.speed ?? 0) < -0.0001;
 
 const formatPointTooltip = (point: ChartPoint, chart?: ChartResult | null): string => {
   const house = point.house ? `${point.house} дім` : "дім n/a";
@@ -2810,6 +2811,7 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
 
 function PlanetRulershipsTable({ chart }: { chart: ChartResult | null }) {
   const rulerships = chart?.planetRulerships?.filter((rulership) => rulership.houses.length > 0) ?? [];
+  const pointsByKey = new Map([...(chart?.angles ?? []), ...(chart?.bodies ?? [])].map((point) => [point.key, point]));
 
   return (
     <div className="space-y-3">
@@ -2822,26 +2824,32 @@ function PlanetRulershipsTable({ chart }: { chart: ChartResult | null }) {
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead>Планета</TableHead>
-              <TableHead>Доми</TableHead>
+              <TableHead>Стоїть / править</TableHead>
               <TableHead>Директні</TableHead>
               <TableHead>Ретроградні</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rulerships.length > 0 ? (
-              rulerships.map((rulership) => (
-                <TableRow key={`rulership-${rulership.pointKey}`}>
-                  <TableCell className="font-medium">
-                    <span className="mr-2 inline-flex w-6 font-semibold text-primary">
-                      {planetGlyphs[rulership.pointKey] ?? "•"}
-                    </span>
-                    {rulership.pointLabel}
-                  </TableCell>
-                  <TableCell className="font-semibold text-foreground">({formatHouseList(rulership.houses)})</TableCell>
-                  <TableCell className="text-muted-foreground">{formatHouseList(rulership.directHouses)}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatHouseList(rulership.retrogradeHouses)}</TableCell>
-                </TableRow>
-              ))
+              rulerships.map((rulership) => {
+                const placementHouse = pointsByKey.get(rulership.pointKey)?.house;
+
+                return (
+                  <TableRow key={`rulership-${rulership.pointKey}`}>
+                    <TableCell className="font-medium">
+                      <span className="mr-2 inline-flex w-6 font-semibold text-primary">
+                        {planetGlyphs[rulership.pointKey] ?? "•"}
+                      </span>
+                      {rulership.pointLabel}
+                    </TableCell>
+                    <TableCell className="font-semibold text-foreground">
+                      {placementHouse ?? "n/a"} ({formatHouseList(rulership.houses)})
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatHouseList(rulership.directHouses)}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatHouseList(rulership.retrogradeHouses)}</TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={4} className="text-muted-foreground">
@@ -3073,7 +3081,11 @@ function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
                 <TableCell className="font-semibold">{ruler.house}</TableCell>
                 <TableCell className="text-muted-foreground">{signLabelsUk[ruler.sign] ?? ruler.sign}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {ruler.rulerSource === "contained-sign" ? `>12.5° · ${ruler.signCoverageDegrees?.toFixed(1) ?? "n/a"}°` : "куспід"}
+                  {ruler.rulerSource === "fixed-house"
+                    ? "фікс. 8 дім"
+                    : ruler.rulerSource === "contained-sign"
+                      ? `>12.5° · ${ruler.signCoverageDegrees?.toFixed(1) ?? "n/a"}°`
+                      : "куспід"}
                 </TableCell>
                 <TableCell className="font-medium">
                   {planetGlyphs[ruler.rulerKey] ?? ruler.rulerKey} {ruler.rulerLabel}{" "}
@@ -3199,15 +3211,17 @@ function formatHouseConnectionTitle(connection: HouseConnection): string {
   return connection.details
     .slice(0, 4)
     .map((detail) => {
-      const roleA = detail.fromRole === "ruler" ? "R" : "D";
-      const roleB = detail.toRole === "ruler" ? "R" : "D";
       const planetA = planetGlyphs[detail.planetA] ?? detail.planetA;
       const planetB = detail.planetB ? planetGlyphs[detail.planetB] ?? detail.planetB : "";
       const aspect = detail.aspectType ? ` ${aspectLabels[detail.aspectType] ?? detail.aspectType} ` : " → ";
 
-      return detail.source === "aspect"
-        ? `${planetA}${roleA} ${aspect.trim()} ${planetB}${roleB}: ${connection.fromHouse}+${connection.toHouse}`
-        : `${planetA}: ${connection.fromHouse}+${connection.toHouse}`;
+      if (detail.source === "aspect") {
+        return `${planetA} ${aspect.trim()} ${planetB}: ${connection.fromHouse}+${connection.toHouse}`;
+      }
+
+      const sourceLabel = detail.source === "rulership" ? "правління" : "стоїть/править";
+
+      return `${planetA} · ${sourceLabel}: ${connection.fromHouse}+${connection.toHouse}`;
     })
     .join("; ");
 }
@@ -3660,6 +3674,15 @@ function ChartWheel({
             >
               {planetGlyphs[chartPoint.key] ?? chartPoint.label.slice(0, 2)}
             </text>
+            {isRetrogradePoint(chartPoint) ? (
+              <text
+                x={position.x + 12}
+                y={position.y - 12}
+                className="fill-astro-coral text-[8px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+              >
+                R
+              </text>
+            ) : null}
           </g>
         );
       })}

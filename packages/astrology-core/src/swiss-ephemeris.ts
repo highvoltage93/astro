@@ -75,6 +75,12 @@ type PlanetHouseResponsibility = {
   planetKey: string;
 };
 
+type FixedHouseRulerDefinition = {
+  house: number;
+  key: string;
+  rulerType: RulerType;
+};
+
 const HOUSE_SYSTEM_CODES: Record<HouseSystem, HouseSystems> = {
   placidus: "P",
   "whole-sign": "W",
@@ -118,8 +124,7 @@ const PLANET_DIRECT_RULERS: Record<string, string[]> = {
   saturn: ["capricorn"],
   uranus: ["aquarius"],
   neptune: ["pisces"],
-  pluto: ["aries"],
-  lilith: ["scorpio"]
+  pluto: ["aries"]
 };
 
 const PLANET_RETROGRADE_RULERS: Record<string, string[]> = {
@@ -130,6 +135,8 @@ const PLANET_RETROGRADE_RULERS: Record<string, string[]> = {
   neptune: ["pisces", "sagittarius"],
   pluto: ["aries", "scorpio"]
 };
+
+const FIXED_HOUSE_RULERS: FixedHouseRulerDefinition[] = [{ house: 8, key: "lilith", rulerType: "direct" }];
 
 const SIGN_RULERS: Record<string, SignRulerDefinition[]> = Object.fromEntries(
   ZODIAC_SIGNS.map((sign) => {
@@ -513,8 +520,9 @@ const calculateHouseRulers = (houses: HouseCusp[], bodies: ChartPoint[]): HouseR
 
   const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
   const signSegments = calculateHouseSignSegments(houses);
+  const houseByNumber = new Map(houses.map((house) => [house.house, house]));
 
-  return signSegments.flatMap((segment) =>
+  const signRulers = signSegments.flatMap((segment) =>
     activeSignRulers(segment.sign, pointsByKey).map((ruler) => {
       const rulerPoint = pointsByKey.get(ruler.key);
 
@@ -530,6 +538,29 @@ const calculateHouseRulers = (houses: HouseCusp[], bodies: ChartPoint[]): HouseR
         motion: motionForPoint(rulerPoint)
       };
     })
+  );
+
+  const fixedHouseRulers = FIXED_HOUSE_RULERS.map((ruler) => {
+    const house = houseByNumber.get(ruler.house);
+    const rulerPoint = pointsByKey.get(ruler.key);
+
+    return {
+      house: ruler.house,
+      sign: house?.sign ?? "fixed-house",
+      rulerSource: "fixed-house" as const,
+      rulerKey: ruler.key,
+      rulerLabel: BODY_DEFINITION_BY_KEY.get(ruler.key)?.label ?? ruler.key,
+      rulerType: ruler.rulerType,
+      rulerHouse: rulerPoint?.house,
+      motion: motionForPoint(rulerPoint)
+    };
+  });
+
+  return [...signRulers, ...fixedHouseRulers].sort(
+    (a, b) =>
+      a.house - b.house ||
+      (a.rulerSource === b.rulerSource ? 0 : a.rulerSource === "fixed-house" ? 1 : -1) ||
+      a.rulerLabel.localeCompare(b.rulerLabel)
   );
 };
 
@@ -646,7 +677,6 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
     return [];
   }
 
-  const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
   const responsibilitiesByPlanet = new Map<string, PlanetHouseResponsibility[]>();
   const connectionMap = new Map<string, HouseConnection>();
 
@@ -695,23 +725,47 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
   }
 
   for (const houseRuler of houseRulers) {
-    const rulerPoint = pointsByKey.get(houseRuler.rulerKey);
-
     addResponsibility(houseRuler.rulerKey, houseRuler.house, "ruler");
-    addConnection(houseRuler.house, rulerPoint?.house, {
-      source: "ruler-position",
-      tone: "neutral",
-      planetA: houseRuler.rulerKey,
-      fromRole: "ruler",
-      toRole: "placement"
-    });
+  }
+
+  for (const [planetKey, responsibilities] of responsibilitiesByPlanet.entries()) {
+    for (let indexA = 0; indexA < responsibilities.length; indexA += 1) {
+      const responsibilityA = responsibilities[indexA];
+
+      if (!responsibilityA) {
+        continue;
+      }
+
+      for (let indexB = indexA + 1; indexB < responsibilities.length; indexB += 1) {
+        const responsibilityB = responsibilities[indexB];
+
+        if (!responsibilityB) {
+          continue;
+        }
+
+        addConnection(responsibilityA.house, responsibilityB.house, {
+          source:
+            responsibilityA.role === "placement" || responsibilityB.role === "placement"
+              ? "ruler-position"
+              : "rulership",
+          tone: "neutral",
+          planetA: planetKey,
+          fromRole: responsibilityA.role,
+          toRole: responsibilityB.role
+        });
+      }
+    }
   }
 
   for (const aspect of aspects) {
-    const responsibilities = [
-      ...(responsibilitiesByPlanet.get(aspect.bodyA) ?? []),
-      ...(responsibilitiesByPlanet.get(aspect.bodyB) ?? [])
-    ];
+    const responsibilitiesA = responsibilitiesByPlanet.get(aspect.bodyA) ?? [];
+    const responsibilitiesB = responsibilitiesByPlanet.get(aspect.bodyB) ?? [];
+
+    if (responsibilitiesA.length === 0 || responsibilitiesB.length === 0) {
+      continue;
+    }
+
+    const responsibilities = [...responsibilitiesA, ...responsibilitiesB];
     const tone = aspectTone(aspect.type);
     const aspectPairs = new Set<string>();
 
@@ -743,8 +797,8 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
         addConnection(fromHouse, toHouse, {
           source: "aspect",
           tone,
-          planetA: responsibilityA.planetKey,
-          planetB: responsibilityB.planetKey,
+          planetA: aspect.bodyA,
+          planetB: aspect.bodyB,
           fromRole: responsibilityA.role,
           toRole: responsibilityB.role,
           aspectType: aspect.type
