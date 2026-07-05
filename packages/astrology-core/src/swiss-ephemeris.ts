@@ -695,7 +695,7 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
   };
 
   const addConnection = (fromHouse: number, toHouse: number | undefined, detail: HouseConnectionDetail): void => {
-    if (!toHouse || fromHouse === toHouse) {
+    if (!toHouse) {
       return;
     }
 
@@ -779,7 +779,7 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
       for (let indexB = indexA + 1; indexB < responsibilities.length; indexB += 1) {
         const responsibilityB = responsibilities[indexB];
 
-        if (!responsibilityB || responsibilityA.house === responsibilityB.house) {
+        if (!responsibilityB) {
           continue;
         }
 

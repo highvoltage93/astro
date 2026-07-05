@@ -2959,14 +2959,14 @@ function HousesTable({ chart }: { chart: ChartResult | null }) {
 function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
   const connections = chart?.houseConnections ?? [];
   const houseRulers = chart?.houseRulers ?? [];
-  const connectionMap = new Map(connections.map((connection) => [`${connection.fromHouse}-${connection.toHouse}`, connection]));
+  const connectionMap = new Map(connections.map((connection) => [houseConnectionKey(connection.fromHouse, connection.toHouse), connection]));
   const houses = Array.from({ length: 12 }, (_, index) => index + 1);
-  const targetTotals = summarizeHouseConnectionsByTarget(connections, houses);
+  const houseTotals = summarizeHouseConnectionsByHouse(connections, houses);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold">Зв'язки домів</h3>
+        <h3 className="text-sm font-semibold">Зв'язки полів / домів (СПбАА)</h3>
         <Badge variant="secondary">{connections.length}</Badge>
       </div>
       {connections.length > 0 || houseRulers.length > 0 ? (
@@ -2974,12 +2974,12 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
           <HouseRulersTable houseRulers={houseRulers} />
 
           <div className="overflow-auto rounded-lg border">
-            <table className="min-w-[620px] border-collapse text-xs">
+            <table className="min-w-[820px] border-collapse text-xs">
               <thead className="sticky top-0 z-10 bg-card">
                 <tr>
-                  <th className="h-8 w-9 border-b border-r px-2 text-left font-semibold text-muted-foreground">+</th>
+                  <th className="h-9 w-12 border-b border-r px-2 text-left font-semibold text-muted-foreground">Поле</th>
                   {houses.map((house) => (
-                    <th className="h-8 border-b border-r px-2 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
+                    <th className="h-9 border-b border-r px-2 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
                       {house}
                     </th>
                   ))}
@@ -2988,20 +2988,20 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
               <tbody>
                 {houses.map((fromHouse) => (
                   <tr key={`house-row-${fromHouse}`}>
-                    <th className="h-9 border-b border-r bg-muted/30 px-2 text-left font-semibold">{fromHouse}</th>
+                    <th className="h-16 border-b border-r bg-muted/30 px-2 text-left font-semibold">{fromHouse}</th>
                     {houses.map((toHouse) => {
-                      const connection = connectionMap.get(`${fromHouse}-${toHouse}`);
+                      const connection = connectionMap.get(houseConnectionKey(fromHouse, toHouse));
 
                       return (
                         <td
                           className={cn(
-                            "h-9 min-w-12 border-b border-r px-1 text-center align-middle",
+                            "h-16 min-w-16 whitespace-pre-line border-b border-r px-1 text-center align-middle font-medium leading-[1.1]",
                             getHouseConnectionCellClass(connection)
                           )}
                           key={`house-cell-${fromHouse}-${toHouse}`}
                           title={connection ? formatHouseConnectionTitle(connection) : undefined}
                         >
-                          {connection ? formatHouseConnectionScore(connection) : ""}
+                          {connection ? formatHouseConnectionMatrixScore(connection) : formatEmptyHouseConnectionMatrixScore()}
                         </td>
                       );
                     })}
@@ -3010,20 +3010,20 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
               </tbody>
               <tfoot className="sticky bottom-0 bg-card">
                 <tr>
-                  <th className="h-9 border-r px-2 text-left font-semibold text-primary">Σ</th>
+                  <th className="h-16 border-r px-2 text-left font-semibold text-primary">Σ</th>
                   {houses.map((house) => {
-                    const total = targetTotals.get(house);
+                    const total = houseTotals.get(house);
 
                     return (
                       <td
                         className={cn(
-                          "h-9 min-w-12 border-r px-1 text-center align-middle font-semibold",
+                          "h-16 min-w-16 whitespace-pre-line border-r px-1 text-center align-middle font-semibold leading-[1.1]",
                           getHouseConnectionSummaryCellClass(total)
                         )}
                         key={`house-total-${house}`}
                         title={total ? formatHouseConnectionSummaryTitle(total) : undefined}
                       >
-                        {total ? formatHouseConnectionSummaryScore(total) : ""}
+                        {total ? formatHouseConnectionSummaryScore(total) : formatEmptyHouseConnectionMatrixScore()}
                       </td>
                     );
                   })}
@@ -3033,8 +3033,9 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             <Badge variant="outline">+ гармонійні</Badge>
+            <Badge variant="outline">0 нейтральні</Badge>
             <Badge variant="outline">- напружені</Badge>
-            <Badge variant="outline">○ нейтральні</Badge>
+            <Badge variant="outline">= усього</Badge>
           </div>
           <div className="space-y-2">
             {connections.slice(0, 8).map((connection) => (
@@ -3043,7 +3044,7 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
                   <span className="font-semibold">
                     {connection.fromHouse} дім + {connection.toHouse} дім
                   </span>
-                  <span className="text-muted-foreground">{formatHouseConnectionScore(connection)}</span>
+                  <span className="text-muted-foreground">{formatHouseConnectionInlineScore(connection)}</span>
                 </div>
                 <p className="mt-1 text-muted-foreground">{formatHouseConnectionTitle(connection)}</p>
               </div>
@@ -3116,7 +3117,13 @@ type HouseConnectionSummary = {
   total: number;
 };
 
-function summarizeHouseConnectionsByTarget(
+function houseConnectionKey(fromHouse: number, toHouse: number): string {
+  const [orderedFromHouse, orderedToHouse] = fromHouse <= toHouse ? [fromHouse, toHouse] : [toHouse, fromHouse];
+
+  return `${orderedFromHouse}-${orderedToHouse}`;
+}
+
+function summarizeHouseConnectionsByHouse(
   connections: HouseConnection[],
   houses: number[]
 ): Map<number, HouseConnectionSummary> {
@@ -3133,17 +3140,25 @@ function summarizeHouseConnectionsByTarget(
     ])
   );
 
-  for (const connection of connections) {
-    const total = totals.get(connection.toHouse);
+  const addConnectionToHouse = (house: number, connection: HouseConnection): void => {
+    const total = totals.get(house);
 
     if (!total) {
-      continue;
+      return;
     }
 
     total.harmonious += connection.harmonious;
     total.tense += connection.tense;
     total.neutral += connection.neutral;
     total.total += connection.total;
+  };
+
+  for (const connection of connections) {
+    addConnectionToHouse(connection.fromHouse, connection);
+
+    if (connection.toHouse !== connection.fromHouse) {
+      addConnectionToHouse(connection.toHouse, connection);
+    }
   }
 
   return new Map([...totals.entries()].filter(([, total]) => total.total > 0));
@@ -3152,6 +3167,10 @@ function summarizeHouseConnectionsByTarget(
 function getHouseConnectionSummaryCellClass(summary: HouseConnectionSummary | undefined): string {
   if (!summary) {
     return "bg-muted/20 text-muted-foreground";
+  }
+
+  if (summary.harmonious > 0 && summary.tense > 0) {
+    return "bg-muted/70 text-foreground";
   }
 
   if (summary.tense > summary.harmonious) {
@@ -3166,7 +3185,7 @@ function getHouseConnectionSummaryCellClass(summary: HouseConnectionSummary | un
 }
 
 function formatHouseConnectionSummaryScore(summary: HouseConnectionSummary): string {
-  return formatHouseConnectionScore({
+  return formatHouseConnectionMatrixScore({
     fromHouse: 0,
     toHouse: summary.house,
     harmonious: summary.harmonious,
@@ -3186,6 +3205,10 @@ function getHouseConnectionCellClass(connection: HouseConnection | undefined): s
     return "bg-background";
   }
 
+  if (connection.harmonious > 0 && connection.tense > 0) {
+    return "bg-muted/60 text-foreground";
+  }
+
   if (connection.tense > connection.harmonious) {
     return "bg-blue-600/15 text-blue-800";
   }
@@ -3197,11 +3220,19 @@ function getHouseConnectionCellClass(connection: HouseConnection | undefined): s
   return "bg-muted/50 text-muted-foreground";
 }
 
-function formatHouseConnectionScore(connection: HouseConnection): string {
+function formatEmptyHouseConnectionMatrixScore(): string {
+  return "+0\n0\n-0\n=0";
+}
+
+function formatHouseConnectionMatrixScore(connection: Pick<HouseConnection, "harmonious" | "tense" | "neutral" | "total">): string {
+  return `+${connection.harmonious}\n${connection.neutral}\n-${connection.tense}\n=${connection.total}`;
+}
+
+function formatHouseConnectionInlineScore(connection: HouseConnection): string {
   const parts = [
     connection.harmonious > 0 ? `+${connection.harmonious}` : "",
     connection.tense > 0 ? `-${connection.tense}` : "",
-    connection.neutral > 0 ? `○${connection.neutral}` : ""
+    connection.neutral > 0 ? `0:${connection.neutral}` : ""
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(" ") : String(connection.total);
