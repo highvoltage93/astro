@@ -406,7 +406,6 @@ const toDateTimeLocalValue = (date: Date): string => {
 };
 
 const normalizeDegrees = (degrees: number): number => ((degrees % 360) + 360) % 360;
-const roundSvgCoordinate = (value: number): number => Number(value.toFixed(4));
 
 const formatZodiacDegree = (degree: number, includeSeconds = true): string => {
   const normalized = Math.max(0, degree);
@@ -1164,7 +1163,7 @@ export function AstroWorkbench() {
           </nav>
         </header>
 
-        <section className="grid items-start gap-4 xl:grid-cols-[360px_minmax(420px,1fr)]">
+        <section className="grid items-start gap-4 xl:grid-cols-[360px_minmax(360px,1fr)_420px]">
           <div className="space-y-4">
             <BirthDataCard
               error={error}
@@ -1737,18 +1736,16 @@ function InterpretationCard({
             <p className="rounded-lg border bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">
               {interpretation.summary}
             </p>
-            <div className="-mx-6 overflow-x-auto px-6 pb-2">
-              <div className="flex items-stretch gap-3" style={{ width: "max-content" }}>
-                {interpretation.highlights.map((highlight) => (
-                  <article className="shrink-0 rounded-lg border p-4" key={highlight.factorKey} style={{ width: 340 }}>
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-semibold">{highlight.title}</h3>
-                      <Badge variant="outline">{highlight.source}</Badge>
-                    </div>
-                    <p className="text-sm leading-6 text-muted-foreground">{highlight.body}</p>
-                  </article>
-                ))}
-              </div>
+            <div className="space-y-3">
+              {interpretation.highlights.map((highlight) => (
+                <article className="rounded-lg border p-4" key={highlight.factorKey}>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold">{highlight.title}</h3>
+                    <Badge variant="outline">{highlight.source}</Badge>
+                  </div>
+                  <p className="text-sm leading-6 text-muted-foreground">{highlight.body}</p>
+                </article>
+              ))}
             </div>
             {interpretation.missingFactorKeys.length > 0 ? (
               <p className="text-xs text-muted-foreground">
@@ -1930,7 +1927,7 @@ function ExactTransitsTable({ events }: { events: ExactTransitEvent[] }) {
   }
 
   return (
-    <div className="max-h-[340px] overflow-auto rounded-lg border">
+    <div className="max-h-[460px] overflow-auto rounded-lg border">
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow>
@@ -2059,22 +2056,20 @@ function TransitForecastCard({
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Транзитні планети в натальних домах</h3>
               {transitHousePlacements.length > 0 ? (
-                <div className="overflow-x-auto pb-1">
-                  <div className="flex items-stretch gap-2" style={{ width: "max-content" }}>
-                    {transitHousePlacements.slice(0, 10).map((point) => (
-                      <div className="shrink-0 rounded-lg border px-3 py-2 text-sm" key={`house-transit-${point.key}`} style={{ width: 220 }}>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium">
-                            {planetGlyphs[point.key] ?? point.key} {point.label}
-                          </span>
-                          <Badge variant="secondary">{point.house ?? "n/a"} дім</Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {point.house ? houseTopicsUk[point.house] ?? "тема дому" : "дім не визначено"}
-                        </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {transitHousePlacements.slice(0, 10).map((point) => (
+                    <div className="rounded-lg border px-3 py-2 text-sm" key={`house-transit-${point.key}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {planetGlyphs[point.key] ?? point.key} {point.label}
+                        </span>
+                        <Badge variant="secondary">{point.house ?? "n/a"} дім</Badge>
                       </div>
-                    ))}
-                  </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {point.house ? houseTopicsUk[point.house] ?? "тема дому" : "дім не визначено"}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -2086,52 +2081,49 @@ function TransitForecastCard({
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Найточніші транзити до наталу</h3>
               {preview.transitToNatalAspects.length > 0 ? (
-                <div className="overflow-x-auto pb-1">
-                  <div className="flex items-stretch gap-2" style={{ width: "max-content" }}>
-                    {preview.transitToNatalAspects.slice(0, 8).map((aspect) => {
-                      const transitPoint = transitPoints.get(aspect.bodyA);
-                      const natalPoint = natalPoints.get(aspect.bodyB);
+                <div className="space-y-1">
+                  {preview.transitToNatalAspects.slice(0, 8).map((aspect) => {
+                    const transitPoint = transitPoints.get(aspect.bodyA);
+                    const natalPoint = natalPoints.get(aspect.bodyB);
 
-                      return (
-                        <div
-                          className="grid shrink-0 gap-2 rounded-lg border px-3 py-2 text-sm"
-                          key={`transit-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}
-                          style={{ width: 360 }}
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="min-w-0">
-                              <span className="font-medium">
-                                {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {transitPoint?.label ?? aspect.bodyA}
-                              </span>{" "}
-                              {aspectLabels[aspect.type] ?? aspect.type} натальний{" "}
-                              <span className="font-medium">
-                                {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.bodyB}
-                              </span>
+                    return (
+                      <div
+                        className="grid gap-2 rounded-lg border px-3 py-2 text-sm"
+                        key={`transit-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="min-w-0">
+                            <span className="font-medium">
+                              {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {transitPoint?.label ?? aspect.bodyA}
+                            </span>{" "}
+                            {aspectLabels[aspect.type] ?? aspect.type} натальний{" "}
+                            <span className="font-medium">
+                              {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.bodyB}
                             </span>
-                            <span className="flex flex-wrap items-center gap-2">
-                              <Badge variant="secondary">{transitPhaseLabelsUk[aspect.phase] ?? aspect.phase}</Badge>
-                              <Badge variant="outline">{transitStrengthLabelsUk[aspect.strength] ?? aspect.strength}</Badge>
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                            <span>Exact: {formatExactAt(aspect.exactAt)}</span>
-                            <span>
-                              score {aspect.score.toFixed(1)} · orb{" "}
-                              <strong className="text-astro-coral">{aspect.orb.toFixed(2)}°</strong>
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Active:{" "}
-                            {formatActiveWindow({
-                              activeFrom: aspect.activeFrom,
-                              activeUntil: aspect.activeUntil,
-                              durationDays: aspect.durationDays
-                            })}
-                          </p>
+                          </span>
+                          <span className="flex flex-wrap items-center gap-2">
+                            <Badge variant="secondary">{transitPhaseLabelsUk[aspect.phase] ?? aspect.phase}</Badge>
+                            <Badge variant="outline">{transitStrengthLabelsUk[aspect.strength] ?? aspect.strength}</Badge>
+                          </span>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <span>Exact: {formatExactAt(aspect.exactAt)}</span>
+                          <span>
+                            score {aspect.score.toFixed(1)} · orb{" "}
+                            <strong className="text-astro-coral">{aspect.orb.toFixed(2)}°</strong>
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Active:{" "}
+                          {formatActiveWindow({
+                            activeFrom: aspect.activeFrom,
+                            activeUntil: aspect.activeUntil,
+                            durationDays: aspect.durationDays
+                          })}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">Немає major aspects у поточних орбах.</p>
@@ -2140,60 +2132,58 @@ function TransitForecastCard({
 
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Найближчі 7 днів</h3>
-              <div className="overflow-x-auto pb-1">
-                <div className="flex items-stretch gap-2" style={{ width: "max-content" }}>
-                  {preview.weekAhead.map((day) => {
-                    const strongestAspect = day.strongestAspects[0];
-                    const transitPoint = strongestAspect ? transitPoints.get(strongestAspect.bodyA) : null;
-                    const natalPoint = strongestAspect ? natalPoints.get(strongestAspect.bodyB) : null;
+              <div className="space-y-2">
+                {preview.weekAhead.map((day) => {
+                  const strongestAspect = day.strongestAspects[0];
+                  const transitPoint = strongestAspect ? transitPoints.get(strongestAspect.bodyA) : null;
+                  const natalPoint = strongestAspect ? natalPoints.get(strongestAspect.bodyB) : null;
 
-                    return (
-                      <div className="shrink-0 rounded-lg border p-3" key={day.date} style={{ width: 320 }}>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold">{day.date}</p>
-                          <Badge variant="secondary">
-                            {day.moon
-                              ? `${signLabelsUk[day.moon.sign] ?? day.moon.sign} ${formatZodiacDegree(day.moon.signDegree, false)}${
-                                  day.moon.house ? ` · ${day.moon.house} дім` : ""
-                                }`
-                              : "Moon n/a"}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{formatMoonPhase(day.moonPhase)}</p>
-                        {strongestAspect ? (
-                          <div className="mt-2 space-y-1 text-sm">
-                            <p>
-                              <span className="font-medium">
-                                {planetGlyphs[strongestAspect.bodyA] ?? strongestAspect.bodyA}{" "}
-                                {transitPoint?.label ?? strongestAspect.bodyA}
-                              </span>{" "}
-                              {aspectLabels[strongestAspect.type] ?? strongestAspect.type} натальний{" "}
-                              <span className="font-medium">
-                                {planetGlyphs[strongestAspect.bodyB] ?? strongestAspect.bodyB}{" "}
-                                {natalPoint?.label ?? strongestAspect.bodyB}
-                              </span>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {transitPhaseLabelsUk[strongestAspect.phase] ?? strongestAspect.phase} · Exact:{" "}
-                              {formatExactAt(strongestAspect.exactAt)} · score {strongestAspect.score.toFixed(1)} · orb{" "}
-                              <strong className="text-astro-coral">{strongestAspect.orb.toFixed(2)}°</strong>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Active:{" "}
-                              {formatActiveWindow({
-                                activeFrom: strongestAspect.activeFrom,
-                                activeUntil: strongestAspect.activeUntil,
-                                durationDays: strongestAspect.durationDays
-                              })}
-                            </p>
-                          </div>
-                        ) : (
-                          <p className="mt-2 text-sm text-muted-foreground">Без major aspects у поточних орбах.</p>
-                        )}
+                  return (
+                    <div className="rounded-lg border p-3" key={day.date}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold">{day.date}</p>
+                        <Badge variant="secondary">
+                          {day.moon
+                            ? `${signLabelsUk[day.moon.sign] ?? day.moon.sign} ${formatZodiacDegree(day.moon.signDegree, false)}${
+                                day.moon.house ? ` · ${day.moon.house} дім` : ""
+                              }`
+                            : "Moon n/a"}
+                        </Badge>
                       </div>
-                    );
-                  })}
-                </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatMoonPhase(day.moonPhase)}</p>
+                      {strongestAspect ? (
+                        <div className="mt-2 space-y-1 text-sm">
+                          <p>
+                            <span className="font-medium">
+                              {planetGlyphs[strongestAspect.bodyA] ?? strongestAspect.bodyA}{" "}
+                              {transitPoint?.label ?? strongestAspect.bodyA}
+                            </span>{" "}
+                            {aspectLabels[strongestAspect.type] ?? strongestAspect.type} натальний{" "}
+                            <span className="font-medium">
+                              {planetGlyphs[strongestAspect.bodyB] ?? strongestAspect.bodyB}{" "}
+                              {natalPoint?.label ?? strongestAspect.bodyB}
+                            </span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {transitPhaseLabelsUk[strongestAspect.phase] ?? strongestAspect.phase} · Exact:{" "}
+                            {formatExactAt(strongestAspect.exactAt)} · score {strongestAspect.score.toFixed(1)} · orb{" "}
+                            <strong className="text-astro-coral">{strongestAspect.orb.toFixed(2)}°</strong>
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Active:{" "}
+                            {formatActiveWindow({
+                              activeFrom: strongestAspect.activeFrom,
+                              activeUntil: strongestAspect.activeUntil,
+                              durationDays: strongestAspect.durationDays
+                            })}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">Без major aspects у поточних орбах.</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -2418,8 +2408,8 @@ function SynastryOverlayWheel({
     const angle = ((visualLongitude - 90) * Math.PI) / 180;
 
     return {
-      x: roundSvgCoordinate(center + Math.cos(angle) * radius),
-      y: roundSvgCoordinate(center + Math.sin(angle) * radius)
+      x: center + Math.cos(angle) * radius,
+      y: center + Math.sin(angle) * radius
     };
   };
 
@@ -2599,7 +2589,7 @@ function ProfessionalDataCard({
   placements: ChartPoint[];
 }) {
   return (
-    <Card className="min-w-0 xl:col-span-2">
+    <Card className="min-w-0 xl:sticky xl:top-5">
       <CardHeader>
         <CardDescription className="font-semibold uppercase text-primary">Data</CardDescription>
         <CardTitle>Професійні таблиці</CardTitle>
@@ -2608,28 +2598,22 @@ function ProfessionalDataCard({
         <SyntheticSignatureCard chart={chart} />
 
         <Separator />
-        <div className="-mx-6 overflow-x-auto px-6 pb-2">
-          <div className="flex items-start gap-4" style={{ width: "max-content" }}>
-            <div className="shrink-0" style={{ width: 460 }}>
-              <PlacementsTable placements={placements} />
-            </div>
-            <div className="shrink-0" style={{ width: 420 }}>
-              <PlanetRulershipsTable chart={chart} />
-            </div>
-            <div className="shrink-0" style={{ width: 540 }}>
-              <DignitiesTable chart={chart} />
-            </div>
-            <div className="shrink-0" style={{ width: 420 }}>
-              <HousesTable chart={chart} />
-            </div>
-            <div className="shrink-0" style={{ width: 1120 }}>
-              <HouseConnectionsTable chart={chart} />
-            </div>
-            <div className="shrink-0" style={{ width: 1320 }}>
-              <AspectsTable aspects={aspects} points={placements} />
-            </div>
-          </div>
-        </div>
+        <PlacementsTable placements={placements} />
+
+        <Separator />
+        <PlanetRulershipsTable chart={chart} />
+
+        <Separator />
+        <DignitiesTable chart={chart} />
+
+        <Separator />
+        <HousesTable chart={chart} />
+
+        <Separator />
+        <HouseConnectionsTable chart={chart} />
+
+        <Separator />
+        <AspectsTable aspects={aspects} points={placements} />
 
         {chart?.warnings.map((warning) => (
           <div
@@ -2669,7 +2653,7 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
         <h3 className="text-sm font-semibold">Синтетична сигнатура</h3>
         <Badge variant="secondary">{signature.scores.total.toFixed(1)} балів</Badge>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2">
         <SyntheticLeader
           label="Знак"
           value={signLabelsUk[signature.sign.key] ?? signature.sign.key}
@@ -2693,33 +2677,32 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
           />
         ) : null}
       </div>
-      <div className="overflow-x-auto pb-1">
-        <div className="flex items-start gap-3" style={{ width: "max-content" }}>
-          <SyntheticScoreGroup
-            label="Топ знаків"
-            rows={signature.scores.signs.slice(0, 4).map((row) => ({
-              ...row,
-              label: signLabelsUk[row.key] ?? row.key
-            }))}
-            total={signature.scores.total}
-          />
-          <SyntheticScoreGroup
-            label="Стихії"
-            rows={signature.scores.elements.map((row) => ({
-              ...row,
-              label: syntheticElementLabelsUk[row.key] ?? row.key
-            }))}
-            total={signature.scores.total}
-          />
-          <SyntheticScoreGroup
-            label="Хрести"
-            rows={signature.scores.crosses.map((row) => ({
-              ...row,
-              label: syntheticCrossLabelsUk[row.key] ?? row.key
-            }))}
-            total={signature.scores.total}
-          />
-          {polarityRows.length > 0 ? (
+      <div className="grid gap-3">
+        <SyntheticScoreGroup
+          label="Топ знаків"
+          rows={signature.scores.signs.slice(0, 4).map((row) => ({
+            ...row,
+            label: signLabelsUk[row.key] ?? row.key
+          }))}
+          total={signature.scores.total}
+        />
+        <SyntheticScoreGroup
+          label="Стихії"
+          rows={signature.scores.elements.map((row) => ({
+            ...row,
+            label: syntheticElementLabelsUk[row.key] ?? row.key
+          }))}
+          total={signature.scores.total}
+        />
+        <SyntheticScoreGroup
+          label="Хрести"
+          rows={signature.scores.crosses.map((row) => ({
+            ...row,
+            label: syntheticCrossLabelsUk[row.key] ?? row.key
+          }))}
+          total={signature.scores.total}
+        />
+        {polarityRows.length > 0 ? (
           <SyntheticScoreGroup
             label="Полярність"
             rows={polarityRows.map((row) => ({
@@ -2728,8 +2711,7 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
             }))}
             total={signature.scores.total}
           />
-          ) : null}
-        </div>
+        ) : null}
       </div>
     </div>
   );
@@ -2756,7 +2738,7 @@ function SyntheticScoreGroup({
   total: number;
 }) {
   return (
-    <div className="space-y-2 rounded-lg border bg-muted/20 p-3" style={{ minWidth: 220 }}>
+    <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
       <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
       <div className="space-y-2">
         {rows.map((row) => {
@@ -2783,7 +2765,7 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">Положення</h3>
-      <div className="max-h-[280px] overflow-auto rounded-lg border">
+      <div className="max-h-[338px] overflow-auto rounded-lg border">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
@@ -2881,7 +2863,7 @@ function DignitiesTable({ chart }: { chart: ChartResult | null }) {
         <h3 className="text-sm font-semibold">Диспозитори</h3>
         <Badge variant="secondary">{dignities.length}</Badge>
       </div>
-      <div className="max-h-[280px] overflow-auto rounded-lg border">
+      <div className="max-h-[338px] overflow-auto rounded-lg border">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
@@ -2978,93 +2960,86 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
         <Badge variant="secondary">{connections.length}</Badge>
       </div>
       {connections.length > 0 || houseRulers.length > 0 ? (
-        <div className="overflow-x-auto pb-1">
-          <div className="flex items-start gap-3" style={{ width: "max-content" }}>
-            <div className="shrink-0" style={{ width: 360 }}>
-              <HouseRulersTable houseRulers={houseRulers} />
-            </div>
+        <>
+          <HouseRulersTable houseRulers={houseRulers} />
 
-            <div className="max-h-[320px] shrink-0 overflow-auto rounded-lg border" style={{ width: 620 }}>
-              <table className="min-w-[620px] border-collapse text-xs">
-                <thead className="sticky top-0 z-10 bg-card">
-                  <tr>
-                    <th className="h-8 w-9 border-b border-r px-2 text-left font-semibold text-muted-foreground">→</th>
-                    {houses.map((house) => (
-                      <th className="h-8 border-b border-r px-2 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
-                        {house}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {houses.map((fromHouse) => (
-                    <tr key={`house-row-${fromHouse}`}>
-                      <th className="h-9 border-b border-r bg-muted/30 px-2 text-left font-semibold">{fromHouse}</th>
-                      {houses.map((toHouse) => {
-                        const connection = connectionMap.get(`${fromHouse}-${toHouse}`);
-
-                        return (
-                          <td
-                            className={cn(
-                              "h-9 min-w-12 border-b border-r px-1 text-center align-middle",
-                              getHouseConnectionCellClass(connection)
-                            )}
-                            key={`house-cell-${fromHouse}-${toHouse}`}
-                            title={connection ? formatHouseConnectionTitle(connection) : undefined}
-                          >
-                            {connection ? formatHouseConnectionScore(connection) : ""}
-                          </td>
-                        );
-                      })}
-                    </tr>
+          <div className="overflow-auto rounded-lg border">
+            <table className="min-w-[620px] border-collapse text-xs">
+              <thead className="sticky top-0 z-10 bg-card">
+                <tr>
+                  <th className="h-8 w-9 border-b border-r px-2 text-left font-semibold text-muted-foreground">→</th>
+                  {houses.map((house) => (
+                    <th className="h-8 border-b border-r px-2 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
+                      {house}
+                    </th>
                   ))}
-                </tbody>
-                <tfoot className="sticky bottom-0 bg-card">
-                  <tr>
-                    <th className="h-9 border-r px-2 text-left font-semibold text-primary">Σ</th>
-                    {houses.map((house) => {
-                      const total = targetTotals.get(house);
+                </tr>
+              </thead>
+              <tbody>
+                {houses.map((fromHouse) => (
+                  <tr key={`house-row-${fromHouse}`}>
+                    <th className="h-9 border-b border-r bg-muted/30 px-2 text-left font-semibold">{fromHouse}</th>
+                    {houses.map((toHouse) => {
+                      const connection = connectionMap.get(`${fromHouse}-${toHouse}`);
 
                       return (
                         <td
                           className={cn(
-                            "h-9 min-w-12 border-r px-1 text-center align-middle font-semibold",
-                            getHouseConnectionSummaryCellClass(total)
+                            "h-9 min-w-12 border-b border-r px-1 text-center align-middle",
+                            getHouseConnectionCellClass(connection)
                           )}
-                          key={`house-total-${house}`}
-                          title={total ? formatHouseConnectionSummaryTitle(total) : undefined}
+                          key={`house-cell-${fromHouse}-${toHouse}`}
+                          title={connection ? formatHouseConnectionTitle(connection) : undefined}
                         >
-                          {total ? formatHouseConnectionSummaryScore(total) : ""}
+                          {connection ? formatHouseConnectionScore(connection) : ""}
                         </td>
                       );
                     })}
                   </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            <div className="shrink-0 space-y-2" style={{ width: 360 }}>
-              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline">+ гармонійні</Badge>
-                <Badge variant="outline">- напружені</Badge>
-                <Badge variant="outline">○ нейтральні</Badge>
-              </div>
-              <div className="max-h-[280px] space-y-2 overflow-auto pr-1">
-                {connections.slice(0, 8).map((connection) => (
-                  <div className="rounded-lg border bg-muted/20 p-3 text-xs" key={`house-link-${connection.fromHouse}-${connection.toHouse}`}>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-semibold">
-                        {connection.fromHouse} дім → {connection.toHouse} дім
-                      </span>
-                      <span className="text-muted-foreground">{formatHouseConnectionScore(connection)}</span>
-                    </div>
-                    <p className="mt-1 text-muted-foreground">{formatHouseConnectionTitle(connection)}</p>
-                  </div>
                 ))}
-              </div>
-            </div>
+              </tbody>
+              <tfoot className="sticky bottom-0 bg-card">
+                <tr>
+                  <th className="h-9 border-r px-2 text-left font-semibold text-primary">Σ</th>
+                  {houses.map((house) => {
+                    const total = targetTotals.get(house);
+
+                    return (
+                      <td
+                        className={cn(
+                          "h-9 min-w-12 border-r px-1 text-center align-middle font-semibold",
+                          getHouseConnectionSummaryCellClass(total)
+                        )}
+                        key={`house-total-${house}`}
+                        title={total ? formatHouseConnectionSummaryTitle(total) : undefined}
+                      >
+                        {total ? formatHouseConnectionSummaryScore(total) : ""}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            </table>
           </div>
-        </div>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline">+ гармонійні</Badge>
+            <Badge variant="outline">- напружені</Badge>
+            <Badge variant="outline">○ нейтральні</Badge>
+          </div>
+          <div className="space-y-2">
+            {connections.slice(0, 8).map((connection) => (
+              <div className="rounded-lg border bg-muted/20 p-3 text-xs" key={`house-link-${connection.fromHouse}-${connection.toHouse}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">
+                    {connection.fromHouse} дім → {connection.toHouse} дім
+                  </span>
+                  <span className="text-muted-foreground">{formatHouseConnectionScore(connection)}</span>
+                </div>
+                <p className="mt-1 text-muted-foreground">{formatHouseConnectionTitle(connection)}</p>
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <p className="text-sm text-muted-foreground">
           Для зв'язків домів потрібен відомий час народження і розраховані доми. Якщо відкрито стару збережену карту,
@@ -3077,7 +3052,7 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
 
 function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
   return (
-    <div className="max-h-[320px] overflow-auto rounded-lg border">
+    <div className="max-h-[300px] overflow-auto rounded-lg border">
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow>
@@ -3250,106 +3225,102 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
         <Badge variant="secondary">{planetAspects.length}</Badge>
       </div>
 
-      <div className="overflow-x-auto pb-1">
-        <div className="flex items-start gap-3" style={{ width: "max-content" }}>
-          <div className="max-h-[340px] shrink-0 overflow-auto rounded-lg border" style={{ width: 760 }}>
-            <table className="min-w-[760px] border-collapse text-xs">
-              <thead className="sticky top-0 z-10 bg-card">
-                <tr>
-                  <th className="h-9 w-11 border-b border-r bg-card px-2 text-left font-semibold text-muted-foreground" />
-                  {matrixPoints.map((point) => (
-                    <th
-                      className="h-9 min-w-10 border-b border-r px-1 text-center font-semibold text-muted-foreground"
-                      key={`aspect-col-${point.key}`}
-                      title={point.label}
+      <div className="overflow-auto rounded-lg border">
+        <table className="min-w-[760px] border-collapse text-xs">
+          <thead className="sticky top-0 z-10 bg-card">
+            <tr>
+              <th className="h-9 w-11 border-b border-r bg-card px-2 text-left font-semibold text-muted-foreground" />
+              {matrixPoints.map((point) => (
+                <th
+                  className="h-9 min-w-10 border-b border-r px-1 text-center font-semibold text-muted-foreground"
+                  key={`aspect-col-${point.key}`}
+                  title={point.label}
+                >
+                  {planetGlyphs[point.key] ?? point.label.slice(0, 2)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {matrixPoints.map((rowPoint, rowIndex) => (
+              <tr key={`aspect-row-${rowPoint.key}`}>
+                <th
+                  className="h-10 border-b border-r bg-muted/30 px-2 text-center font-semibold text-muted-foreground"
+                  title={rowPoint.label}
+                >
+                  {planetGlyphs[rowPoint.key] ?? rowPoint.label.slice(0, 2)}
+                </th>
+                {matrixPoints.map((columnPoint, columnIndex) => {
+                  const aspect = rowIndex > columnIndex ? aspectMap.get(`${rowPoint.key}-${columnPoint.key}`) : undefined;
+
+                  return (
+                    <td
+                      className={cn(
+                        "h-10 min-w-10 border-b border-r px-1 text-center align-middle",
+                        aspect ? getAspectMatrixCellClass(aspect.type) : "bg-background text-muted-foreground"
+                      )}
+                      key={`aspect-cell-${rowPoint.key}-${columnPoint.key}`}
+                      title={aspect ? formatAspectTitle(aspect, pointsByKey) : undefined}
                     >
-                      {planetGlyphs[point.key] ?? point.label.slice(0, 2)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {matrixPoints.map((rowPoint, rowIndex) => (
-                  <tr key={`aspect-row-${rowPoint.key}`}>
-                    <th
-                      className="h-10 border-b border-r bg-muted/30 px-2 text-center font-semibold text-muted-foreground"
-                      title={rowPoint.label}
-                    >
-                      {planetGlyphs[rowPoint.key] ?? rowPoint.label.slice(0, 2)}
-                    </th>
-                    {matrixPoints.map((columnPoint, columnIndex) => {
-                      const aspect = rowIndex > columnIndex ? aspectMap.get(`${rowPoint.key}-${columnPoint.key}`) : undefined;
+                      {aspect ? (
+                        <span className="inline-grid gap-0.5">
+                          <span className="text-sm font-bold leading-none">{aspectGlyphs[aspect.type] ?? aspect.type}</span>
+                          <span className="text-[10px] leading-none">{aspect.orb.toFixed(1)}°</span>
+                        </span>
+                      ) : rowIndex === columnIndex ? (
+                        "·"
+                      ) : (
+                        ""
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-                      return (
-                        <td
-                          className={cn(
-                            "h-10 min-w-10 border-b border-r px-1 text-center align-middle",
-                            aspect ? getAspectMatrixCellClass(aspect.type) : "bg-background text-muted-foreground"
-                          )}
-                          key={`aspect-cell-${rowPoint.key}-${columnPoint.key}`}
-                          title={aspect ? formatAspectTitle(aspect, pointsByKey) : undefined}
-                        >
-                          {aspect ? (
-                            <span className="inline-grid gap-0.5">
-                              <span className="text-sm font-bold leading-none">{aspectGlyphs[aspect.type] ?? aspect.type}</span>
-                              <span className="text-[10px] leading-none">{aspect.orb.toFixed(1)}°</span>
-                            </span>
-                          ) : rowIndex === columnIndex ? (
-                            "·"
-                          ) : (
-                            ""
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="max-h-[260px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Планета A</TableHead>
+              <TableHead>Аспект</TableHead>
+              <TableHead>Планета B</TableHead>
+              <TableHead>Орб</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {planetAspects.length > 0 ? (
+              planetAspects.slice(0, 24).map((aspect) => {
+                const pointA = pointsByKey.get(aspect.bodyA);
+                const pointB = pointsByKey.get(aspect.bodyB);
 
-          <div className="max-h-[340px] shrink-0 overflow-auto rounded-lg border" style={{ width: 520 }}>
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
-                  <TableHead>Планета A</TableHead>
-                  <TableHead>Аспект</TableHead>
-                  <TableHead>Планета B</TableHead>
-                  <TableHead>Орб</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {planetAspects.length > 0 ? (
-                  planetAspects.slice(0, 24).map((aspect) => {
-                    const pointA = pointsByKey.get(aspect.bodyA);
-                    const pointB = pointsByKey.get(aspect.bodyB);
-
-                    return (
-                      <TableRow key={`${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
-                        <TableCell className="font-medium">
-                          {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointA?.label ?? aspect.bodyA}
-                        </TableCell>
-                        <TableCell className={cn("font-medium", getAspectTextClass(aspect.type))}>
-                          {aspectGlyphs[aspect.type] ?? ""} {aspectLabels[aspect.type] ?? aspect.type}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointB?.label ?? aspect.bodyB}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-muted-foreground">
-                      Немає аспектів між планетами у поточних фільтрах.
+                return (
+                  <TableRow key={`${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
+                    <TableCell className="font-medium">
+                      {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointA?.label ?? aspect.bodyA}
                     </TableCell>
+                    <TableCell className={cn("font-medium", getAspectTextClass(aspect.type))}>
+                      {aspectGlyphs[aspect.type] ?? ""} {aspectLabels[aspect.type] ?? aspect.type}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointB?.label ?? aspect.bodyB}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
+                );
+              })
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className="text-muted-foreground">
+                  Немає аспектів між планетами у поточних фільтрах.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
@@ -3485,8 +3456,8 @@ function ChartWheel({
     const angle = ((visualLongitude - 90) * Math.PI) / 180;
 
     return {
-      x: roundSvgCoordinate(center + Math.cos(angle) * radius),
-      y: roundSvgCoordinate(center + Math.sin(angle) * radius)
+      x: center + Math.cos(angle) * radius,
+      y: center + Math.sin(angle) * radius
     };
   };
 
