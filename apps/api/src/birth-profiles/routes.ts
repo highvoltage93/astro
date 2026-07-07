@@ -4,6 +4,7 @@ import type { ChartResult, HouseSystem } from "@astroprocessor/astrology-core";
 import type { Prisma } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { getOptionalAuthUser } from "../auth/service";
 import { env } from "../config/env";
 import { prisma } from "../prisma/client";
 
@@ -52,6 +53,7 @@ const toJson = (input: unknown): Prisma.InputJsonValue =>
 
 export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<void> => {
   app.get("/birth-profiles", async (request, reply) => {
+    const authUser = await getOptionalAuthUser(request);
     const parsed = listBirthProfilesSchema.safeParse(request.query);
 
     if (!parsed.success) {
@@ -62,6 +64,9 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
     }
 
     const profiles = await prisma.birthProfile.findMany({
+      where: {
+        ownerUserId: authUser?.id ?? null
+      },
       orderBy: {
         createdAt: "desc"
       },
@@ -108,6 +113,7 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
   });
 
   app.get("/birth-profiles/:id", async (request, reply) => {
+    const authUser = await getOptionalAuthUser(request);
     const parsed = birthProfileParamsSchema.safeParse(request.params);
 
     if (!parsed.success) {
@@ -131,7 +137,7 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
       }
     });
 
-    if (!profile) {
+    if (!profile || profile.ownerUserId !== (authUser?.id ?? null)) {
       return reply.code(404).send({
         code: "BIRTH_PROFILE_NOT_FOUND",
         message: "Birth profile was not found"
@@ -182,6 +188,7 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
   });
 
   app.delete("/birth-profiles/:id", async (request, reply) => {
+    const authUser = await getOptionalAuthUser(request);
     const parsed = birthProfileParamsSchema.safeParse(request.params);
 
     if (!parsed.success) {
@@ -196,11 +203,12 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
         id: parsed.data.id
       },
       select: {
-        id: true
+        id: true,
+        ownerUserId: true
       }
     });
 
-    if (!profile) {
+    if (!profile || profile.ownerUserId !== (authUser?.id ?? null)) {
       return reply.code(404).send({
         code: "BIRTH_PROFILE_NOT_FOUND",
         message: "Birth profile was not found"
@@ -231,6 +239,7 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
   });
 
   app.post("/birth-profiles", async (request, reply) => {
+    const authUser = await getOptionalAuthUser(request);
     const parsed = createBirthProfileSchema.safeParse(request.body);
 
     if (!parsed.success) {
@@ -267,6 +276,7 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
 
     const birthProfile = await prisma.birthProfile.create({
       data: {
+        ownerUserId: authUser?.id,
         displayName: input.displayName,
         birthDate: toDateOnly(input.birthDate),
         birthTime: input.birthTimeKnown ? input.birthTime : null,

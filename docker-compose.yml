@@ -28,6 +28,7 @@ services:
       PORT: 4000
       DATABASE_URL: postgresql://${POSTGRES_USER:-astroprocessor}:${POSTGRES_PASSWORD:-astroprocessor_dev}@postgres:5432/${POSTGRES_DB:-astroprocessor}?schema=public
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET:-astroprocessor_dev_jwt_secret}
       SWISSEPH_EPHE_PATH: ${SWISSEPH_EPHE_PATH:-/app/ephemeris}
       GEOCODING_API_URL: ${GEOCODING_API_URL:-https://geocoding-api.open-meteo.com/v1}
       AI_PROVIDER: ${AI_PROVIDER:-claude}

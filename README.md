@@ -40,6 +40,22 @@ Birth time supports seconds in `HH:mm:ss` format for higher-precision charts.
 
 If birth time is unknown, the app calculates planets for `12:00:00` local time and omits Ascendant, Midheaven, houses, and house placements from the result.
 
+## Authentication
+
+The API exposes a lightweight JWT auth flow for local testing:
+
+- `POST /auth/register` with `email`, `username`, `password`;
+- `POST /auth/login` with `username`, `password`;
+- `GET /auth/me` with `Authorization: Bearer <token>`.
+
+Passwords are stored as PBKDF2 hashes. The JWT secret is configured with:
+
+```bash
+JWT_SECRET=astroprocessor_dev_jwt_secret
+```
+
+The web app stores the token in localStorage. Preview calculations remain available without auth, while saved birth profiles are scoped to the logged-in user when a token is present. Without a token, saved profiles remain in the anonymous testing bucket.
+
 ## Swiss Ephemeris Files
 
 The calculation adapter uses the `sweph` Node binding. For high precision calculations, download the Swiss Ephemeris files before running the app:
@@ -88,8 +104,9 @@ This is the technical skeleton for Phase 0 / Phase 1:
 - Essential dignities and dispositor chains for professional planet condition analysis.
 - Synthetic signature scoring for sign, element, cross, and polarity dominance.
 - Natal interpretation preview endpoint backed by seed content for Sun, Moon, Ascendant, and exact aspects.
+- Email, username, password registration and username/password login with JWT-based session tokens.
 - Birth profile persistence endpoint backed by Prisma.
-- Recent saved birth profiles list with detail loading and deletion for the MVP workspace.
+- Recent saved birth profiles list with detail loading and deletion, scoped to the current user when authenticated.
 - First shadcn/ui product workspace for birth data intake, interactive chart preview, saving, orb tuning, point visibility, professional data tables, direct/retrograde sign-ruler hover details using the configured planet rulership model, ruled-house hover highlights, degree-minute-second position display, synthetic signature, house connections with per-house totals, SOTIS-style aspect matrix, dignities/dispositors, forecast returns, exact transit dates, transit preview, and synastry preview.
 
 ## Licensing Note

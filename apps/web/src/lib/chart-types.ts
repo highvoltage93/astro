@@ -327,6 +327,34 @@ export type DeleteBirthProfileResponse = {
   deletedProfileId: string;
 };
 
+export type AuthUser = {
+  id: string;
+  email: string;
+  username: string;
+  locale: string;
+  role: string;
+};
+
+export type AuthPayload = {
+  email: string;
+  username: string;
+  password: string;
+};
+
+export type LoginPayload = {
+  username: string;
+  password: string;
+};
+
+export type AuthResponse = {
+  user: AuthUser;
+  token: string;
+};
+
+export type MeResponse = {
+  user: AuthUser;
+};
+
 export type PlaceSearchResult = {
   provider: "open-meteo";
   providerId: string;

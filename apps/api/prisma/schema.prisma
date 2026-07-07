@@ -42,6 +42,8 @@ enum AiSessionMode {
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
+  username      String         @unique
+  passwordHash  String
   locale        String         @default("uk")
   role          UserRole       @default(USER)
   birthProfiles BirthProfile[]
@@ -167,4 +169,3 @@ model AuditEvent {
   @@index([entity, entityId])
   @@map("audit_events")
 }
-
