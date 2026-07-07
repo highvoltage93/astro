@@ -235,6 +235,20 @@ const planetLabels: Record<string, string> = {
   lilith: "Lilith"
 };
 
+const planetLabelsUk: Record<string, string> = {
+  sun: "Сонце",
+  moon: "Місяць",
+  mercury: "Меркурій",
+  venus: "Венера",
+  mars: "Марс",
+  jupiter: "Юпітер",
+  saturn: "Сатурн",
+  uranus: "Уран",
+  neptune: "Нептун",
+  pluto: "Плутон",
+  lilith: "Ліліт"
+};
+
 const planetDirectRulers: Record<string, string[]> = {
   sun: ["leo"],
   moon: ["cancer"],
@@ -2988,14 +3002,14 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
               <tbody>
                 {houses.map((fromHouse) => (
                   <tr key={`house-row-${fromHouse}`}>
-                    <th className="h-16 border-b border-r bg-muted/30 px-2 text-left font-semibold">{fromHouse}</th>
+                    <th className="h-12 border-b border-r bg-muted/30 px-2 text-left font-semibold">{fromHouse}</th>
                     {houses.map((toHouse) => {
                       const connection = connectionMap.get(houseConnectionKey(fromHouse, toHouse));
 
                       return (
                         <td
                           className={cn(
-                            "h-16 min-w-16 whitespace-pre-line border-b border-r px-1 text-center align-middle font-medium leading-[1.1]",
+                            "h-12 min-w-16 whitespace-pre-line border-b border-r px-1 text-center align-middle font-medium leading-[1.15]",
                             getHouseConnectionCellClass(connection)
                           )}
                           key={`house-cell-${fromHouse}-${toHouse}`}
@@ -3017,13 +3031,13 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
                     return (
                       <td
                         className={cn(
-                          "h-16 min-w-16 whitespace-pre-line border-r px-1 text-center align-middle font-semibold leading-[1.1]",
+                          "h-16 min-w-16 whitespace-pre-line border-r px-1 text-center align-middle font-semibold leading-[1.15]",
                           getHouseConnectionSummaryCellClass(total)
                         )}
                         key={`house-total-${house}`}
                         title={total ? formatHouseConnectionSummaryTitle(total) : undefined}
                       >
-                        {total ? formatHouseConnectionSummaryScore(total) : formatEmptyHouseConnectionMatrixScore()}
+                        {total ? formatHouseConnectionSummaryScore(total) : formatEmptyHouseConnectionSummaryScore()}
                       </td>
                     );
                   })}
@@ -3033,9 +3047,8 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
             <Badge variant="outline">+ гармонійні</Badge>
-            <Badge variant="outline">0 нейтральні</Badge>
             <Badge variant="outline">- напружені</Badge>
-            <Badge variant="outline">= усього</Badge>
+            <Badge variant="outline">Σ містить = усього</Badge>
           </div>
           <div className="space-y-2">
             {connections.slice(0, 8).map((connection) => (
@@ -3113,7 +3126,6 @@ type HouseConnectionSummary = {
   house: number;
   harmonious: number;
   tense: number;
-  neutral: number;
   total: number;
 };
 
@@ -3134,7 +3146,6 @@ function summarizeHouseConnectionsByHouse(
         house,
         harmonious: 0,
         tense: 0,
-        neutral: 0,
         total: 0
       }
     ])
@@ -3149,7 +3160,6 @@ function summarizeHouseConnectionsByHouse(
 
     total.harmonious += connection.harmonious;
     total.tense += connection.tense;
-    total.neutral += connection.neutral;
     total.total += connection.total;
   };
 
@@ -3185,19 +3195,11 @@ function getHouseConnectionSummaryCellClass(summary: HouseConnectionSummary | un
 }
 
 function formatHouseConnectionSummaryScore(summary: HouseConnectionSummary): string {
-  return formatHouseConnectionMatrixScore({
-    fromHouse: 0,
-    toHouse: summary.house,
-    harmonious: summary.harmonious,
-    tense: summary.tense,
-    neutral: summary.neutral,
-    total: summary.total,
-    details: []
-  });
+  return `+${summary.harmonious}\n-${summary.tense}\n=${summary.total}`;
 }
 
 function formatHouseConnectionSummaryTitle(summary: HouseConnectionSummary): string {
-  return `${summary.house} дім: гармонійні ${summary.harmonious}, напружені ${summary.tense}, нейтральні ${summary.neutral}, усього ${summary.total}`;
+  return `${summary.house} дім: плюсові ${summary.harmonious}, мінусові ${summary.tense}, усього ${summary.total}`;
 }
 
 function getHouseConnectionCellClass(connection: HouseConnection | undefined): string {
@@ -3221,40 +3223,57 @@ function getHouseConnectionCellClass(connection: HouseConnection | undefined): s
 }
 
 function formatEmptyHouseConnectionMatrixScore(): string {
-  return "+0\n0\n-0\n=0";
+  return "+0\n-0";
 }
 
-function formatHouseConnectionMatrixScore(connection: Pick<HouseConnection, "harmonious" | "tense" | "neutral" | "total">): string {
-  return `+${connection.harmonious}\n${connection.neutral}\n-${connection.tense}\n=${connection.total}`;
+function formatEmptyHouseConnectionSummaryScore(): string {
+  return "+0\n-0\n=0";
+}
+
+function formatHouseConnectionMatrixScore(connection: Pick<HouseConnection, "harmonious" | "tense">): string {
+  return `+${connection.harmonious}\n-${connection.tense}`;
 }
 
 function formatHouseConnectionInlineScore(connection: HouseConnection): string {
   const parts = [
     connection.harmonious > 0 ? `+${connection.harmonious}` : "",
-    connection.tense > 0 ? `-${connection.tense}` : "",
-    connection.neutral > 0 ? `0:${connection.neutral}` : ""
+    connection.tense > 0 ? `-${connection.tense}` : ""
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(" ") : String(connection.total);
 }
 
+function formatHouseConnectionPlanetLabel(pointKey: string): string {
+  return planetLabelsUk[pointKey] ?? planetLabels[pointKey] ?? pointKey;
+}
+
+function formatHouseConnectionRole(role: "placement" | "ruler"): string {
+  return role === "placement" ? "П" : "У";
+}
+
+function formatHouseConnectionAspectAngle(detail: HouseConnection["details"][number]): string {
+  if (detail.aspectAngle === undefined) {
+    return "";
+  }
+
+  return ` ${Math.round(detail.aspectAngle)}`;
+}
+
 function formatHouseConnectionTitle(connection: HouseConnection): string {
   return connection.details
-    .slice(0, 4)
     .map((detail) => {
-      const planetA = planetGlyphs[detail.planetA] ?? detail.planetA;
-      const planetB = detail.planetB ? planetGlyphs[detail.planetB] ?? detail.planetB : "";
-      const aspect = detail.aspectType ? ` ${aspectLabels[detail.aspectType] ?? detail.aspectType} ` : " → ";
+      const sign = detail.tone === "tense" ? "-" : "+";
+      const planetA = formatHouseConnectionPlanetLabel(detail.planetA);
+      const planetB = formatHouseConnectionPlanetLabel(detail.planetB ?? detail.planetA);
+      const roleA = formatHouseConnectionRole(detail.fromRole);
+      const roleB = formatHouseConnectionRole(detail.toRole);
+      const aspectAngle = detail.source === "aspect" ? formatHouseConnectionAspectAngle(detail) : "";
+      const fromHouse = detail.fromHouse ?? connection.fromHouse;
+      const toHouse = detail.toHouse ?? connection.toHouse;
 
-      if (detail.source === "aspect") {
-        return `${planetA} ${aspect.trim()} ${planetB}: ${connection.fromHouse}+${connection.toHouse}`;
-      }
-
-      const sourceLabel = detail.source === "rulership" ? "правління" : "стоїть/править";
-
-      return `${planetA} · ${sourceLabel}: ${connection.fromHouse}+${connection.toHouse}`;
+      return `${sign} ${fromHouse} ${planetA} (${roleA}) - ${toHouse} ${planetB} (${roleB})${aspectAngle}`;
     })
-    .join("; ");
+    .join("\n");
 }
 
 function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoint[] }) {

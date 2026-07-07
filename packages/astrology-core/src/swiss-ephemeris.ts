@@ -489,6 +489,10 @@ const calculateHouseSignSegments = (houses: HouseCusp[]): HouseSignSegment[] => 
   return segments.sort((a, b) => a.house - b.house || (a.source === b.source ? 0 : a.source === "cusp" ? -1 : 1));
 };
 
+const MALEFIC_HOUSES = new Set([6, 8, 12]);
+
+const hasMaleficHouse = (...houses: number[]): boolean => houses.some((house) => MALEFIC_HOUSES.has(house));
+
 const aspectTone = (aspectType: AspectType): HouseConnectionTone => {
   if (aspectType === "trine" || aspectType === "sextile") {
     return "harmonious";
@@ -500,6 +504,15 @@ const aspectTone = (aspectType: AspectType): HouseConnectionTone => {
 
   return "neutral";
 };
+
+const conjunctionToneForHousePair = (fromHouse: number, toHouse: number): HouseConnectionTone =>
+  hasMaleficHouse(fromHouse, toHouse) ? "tense" : "harmonious";
+
+const responsibilityToneForHousePair = (fromHouse: number, toHouse: number): HouseConnectionTone =>
+  hasMaleficHouse(fromHouse, toHouse) ? "tense" : "harmonious";
+
+const aspectToneForHousePair = (aspectType: AspectType, fromHouse: number, toHouse: number): HouseConnectionTone =>
+  aspectType === "conjunction" ? conjunctionToneForHousePair(fromHouse, toHouse) : aspectTone(aspectType);
 
 const motionForPoint = (point: ChartPoint | undefined): PlanetMotion | undefined => {
   if (!point || point.speed === undefined) {
@@ -748,7 +761,9 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
             responsibilityA.role === "placement" || responsibilityB.role === "placement"
               ? "ruler-position"
               : "rulership",
-          tone: "neutral",
+          tone: responsibilityToneForHousePair(responsibilityA.house, responsibilityB.house),
+          fromHouse: responsibilityA.house,
+          toHouse: responsibilityB.house,
           planetA: planetKey,
           fromRole: responsibilityA.role,
           toRole: responsibilityB.role
@@ -765,20 +780,14 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
       continue;
     }
 
-    const responsibilities = [...responsibilitiesA, ...responsibilitiesB];
-    const tone = aspectTone(aspect.type);
     const aspectPairs = new Set<string>();
 
-    for (let indexA = 0; indexA < responsibilities.length; indexA += 1) {
-      const responsibilityA = responsibilities[indexA];
-
+    for (const responsibilityA of responsibilitiesA) {
       if (!responsibilityA) {
         continue;
       }
 
-      for (let indexB = indexA + 1; indexB < responsibilities.length; indexB += 1) {
-        const responsibilityB = responsibilities[indexB];
-
+      for (const responsibilityB of responsibilitiesB) {
         if (!responsibilityB) {
           continue;
         }
@@ -796,12 +805,15 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
         aspectPairs.add(aspectPairKey);
         addConnection(fromHouse, toHouse, {
           source: "aspect",
-          tone,
-          planetA: aspect.bodyA,
-          planetB: aspect.bodyB,
+          tone: aspectToneForHousePair(aspect.type, fromHouse, toHouse),
+          fromHouse: responsibilityA.house,
+          toHouse: responsibilityB.house,
+          planetA: responsibilityA.planetKey,
+          planetB: responsibilityB.planetKey,
           fromRole: responsibilityA.role,
           toRole: responsibilityB.role,
-          aspectType: aspect.type
+          aspectType: aspect.type,
+          aspectAngle: aspect.exactAngle
         });
       }
     }

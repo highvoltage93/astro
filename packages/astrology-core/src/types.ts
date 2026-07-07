@@ -94,11 +94,14 @@ export type HouseConnectionTone = "harmonious" | "tense" | "neutral";
 export type HouseConnectionDetail = {
   source: "ruler-position" | "rulership" | "aspect";
   tone: HouseConnectionTone;
+  fromHouse: number;
+  toHouse: number;
   planetA: string;
   planetB?: string;
   fromRole: HouseConnectionRole;
   toRole: HouseConnectionRole;
   aspectType?: AspectType;
+  aspectAngle?: number;
 };
 
 export type HouseConnection = {

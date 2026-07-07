@@ -67,11 +67,14 @@ export type Aspect = {
 export type HouseConnectionDetail = {
   source: "ruler-position" | "rulership" | "aspect";
   tone: "harmonious" | "tense" | "neutral";
+  fromHouse: number;
+  toHouse: number;
   planetA: string;
   planetB?: string;
   fromRole: "placement" | "ruler";
   toRole: "placement" | "ruler";
   aspectType?: string;
+  aspectAngle?: number;
 };
 
 export type HouseConnection = {
