@@ -14,6 +14,7 @@ import {
   Settings2,
   Trash2
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -30,13 +31,11 @@ import {
   getBirthProfile,
   getCurrentUser,
   listBirthProfiles,
-  loginUser,
   requestForecastPreview,
   requestNatalInterpretation,
   requestNatalPreview,
   requestSynastryPreview,
   requestTransitPreview,
-  registerUser,
   saveBirthProfile,
   searchPlaces
 } from "@/lib/api";
@@ -60,6 +59,7 @@ import type {
   SynastryPreviewResult,
   TransitPreviewResult
 } from "@/lib/chart-types";
+import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { cn } from "@/lib/utils";
 
 type FormState = {
@@ -76,19 +76,9 @@ type FormState = {
   zodiac: NatalPreviewPayload["zodiac"];
 };
 
-type AuthFormState = {
-  email: string;
-  username: string;
-  password: string;
-};
-
-type AuthMode = "login" | "register";
-
 type PointOrbSettings = Record<string, number>;
 type VisiblePointSettings = Record<string, boolean>;
 type WorkspaceTab = "interpretation" | "forecast" | "transits" | "synastry";
-
-const AUTH_TOKEN_STORAGE_KEY = "astroprocessor.authToken";
 
 const workspaceTabs: Array<{ key: WorkspaceTab; label: string }> = [
   { key: "interpretation", label: "Базова трактовка" },
@@ -123,12 +113,6 @@ const initialPartnerForm: FormState = {
   timezone: "Europe/Kyiv",
   houseSystem: "koch",
   zodiac: "tropical"
-};
-
-const initialAuthForm: AuthFormState = {
-  email: "",
-  username: "",
-  password: ""
 };
 
 const houseSystems = [
@@ -627,10 +611,9 @@ const buildPolarityRowsFromSignScores = (
 };
 
 export function AstroWorkbench() {
+  const router = useRouter();
   const [form, setForm] = useState<FormState>(initialForm);
   const [partnerForm, setPartnerForm] = useState<FormState>(initialPartnerForm);
-  const [authForm, setAuthForm] = useState<AuthFormState>(initialAuthForm);
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
@@ -666,7 +649,6 @@ export function AstroWorkbench() {
   const [forecastError, setForecastError] = useState<string | null>(null);
   const [synastryError, setSynastryError] = useState<string | null>(null);
   const [savedProfilesError, setSavedProfilesError] = useState<string | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [partnerPlaceError, setPartnerPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
@@ -773,54 +755,15 @@ export function AstroWorkbench() {
     }
   };
 
-  const updateAuthForm = <Field extends keyof AuthFormState>(field: Field, value: AuthFormState[Field]): void => {
-    setAuthForm((current) => ({
-      ...current,
-      [field]: value
-    }));
-    setAuthError(null);
-    setAuthStatus(authUser ? "ready" : "idle");
-  };
-
-  const submitAuth = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
-    event.preventDefault();
-    setAuthStatus("loading");
-    setAuthError(null);
-
-    try {
-      const response =
-        authMode === "register"
-          ? await registerUser(authForm)
-          : await loginUser({
-              username: authForm.username,
-              password: authForm.password
-            });
-
-      window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, response.token);
-      setAuthToken(response.token);
-      setAuthUser(response.user);
-      setAuthStatus("ready");
-      setAuthForm((current) => ({
-        ...current,
-        password: ""
-      }));
-      await refreshSavedProfiles(response.token);
-    } catch (requestError) {
-      setAuthStatus("error");
-      setAuthError(requestError instanceof Error ? requestError.message : "Unknown auth error");
-    }
-  };
-
   const logout = async (): Promise<void> => {
     window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     setAuthToken(null);
     setAuthUser(null);
     setAuthStatus("idle");
-    setAuthError(null);
     setSavedProfileId(null);
     setSaveStatus("idle");
     setSaveError(null);
-    await refreshSavedProfiles(null);
+    router.replace("/login");
   };
 
   const updatePointVisibility = (key: string, checked: boolean): void => {
@@ -990,7 +933,7 @@ export function AstroWorkbench() {
     setForecastTargetYear((current) => current || String(now.getFullYear()));
 
     if (!storedToken) {
-      void refreshSavedProfiles(null);
+      router.replace("/login");
       return;
     }
 
@@ -1008,9 +951,9 @@ export function AstroWorkbench() {
         setAuthToken(null);
         setAuthUser(null);
         setAuthStatus("idle");
-        void refreshSavedProfiles(null);
+        router.replace("/login");
       });
-  }, []);
+  }, [router]);
 
   const loadSavedProfile = async (profile: SavedBirthProfile): Promise<void> => {
     setLoadingProfileId(profile.id);
@@ -1259,6 +1202,22 @@ export function AstroWorkbench() {
     }
   };
 
+  if (!authUser) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <CardDescription className="font-semibold uppercase text-primary">Astroprocessor</CardDescription>
+            <CardTitle>Перевіряю сесію</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Якщо сесії немає, відкриється сторінка авторизації.</p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1480px]">
@@ -1284,21 +1243,7 @@ export function AstroWorkbench() {
 
         <section className="grid items-start gap-4 xl:grid-cols-[360px_minmax(360px,1fr)_420px]">
           <div className="space-y-4">
-            <AuthCard
-              error={authError}
-              form={authForm}
-              mode={authMode}
-              status={authStatus}
-              user={authUser}
-              onLogout={logout}
-              onModeChange={(mode) => {
-                setAuthMode(mode);
-                setAuthError(null);
-                setAuthStatus(authUser ? "ready" : "idle");
-              }}
-              onSubmit={submitAuth}
-              onUpdate={updateAuthForm}
-            />
+            <AccountCard status={authStatus} user={authUser} onLogout={logout} />
             <BirthDataCard
               error={error}
               form={form}
@@ -1466,100 +1411,32 @@ function WorkspaceTabList({
   );
 }
 
-function AuthCard({
-  error,
-  form,
-  mode,
+function AccountCard({
   status,
   user,
-  onLogout,
-  onModeChange,
-  onSubmit,
-  onUpdate
+  onLogout
 }: {
-  error: string | null;
-  form: AuthFormState;
-  mode: AuthMode;
   status: "idle" | "loading" | "ready" | "error";
-  user: AuthUser | null;
+  user: AuthUser;
   onLogout: () => Promise<void>;
-  onModeChange: (mode: AuthMode) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onUpdate: <Field extends keyof AuthFormState>(field: Field, value: AuthFormState[Field]) => void;
 }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div className="space-y-1">
           <CardDescription className="font-semibold uppercase text-primary">Account</CardDescription>
-          <CardTitle>Авторизація</CardTitle>
+          <CardTitle>Акаунт</CardTitle>
         </div>
-        {user ? (
-          <Button size="icon" variant="secondary" type="button" aria-label="Вийти" onClick={() => void onLogout()}>
-            <LogOut />
-          </Button>
-        ) : null}
+        <Button size="icon" variant="secondary" type="button" aria-label="Вийти" onClick={() => void onLogout()}>
+          <LogOut />
+        </Button>
       </CardHeader>
       <CardContent className="space-y-3">
-        {user ? (
-          <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-            <p className="font-medium">{user.username}</p>
-            <p className="text-muted-foreground">{user.email}</p>
-          </div>
-        ) : (
-          <form className="space-y-3" onSubmit={onSubmit}>
-            <div className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/30 p-1">
-              <Button
-                size="sm"
-                variant={mode === "login" ? "default" : "ghost"}
-                type="button"
-                onClick={() => onModeChange("login")}
-              >
-                Логін
-              </Button>
-              <Button
-                size="sm"
-                variant={mode === "register" ? "default" : "ghost"}
-                type="button"
-                onClick={() => onModeChange("register")}
-              >
-                Реєстрація
-              </Button>
-            </div>
-
-            {mode === "register" ? (
-              <Field label="Email">
-                <Input value={form.email} onChange={(event) => onUpdate("email", event.target.value)} />
-              </Field>
-            ) : null}
-
-            <Field label="Username">
-              <Input value={form.username} onChange={(event) => onUpdate("username", event.target.value)} />
-            </Field>
-
-            <Field label="Password">
-              <Input
-                type="password"
-                value={form.password}
-                onChange={(event) => onUpdate("password", event.target.value)}
-              />
-            </Field>
-
-            <Button className="w-full" disabled={status === "loading"} type="submit">
-              {status === "loading" ? "Зачекай" : mode === "register" ? "Зареєструватися" : "Увійти"}
-            </Button>
-          </form>
-        )}
-
-        {error ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <p className="text-xs text-muted-foreground">
-          Після входу збережені карти прив'язуються до акаунта. Preview-розрахунки можна тестувати без авторизації.
-        </p>
+        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+          <p className="font-medium">{user.username}</p>
+          <p className="text-muted-foreground">{user.email}</p>
+        </div>
+        <Badge variant="secondary">{status === "loading" ? "Сесія перевіряється" : "Залогінено"}</Badge>
       </CardContent>
     </Card>
   );

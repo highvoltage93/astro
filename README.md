@@ -54,7 +54,9 @@ Passwords are stored as PBKDF2 hashes. The JWT secret is configured with:
 JWT_SECRET=astroprocessor_dev_jwt_secret
 ```
 
-The web app stores the token in localStorage. Preview calculations remain available without auth, while saved birth profiles are scoped to the logged-in user when a token is present. Without a token, saved profiles remain in the anonymous testing bucket.
+The web app stores the token in localStorage. API preview endpoints remain available for development calls, while saved birth profiles are scoped to the logged-in user when a token is present.
+
+The main astrology workspace is guarded on the web side. Unauthenticated users are redirected to `/login`; after login or registration they can open the calculation workspace at `/`.
 
 ## Swiss Ephemeris Files
 
