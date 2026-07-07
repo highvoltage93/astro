@@ -490,6 +490,7 @@ const calculateHouseSignSegments = (houses: HouseCusp[]): HouseSignSegment[] => 
 };
 
 const MALEFIC_HOUSES = new Set([6, 8, 12]);
+const HOUSE_CONNECTION_EXCLUDED_POINT_KEYS = new Set(["chiron"]);
 
 const hasMaleficHouse = (...houses: number[]): boolean => houses.some((house) => MALEFIC_HOUSES.has(house));
 
@@ -734,10 +735,18 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
   };
 
   for (const body of bodies) {
+    if (HOUSE_CONNECTION_EXCLUDED_POINT_KEYS.has(body.key)) {
+      continue;
+    }
+
     addResponsibility(body.key, body.house, "placement");
   }
 
   for (const houseRuler of houseRulers) {
+    if (HOUSE_CONNECTION_EXCLUDED_POINT_KEYS.has(houseRuler.rulerKey)) {
+      continue;
+    }
+
     addResponsibility(houseRuler.rulerKey, houseRuler.house, "ruler");
   }
 
