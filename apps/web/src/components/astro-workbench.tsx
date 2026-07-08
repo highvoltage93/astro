@@ -5,6 +5,7 @@ import {
   Calculator,
   Activity,
   ChevronDown,
+  LayoutDashboard,
   FolderOpen,
   LogOut,
   MapPin,
@@ -1331,14 +1332,20 @@ export function AstroWorkbench() {
             <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
             <h1 className="text-3xl font-semibold tracking-normal">Робоча зона</h1>
           </div>
-          <HeaderAccountMenu
-            isOpen={isUserMenuOpen}
-            status={authStatus}
-            user={authUser}
-            onLogout={logout}
-            onOpenChange={setIsUserMenuOpen}
-            onOpenSavedCharts={openSavedChartsDrawer}
-          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button variant="secondary" type="button" onClick={() => router.push("/")}>
+              <LayoutDashboard />
+              Дешборд
+            </Button>
+            <HeaderAccountMenu
+              isOpen={isUserMenuOpen}
+              status={authStatus}
+              user={authUser}
+              onLogout={logout}
+              onOpenChange={setIsUserMenuOpen}
+              onOpenSavedCharts={openSavedChartsDrawer}
+            />
+          </div>
         </header>
 
         <SavedChartsDrawer
@@ -1354,21 +1361,8 @@ export function AstroWorkbench() {
           onRefresh={refreshSavedProfiles}
         />
 
-        <section className="grid items-start gap-4 xl:grid-cols-[360px_minmax(360px,1fr)_420px]">
+        <section className="grid items-start gap-4 xl:grid-cols-[280px_minmax(360px,1fr)_420px]">
           <div className="space-y-4">
-            <BirthDataCard
-              error={error}
-              form={form}
-              placeError={placeError}
-              placeResults={placeResults}
-              placeSearchStatus={placeSearchStatus}
-              status={status}
-              onPlaceSearch={searchBirthplace}
-              onPlaceSelect={selectBirthplace}
-              onReset={resetForm}
-              onSubmit={submit}
-              onUpdate={updateForm}
-            />
             <OrbSettingsCard pointOrbs={pointOrbs} onUpdate={updatePointOrb} />
             <ChartObjectSettingsCard
               visiblePointKeys={visiblePointKeys}

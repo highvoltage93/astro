@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCurrentUser, listBirthProfiles, searchPlaces } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import type { AuthUser, NatalPreviewPayload, PlaceSearchResult, SavedBirthProfile } from "@/lib/chart-types";
@@ -234,7 +235,7 @@ export function AstroDashboard() {
           />
         </header>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="space-y-4">
           <Card className="min-w-0">
             <CardHeader className="space-y-1">
               <CardDescription className="font-semibold uppercase text-primary">New calculation</CardDescription>
@@ -527,27 +528,42 @@ function SavedProfilesDashboardCard({
         ) : null}
 
         {profiles.length > 0 ? (
-          <div className="space-y-2">
-            {profiles.map((profile) => (
-              <button
-                className="grid w-full gap-1 rounded-lg border p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                key={profile.id}
-                type="button"
-                onClick={() => onOpen(profile)}
-              >
-                <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                  <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
-                  <span className="truncate">{profile.displayName}</span>
-                </span>
-                <span className="pl-6 text-xs text-muted-foreground">
-                  {profile.birthDate} · {profile.birthTimeKnown ? profile.birthTime : "час невідомий"}
-                </span>
-                <span className="truncate pl-6 text-xs text-muted-foreground">{profile.birthplaceName}</span>
-                <span className="pl-6 text-xs text-muted-foreground">
-                  Створено: {formatSavedProfileCreatedAt(profile.createdAt)}
-                </span>
-              </button>
-            ))}
+          <div className="overflow-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Карта</TableHead>
+                  <TableHead>Дата народження</TableHead>
+                  <TableHead>Місце</TableHead>
+                  <TableHead>Створено</TableHead>
+                  <TableHead className="w-28 text-right">Дія</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {profiles.map((profile) => (
+                  <TableRow key={profile.id}>
+                    <TableCell className="min-w-56 font-medium">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="truncate">{profile.displayName}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className="min-w-40 text-muted-foreground">
+                      {profile.birthDate} · {profile.birthTimeKnown ? profile.birthTime : "час невідомий"}
+                    </TableCell>
+                    <TableCell className="min-w-64 text-muted-foreground">{profile.birthplaceName}</TableCell>
+                    <TableCell className="min-w-44 text-muted-foreground">
+                      {formatSavedProfileCreatedAt(profile.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="secondary" type="button" onClick={() => onOpen(profile)}>
+                        Відкрити
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         ) : null}
       </CardContent>
