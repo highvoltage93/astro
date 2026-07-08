@@ -3,6 +3,7 @@
 import {
   BookOpenText,
   Calculator,
+  Check,
   Activity,
   ChevronDown,
   LayoutDashboard,
@@ -646,6 +647,7 @@ export function AstroWorkbench() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSavedChartsDrawerOpen, setIsSavedChartsDrawerOpen] = useState(false);
+  const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
   const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>("interpretation");
@@ -746,13 +748,8 @@ export function AstroWorkbench() {
     }
   };
 
-  const updatePointOrb = (key: string, value: string): void => {
-    const nextValue = Number(value);
-
-    setPointOrbs((current) => ({
-      ...current,
-      [key]: Number.isFinite(nextValue) ? Math.max(0, Math.min(15, nextValue)) : 0
-    }));
+  const applyPointOrbs = (settings: PointOrbSettings): void => {
+    setPointOrbs(settings);
     setSaveStatus("idle");
     setSaveError(null);
     setSavedProfileId(null);
@@ -796,22 +793,8 @@ export function AstroWorkbench() {
     router.replace("/login");
   };
 
-  const updatePointVisibility = (key: string, checked: boolean): void => {
-    setVisiblePointKeys((current) => ({
-      ...current,
-      [key]: checked
-    }));
-  };
-
-  const setVisibilityPreset = (preset: "all" | "classical"): void => {
-    setVisiblePointKeys(
-      Object.fromEntries(
-        chartObjectRows.map(([key]) => [
-          key,
-          preset === "all" || primaryPlanetOrder.includes(key) || key === "asc" || key === "mc"
-        ])
-      ) as VisiblePointSettings
-    );
+  const applyVisiblePointKeys = (settings: VisiblePointSettings): void => {
+    setVisiblePointKeys(settings);
   };
 
   const resetForm = (): void => {
@@ -1330,7 +1313,19 @@ export function AstroWorkbench() {
         <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
-            <h1 className="text-3xl font-semibold tracking-normal">Робоча зона</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-semibold tracking-normal">Робоча зона</h1>
+              <Button
+                size="icon"
+                variant="secondary"
+                type="button"
+                title="Налаштування карти"
+                aria-label="Відкрити налаштування карти"
+                onClick={() => setIsSettingsDrawerOpen(true)}
+              >
+                <Settings2 />
+              </Button>
+            </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button variant="secondary" type="button" onClick={() => router.push("/")}>
@@ -1361,16 +1356,16 @@ export function AstroWorkbench() {
           onRefresh={refreshSavedProfiles}
         />
 
-        <section className="grid items-start gap-4 xl:grid-cols-[280px_minmax(360px,1fr)_420px]">
-          <div className="space-y-4">
-            <OrbSettingsCard pointOrbs={pointOrbs} onUpdate={updatePointOrb} />
-            <ChartObjectSettingsCard
-              visiblePointKeys={visiblePointKeys}
-              onPreset={setVisibilityPreset}
-              onToggle={updatePointVisibility}
-            />
-          </div>
+        <ChartSettingsDrawer
+          isOpen={isSettingsDrawerOpen}
+          pointOrbs={pointOrbs}
+          visiblePointKeys={visiblePointKeys}
+          onApplyOrbs={applyPointOrbs}
+          onApplyVisiblePoints={applyVisiblePointKeys}
+          onClose={() => setIsSettingsDrawerOpen(false)}
+        />
 
+        <section className="grid items-start gap-4 xl:grid-cols-[minmax(360px,1fr)_420px]">
           <div className="min-w-0 space-y-4">
             <Card className="min-w-0">
               <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
@@ -1754,9 +1749,13 @@ function BirthDataCard({
 
 function OrbSettingsCard({
   pointOrbs,
+  onApply,
+  onReset,
   onUpdate
 }: {
   pointOrbs: PointOrbSettings;
+  onApply: () => void;
+  onReset: () => void;
   onUpdate: (key: string, value: string) => void;
 }) {
   return (
@@ -1770,8 +1769,8 @@ function OrbSettingsCard({
           <CardTitle>Налаштування орбісів</CardTitle>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+      <CardContent className="space-y-4">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {orbSettingRows.map(([key, label]) => (
             <label className="grid grid-cols-[minmax(0,1fr)_92px] items-center gap-2 text-sm" key={key}>
               <span className="min-w-0 truncate">
@@ -1789,6 +1788,16 @@ function OrbSettingsCard({
             </label>
           ))}
         </div>
+        <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+          <Button variant="secondary" type="button" onClick={onReset}>
+            <RotateCcw />
+            Скинути
+          </Button>
+          <Button type="button" onClick={onApply}>
+            <Check />
+            Застосувати
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
@@ -1796,11 +1805,15 @@ function OrbSettingsCard({
 
 function ChartObjectSettingsCard({
   visiblePointKeys,
+  onApply,
   onPreset,
+  onReset,
   onToggle
 }: {
   visiblePointKeys: VisiblePointSettings;
+  onApply: () => void;
   onPreset: (preset: "all" | "classical") => void;
+  onReset: () => void;
   onToggle: (key: string, checked: boolean) => void;
 }) {
   return (
@@ -1823,7 +1836,7 @@ function ChartObjectSettingsCard({
             Базові
           </Button>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {chartObjectRows.map(([key, label]) => (
             <label
               className="flex min-h-9 items-center gap-3 rounded-md border bg-muted/20 px-3 py-2 text-sm"
@@ -1837,8 +1850,114 @@ function ChartObjectSettingsCard({
             </label>
           ))}
         </div>
+        <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+          <Button variant="secondary" type="button" onClick={onReset}>
+            <RotateCcw />
+            Скинути
+          </Button>
+          <Button type="button" onClick={onApply}>
+            <Check />
+            Застосувати
+          </Button>
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function ChartSettingsDrawer({
+  isOpen,
+  pointOrbs,
+  visiblePointKeys,
+  onApplyOrbs,
+  onApplyVisiblePoints,
+  onClose
+}: {
+  isOpen: boolean;
+  pointOrbs: PointOrbSettings;
+  visiblePointKeys: VisiblePointSettings;
+  onApplyOrbs: (settings: PointOrbSettings) => void;
+  onApplyVisiblePoints: (settings: VisiblePointSettings) => void;
+  onClose: () => void;
+}) {
+  const [orbDraft, setOrbDraft] = useState<PointOrbSettings>(pointOrbs);
+  const [visiblePointsDraft, setVisiblePointsDraft] = useState<VisiblePointSettings>(visiblePointKeys);
+
+  useEffect(() => {
+    if (isOpen) {
+      setOrbDraft({ ...pointOrbs });
+      setVisiblePointsDraft({ ...visiblePointKeys });
+    }
+  }, [isOpen, pointOrbs, visiblePointKeys]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  const updateOrbDraft = (key: string, value: string): void => {
+    const nextValue = Number(value);
+
+    setOrbDraft((current) => ({
+      ...current,
+      [key]: Number.isFinite(nextValue) ? Math.max(0, Math.min(15, nextValue)) : 0
+    }));
+  };
+
+  const setVisiblePointsPreset = (preset: "all" | "classical"): void => {
+    setVisiblePointsDraft(
+      Object.fromEntries(
+        chartObjectRows.map(([key]) => [
+          key,
+          preset === "all" || primaryPlanetOrder.includes(key) || key === "asc" || key === "mc"
+        ])
+      ) as VisiblePointSettings
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <button
+        aria-label="Закрити налаштування карти"
+        className="absolute inset-0 h-full w-full bg-background/70 backdrop-blur-sm"
+        type="button"
+        onClick={onClose}
+      />
+      <aside
+        aria-label="Налаштування карти"
+        className="absolute right-0 top-0 flex h-full w-full max-w-[700px] flex-col border-l bg-background text-foreground shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b p-5">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold uppercase text-primary">Chart settings</p>
+            <h2 className="text-lg font-semibold tracking-normal">Налаштування карти</h2>
+          </div>
+          <Button size="icon" variant="ghost" type="button" aria-label="Закрити" onClick={onClose}>
+            <X />
+          </Button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+          <OrbSettingsCard
+            pointOrbs={orbDraft}
+            onApply={() => onApplyOrbs({ ...orbDraft })}
+            onReset={() => setOrbDraft({ ...defaultPointOrbs })}
+            onUpdate={updateOrbDraft}
+          />
+          <ChartObjectSettingsCard
+            visiblePointKeys={visiblePointsDraft}
+            onApply={() => onApplyVisiblePoints({ ...visiblePointsDraft })}
+            onPreset={setVisiblePointsPreset}
+            onReset={() => setVisiblePointsDraft({ ...defaultVisiblePointKeys })}
+            onToggle={(key, checked) =>
+              setVisiblePointsDraft((current) => ({
+                ...current,
+                [key]: checked
+              }))
+            }
+          />
+        </div>
+      </aside>
+    </div>
   );
 }
 
