@@ -1,6 +1,5 @@
-import { AstroWorkbench } from "../components/astro-workbench";
+import { AstroDashboard } from "../components/astro-dashboard";
 
 export default function HomePage() {
-  return <AstroWorkbench />;
+  return <AstroDashboard />;
 }
-

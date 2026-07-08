@@ -63,6 +63,11 @@ import type {
 } from "@/lib/chart-types";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { cn } from "@/lib/utils";
+import {
+  DASHBOARD_CHART_DRAFT_STORAGE_KEY,
+  SAVED_PROFILE_OPEN_STORAGE_KEY,
+  type DashboardChartDraft
+} from "@/lib/workspace-storage";
 
 type FormState = {
   displayName: string;
@@ -594,6 +599,20 @@ const formatSavedProfileCreatedAt = (createdAt: string): string =>
     timeStyle: "short"
   }).format(new Date(createdAt));
 
+const buildFormFromDashboardDraft = (draft: DashboardChartDraft): FormState => ({
+  displayName: draft.displayName,
+  birthDate: draft.natal.birthDate,
+  birthTime: draft.natal.birthTime,
+  birthTimeKnown: draft.natal.birthTimeKnown,
+  birthplaceName: draft.birthplaceName,
+  countryCode: draft.countryCode ?? "",
+  latitude: String(draft.natal.latitude),
+  longitude: String(draft.natal.longitude),
+  timezone: draft.natal.timezone,
+  houseSystem: draft.natal.houseSystem,
+  zodiac: draft.natal.zodiac
+});
+
 const buildPolarityRowsFromSignScores = (
   signScores: Array<{ key: string; score: number }>
 ): Array<{ key: "masculine" | "feminine"; score: number }> => {
@@ -971,12 +990,12 @@ export function AstroWorkbench() {
       });
   }, [router]);
 
-  const loadSavedProfile = async (profile: SavedBirthProfile): Promise<void> => {
-    setLoadingProfileId(profile.id);
+  const loadSavedProfileById = async (profileId: string): Promise<void> => {
+    setLoadingProfileId(profileId);
     setSavedProfilesError(null);
 
     try {
-      const response = await getBirthProfile(profile.id, authToken);
+      const response = await getBirthProfile(profileId, authToken);
       const detailedProfile = response.profile;
       const calculation = response.latestCalculation;
 
@@ -1022,6 +1041,106 @@ export function AstroWorkbench() {
     }
   };
 
+  const loadSavedProfile = async (profile: SavedBirthProfile): Promise<void> => {
+    await loadSavedProfileById(profile.id);
+  };
+
+  const calculateNatalChartFromPayload = async (payload: NatalPreviewPayload): Promise<void> => {
+    setStatus("loading");
+    setError(null);
+    setInterpretationError(null);
+    setInterpretation(null);
+    setSynastryPreview(null);
+    setSynastryError(null);
+    setSynastryStatus("idle");
+    clearForecastState();
+
+    try {
+      const [chartResult, interpretationResult] = await Promise.allSettled([
+        requestNatalPreview(payload),
+        requestNatalInterpretation(payload)
+      ]);
+
+      if (chartResult.status === "rejected") {
+        throw chartResult.reason;
+      }
+
+      setChart(chartResult.value);
+
+      if (interpretationResult.status === "fulfilled") {
+        setInterpretation(interpretationResult.value);
+      } else {
+        setInterpretationError(
+          interpretationResult.reason instanceof Error
+            ? interpretationResult.reason.message
+            : "Unable to load interpretation"
+        );
+      }
+
+      setStatus("ready");
+    } catch (requestError) {
+      setStatus("error");
+      setError(requestError instanceof Error ? requestError.message : "Unknown API error");
+    }
+  };
+
+  useEffect(() => {
+    if (!authUser) {
+      return;
+    }
+
+    const draftJson = window.localStorage.getItem(DASHBOARD_CHART_DRAFT_STORAGE_KEY);
+
+    if (!draftJson) {
+      return;
+    }
+
+    window.localStorage.removeItem(DASHBOARD_CHART_DRAFT_STORAGE_KEY);
+
+    try {
+      const draft = JSON.parse(draftJson) as DashboardChartDraft;
+
+      setForm(buildFormFromDashboardDraft(draft));
+      setPointOrbs(draft.natal.pointOrbs ?? defaultPointOrbs);
+      setChart(null);
+      setInterpretation(null);
+      setInterpretationError(null);
+      setTransitPreview(null);
+      setTransitError(null);
+      setTransitStatus("idle");
+      clearForecastState();
+      setSynastryPreview(null);
+      setSynastryError(null);
+      setSynastryStatus("idle");
+      setSaveStatus("idle");
+      setSaveError(null);
+      setSavedProfileId(null);
+      setPlaceResults([]);
+      setPlaceError(null);
+      setPlaceSearchStatus("idle");
+      setActiveWorkspaceTab("interpretation");
+      void calculateNatalChartFromPayload(draft.natal);
+    } catch {
+      setStatus("error");
+      setError("Не вдалося відкрити розрахунок з дешборду.");
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!authUser || !authToken) {
+      return;
+    }
+
+    const profileId = window.localStorage.getItem(SAVED_PROFILE_OPEN_STORAGE_KEY);
+
+    if (!profileId) {
+      return;
+    }
+
+    window.localStorage.removeItem(SAVED_PROFILE_OPEN_STORAGE_KEY);
+    void loadSavedProfileById(profileId);
+  }, [authUser, authToken]);
+
   const deleteSavedProfile = async (profile: SavedBirthProfile): Promise<void> => {
     const confirmed = window.confirm(`Видалити карту "${profile.displayName}"?`);
 
@@ -1051,45 +1170,13 @@ export function AstroWorkbench() {
     }
   };
 
+  const calculateNatalChart = async (): Promise<void> => {
+    await calculateNatalChartFromPayload(buildNatalPayload());
+  };
+
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    setStatus("loading");
-    setError(null);
-    setInterpretationError(null);
-    setInterpretation(null);
-    setSynastryPreview(null);
-    setSynastryError(null);
-    setSynastryStatus("idle");
-    clearForecastState();
-
-    try {
-      const payload = buildNatalPayload();
-      const [chartResult, interpretationResult] = await Promise.allSettled([
-        requestNatalPreview(payload),
-        requestNatalInterpretation(payload)
-      ]);
-
-      if (chartResult.status === "rejected") {
-        throw chartResult.reason;
-      }
-
-      setChart(chartResult.value);
-
-      if (interpretationResult.status === "fulfilled") {
-        setInterpretation(interpretationResult.value);
-      } else {
-        setInterpretationError(
-          interpretationResult.reason instanceof Error
-            ? interpretationResult.reason.message
-            : "Unable to load interpretation"
-        );
-      }
-
-      setStatus("ready");
-    } catch (requestError) {
-      setStatus("error");
-      setError(requestError instanceof Error ? requestError.message : "Unknown API error");
-    }
+    await calculateNatalChart();
   };
 
   const saveProfile = async (): Promise<void> => {
@@ -1242,31 +1329,16 @@ export function AstroWorkbench() {
         <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
-            <h1 className="text-3xl font-semibold tracking-normal">Натальна карта</h1>
+            <h1 className="text-3xl font-semibold tracking-normal">Робоча зона</h1>
           </div>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <nav className="flex w-full gap-1 overflow-x-auto rounded-lg border bg-card p-1 lg:w-auto" aria-label="Розділи">
-              {workspaceTabs.map((tab) => (
-                <Button
-                  key={`top-tab-${tab.key}`}
-                  size="sm"
-                  variant={activeWorkspaceTab === tab.key ? "default" : "ghost"}
-                  type="button"
-                  onClick={() => setActiveWorkspaceTab(tab.key)}
-                >
-                  {tab.label}
-                </Button>
-              ))}
-            </nav>
-            <HeaderAccountMenu
-              isOpen={isUserMenuOpen}
-              status={authStatus}
-              user={authUser}
-              onLogout={logout}
-              onOpenChange={setIsUserMenuOpen}
-              onOpenSavedCharts={openSavedChartsDrawer}
-            />
-          </div>
+          <HeaderAccountMenu
+            isOpen={isUserMenuOpen}
+            status={authStatus}
+            user={authUser}
+            onLogout={logout}
+            onOpenChange={setIsUserMenuOpen}
+            onOpenSavedCharts={openSavedChartsDrawer}
+          />
         </header>
 
         <SavedChartsDrawer
