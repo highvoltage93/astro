@@ -4,6 +4,7 @@ import {
   BookOpenText,
   Calculator,
   Activity,
+  ChevronDown,
   FolderOpen,
   LogOut,
   MapPin,
@@ -12,7 +13,8 @@ import {
   Save,
   Search,
   Settings2,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
@@ -586,6 +588,12 @@ const formatPointPosition = (point: ChartPoint | null): string => {
   return `${signLabelsUk[point.sign] ?? point.sign} ${formatZodiacDegree(point.signDegree)}${house}`;
 };
 
+const formatSavedProfileCreatedAt = (createdAt: string): string =>
+  new Intl.DateTimeFormat("uk-UA", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(createdAt));
+
 const buildPolarityRowsFromSignScores = (
   signScores: Array<{ key: string; score: number }>
 ): Array<{ key: "masculine" | "feminine"; score: number }> => {
@@ -616,6 +624,8 @@ export function AstroWorkbench() {
   const [partnerForm, setPartnerForm] = useState<FormState>(initialPartnerForm);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isSavedChartsDrawerOpen, setIsSavedChartsDrawerOpen] = useState(false);
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
   const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>("interpretation");
@@ -924,6 +934,12 @@ export function AstroWorkbench() {
     }
   };
 
+  const openSavedChartsDrawer = async (): Promise<void> => {
+    setIsUserMenuOpen(false);
+    setIsSavedChartsDrawerOpen(true);
+    await refreshSavedProfiles();
+  };
+
   useEffect(() => {
     const now = new Date();
     const storedToken = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
@@ -996,6 +1012,8 @@ export function AstroWorkbench() {
       setPlaceError(null);
       setPlaceSearchStatus("idle");
       setSavedProfilesStatus("ready");
+      setActiveWorkspaceTab("interpretation");
+      setIsSavedChartsDrawerOpen(false);
     } catch (requestError) {
       setSavedProfilesStatus("error");
       setSavedProfilesError(requestError instanceof Error ? requestError.message : "Unknown saved profile error");
@@ -1221,29 +1239,51 @@ export function AstroWorkbench() {
   return (
     <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1480px]">
-        <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
             <h1 className="text-3xl font-semibold tracking-normal">Натальна карта</h1>
           </div>
-          <nav className="flex w-full gap-1 overflow-x-auto rounded-lg border bg-card p-1 lg:w-auto" aria-label="Розділи">
-            {workspaceTabs.map((tab) => (
-              <Button
-                key={`top-tab-${tab.key}`}
-                size="sm"
-                variant={activeWorkspaceTab === tab.key ? "default" : "ghost"}
-                type="button"
-                onClick={() => setActiveWorkspaceTab(tab.key)}
-              >
-                {tab.label}
-              </Button>
-            ))}
-          </nav>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <nav className="flex w-full gap-1 overflow-x-auto rounded-lg border bg-card p-1 lg:w-auto" aria-label="Розділи">
+              {workspaceTabs.map((tab) => (
+                <Button
+                  key={`top-tab-${tab.key}`}
+                  size="sm"
+                  variant={activeWorkspaceTab === tab.key ? "default" : "ghost"}
+                  type="button"
+                  onClick={() => setActiveWorkspaceTab(tab.key)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </nav>
+            <HeaderAccountMenu
+              isOpen={isUserMenuOpen}
+              status={authStatus}
+              user={authUser}
+              onLogout={logout}
+              onOpenChange={setIsUserMenuOpen}
+              onOpenSavedCharts={openSavedChartsDrawer}
+            />
+          </div>
         </header>
+
+        <SavedChartsDrawer
+          deletingProfileId={deletingProfileId}
+          error={savedProfilesError}
+          isOpen={isSavedChartsDrawerOpen}
+          loadingProfileId={loadingProfileId}
+          profiles={savedProfiles}
+          status={savedProfilesStatus}
+          onClose={() => setIsSavedChartsDrawerOpen(false)}
+          onDelete={deleteSavedProfile}
+          onLoad={loadSavedProfile}
+          onRefresh={refreshSavedProfiles}
+        />
 
         <section className="grid items-start gap-4 xl:grid-cols-[360px_minmax(360px,1fr)_420px]">
           <div className="space-y-4">
-            <AccountCard status={authStatus} user={authUser} onLogout={logout} />
             <BirthDataCard
               error={error}
               form={form}
@@ -1262,16 +1302,6 @@ export function AstroWorkbench() {
               visiblePointKeys={visiblePointKeys}
               onPreset={setVisibilityPreset}
               onToggle={updatePointVisibility}
-            />
-            <SavedProfilesCard
-              deletingProfileId={deletingProfileId}
-              error={savedProfilesError}
-              loadingProfileId={loadingProfileId}
-              profiles={savedProfiles}
-              status={savedProfilesStatus}
-              onDelete={deleteSavedProfile}
-              onLoad={loadSavedProfile}
-              onRefresh={refreshSavedProfiles}
             />
           </div>
 
@@ -1411,34 +1441,81 @@ function WorkspaceTabList({
   );
 }
 
-function AccountCard({
+function HeaderAccountMenu({
+  isOpen,
   status,
   user,
-  onLogout
+  onLogout,
+  onOpenChange,
+  onOpenSavedCharts
 }: {
+  isOpen: boolean;
   status: "idle" | "loading" | "ready" | "error";
   user: AuthUser;
   onLogout: () => Promise<void>;
+  onOpenChange: (isOpen: boolean) => void;
+  onOpenSavedCharts: () => Promise<void>;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-        <div className="space-y-1">
-          <CardDescription className="font-semibold uppercase text-primary">Account</CardDescription>
-          <CardTitle>Акаунт</CardTitle>
+    <div className="relative">
+      {isOpen ? (
+        <button
+          aria-label="Закрити меню користувача"
+          className="fixed inset-0 z-40 cursor-default"
+          tabIndex={-1}
+          type="button"
+          onClick={() => onOpenChange(false)}
+        />
+      ) : null}
+      <Button
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        className="h-auto w-full justify-between gap-3 px-3 py-2 lg:min-w-64"
+        variant="secondary"
+        type="button"
+        onClick={() => onOpenChange(!isOpen)}
+      >
+        <span className="grid min-w-0 text-left leading-tight">
+          <span className="truncate text-sm font-semibold">{user.username}</span>
+          <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
+        </span>
+        <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+      </Button>
+
+      {isOpen ? (
+        <div
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-full min-w-64 rounded-lg border bg-card p-1 text-card-foreground shadow-xl lg:w-72"
+          role="menu"
+        >
+          <div className="px-3 py-2">
+            <p className="truncate text-sm font-medium">{user.username}</p>
+            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+            <Badge className="mt-2" variant="secondary">
+              {status === "loading" ? "Сесія перевіряється" : "Залогінено"}
+            </Badge>
+          </div>
+          <Separator className="my-1" />
+          <button
+            className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            role="menuitem"
+            type="button"
+            onClick={() => void onOpenSavedCharts()}
+          >
+            <FolderOpen className="h-4 w-4 text-primary" />
+            Збережені карти
+          </button>
+          <button
+            className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            role="menuitem"
+            type="button"
+            onClick={() => void onLogout()}
+          >
+            <LogOut className="h-4 w-4" />
+            Вийти
+          </button>
         </div>
-        <Button size="icon" variant="secondary" type="button" aria-label="Вийти" onClick={() => void onLogout()}>
-          <LogOut />
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-          <p className="font-medium">{user.username}</p>
-          <p className="text-muted-foreground">{user.email}</p>
-        </div>
-        <Badge variant="secondary">{status === "loading" ? "Сесія перевіряється" : "Залогінено"}</Badge>
-      </CardContent>
-    </Card>
+      ) : null}
+    </div>
   );
 }
 
@@ -1699,99 +1776,134 @@ function ChartObjectSettingsCard({
   );
 }
 
-function SavedProfilesCard({
+function SavedChartsDrawer({
   deletingProfileId,
   error,
+  isOpen,
   loadingProfileId,
   profiles,
   status,
+  onClose,
   onDelete,
   onLoad,
   onRefresh
 }: {
   deletingProfileId: string | null;
   error: string | null;
+  isOpen: boolean;
   loadingProfileId: string | null;
   profiles: SavedBirthProfile[];
   status: "idle" | "loading" | "ready" | "error";
+  onClose: () => void;
   onDelete: (profile: SavedBirthProfile) => Promise<void>;
   onLoad: (profile: SavedBirthProfile) => Promise<void>;
   onRefresh: () => Promise<void>;
 }) {
+  if (!isOpen) {
+    return null;
+  }
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-        <div className="space-y-1">
-          <CardDescription className="font-semibold uppercase text-primary">Saved charts</CardDescription>
-          <CardTitle>Збережені карти</CardTitle>
+    <div className="fixed inset-0 z-50">
+      <button
+        aria-label="Закрити збережені карти"
+        className="absolute inset-0 h-full w-full bg-background/70 backdrop-blur-sm"
+        type="button"
+        onClick={onClose}
+      />
+      <aside
+        aria-label="Збережені карти"
+        className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l bg-background text-foreground shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b p-5">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold uppercase text-primary">Saved charts</p>
+            <h2 className="text-lg font-semibold tracking-normal">Збережені карти</h2>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="icon"
+              variant="secondary"
+              type="button"
+              aria-label="Оновити список"
+              disabled={status === "loading"}
+              onClick={() => void onRefresh()}
+            >
+              <RefreshCw className={cn(status === "loading" && "animate-spin")} />
+            </Button>
+            <Button size="icon" variant="ghost" type="button" aria-label="Закрити" onClick={onClose}>
+              <X />
+            </Button>
+          </div>
         </div>
-        <Button size="icon" variant="secondary" type="button" aria-label="Оновити список" onClick={onRefresh}>
-          <RefreshCw className={cn(status === "loading" && "animate-spin")} />
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {status === "idle" ? (
-          <p className="text-sm text-muted-foreground">Онови список, щоб побачити останні збережені карти.</p>
-        ) : null}
 
-        {status === "error" ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            {error ?? "Не вдалося завантажити збережені карти"}
-          </div>
-        ) : null}
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {status === "idle" ? (
+            <p className="text-sm text-muted-foreground">Онови список, щоб побачити останні збережені карти.</p>
+          ) : null}
 
-        {status === "ready" && profiles.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Збережених карт ще немає.</p>
-        ) : null}
+          {status === "error" ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+              {error ?? "Не вдалося завантажити збережені карти"}
+            </div>
+          ) : null}
 
-        {profiles.length > 0 ? (
-          <div className="space-y-2">
-            {profiles.map((profile) => {
-              const isLoading = loadingProfileId === profile.id;
-              const isDeleting = deletingProfileId === profile.id;
-              const isBusy = isLoading || isDeleting;
+          {status === "ready" && profiles.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Збережених карт ще немає.</p>
+          ) : null}
 
-              return (
-                <div
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2 rounded-lg border p-2"
-                  key={profile.id}
-                >
-                  <button
-                    className="grid min-w-0 gap-1 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
-                    disabled={isBusy}
-                    type="button"
-                    onClick={() => onLoad(profile)}
+          {profiles.length > 0 ? (
+            <div className="space-y-2">
+              {profiles.map((profile) => {
+                const isLoading = loadingProfileId === profile.id;
+                const isDeleting = deletingProfileId === profile.id;
+                const isBusy = isLoading || isDeleting;
+
+                return (
+                  <div
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-stretch gap-2 rounded-lg border bg-card p-2"
+                    key={profile.id}
                   >
-                    <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
-                      {isLoading ? (
-                        <RefreshCw className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                      ) : (
-                        <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
-                      )}
-                      <span className="truncate">{profile.displayName}</span>
-                    </span>
-                    <span className="pl-6 text-xs text-muted-foreground">
-                      {profile.birthDate} · {profile.birthTimeKnown ? profile.birthTime : "час невідомий"}
-                    </span>
-                    <span className="truncate pl-6 text-xs text-muted-foreground">{profile.birthplaceName}</span>
-                  </button>
-                  <Button
-                    size="icon"
-                    variant="destructive"
-                    type="button"
-                    aria-label={`Видалити карту ${profile.displayName}`}
-                    disabled={isBusy}
-                    onClick={() => onDelete(profile)}
-                  >
-                    {isDeleting ? <RefreshCw className="animate-spin" /> : <Trash2 />}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+                    <button
+                      className="grid min-w-0 gap-1 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-70"
+                      disabled={isBusy}
+                      type="button"
+                      onClick={() => void onLoad(profile)}
+                    >
+                      <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+                        {isLoading ? (
+                          <RefreshCw className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                        ) : (
+                          <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
+                        )}
+                        <span className="truncate">{profile.displayName}</span>
+                      </span>
+                      <span className="pl-6 text-xs text-muted-foreground">
+                        {profile.birthDate} · {profile.birthTimeKnown ? profile.birthTime : "час невідомий"}
+                      </span>
+                      <span className="truncate pl-6 text-xs text-muted-foreground">{profile.birthplaceName}</span>
+                      <span className="pl-6 text-xs text-muted-foreground">
+                        Створено: {formatSavedProfileCreatedAt(profile.createdAt)}
+                      </span>
+                    </button>
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      type="button"
+                      aria-label={`Видалити карту ${profile.displayName}`}
+                      disabled={isBusy}
+                      onClick={() => void onDelete(profile)}
+                    >
+                      {isDeleting ? <RefreshCw className="animate-spin" /> : <Trash2 />}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      </aside>
+    </div>
   );
 }
 
