@@ -20,3 +20,8 @@ To verify the current engine against the saved baselines:
 ```bash
 SWISSEPH_EPHE_PATH=/path/to/ephemeris corepack pnpm accuracy:verify
 ```
+
+Independent, locked reference data captured from the official Astrodienst `swetest`
+interface lives in `../external-reference-charts`. Use `accuracy:audit` to prove
+astronomical accuracy against those references. Do not use `accuracy:generate` to
+update external references.

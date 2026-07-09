@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "locked": true,
+  "name": "London 1988 winter external reference",
+  "source": {
+    "provider": "Astrodienst",
+    "tool": "Swiss Ephemeris swetest web interface",
+    "version": "2.10.03",
+    "capturedAt": "2026-07-09",
+    "url": "https://www.astro.com/cgi/swetest.cgi",
+    "utc": "1988-01-03T06:20:45Z",
+    "bodyCommand": "-b3.1.1988 -ut06:20:45 -p0123456789t -fPls -eswe -n1",
+    "houseCommands": {
+      "koch": "-b3.1.1988 -ut06:20:45 -p0 -fPls -eswe -house-0.1278,51.5074,K -n1",
+      "placidus": "-b3.1.1988 -ut06:20:45 -p0 -fPls -eswe -house-0.1278,51.5074,P -n1"
+    }
+  },
+  "input": {
+    "birthDate": "1988-01-03",
+    "birthTime": "06:20:45",
+    "birthTimeKnown": true,
+    "timezone": "Europe/London",
+    "latitude": 51.5074,
+    "longitude": -0.1278,
+    "zodiac": "tropical"
+  },
+  "tolerances": {
+    "longitude": 0.01,
+    "houseCusp": 0.01,
+    "aspectOrb": 0.03
+  },
+  "expect": {
+    "bodies": {
+      "sun": { "longitude": 282.0826897, "speed": 1.0189719 },
+      "moon": { "longitude": 93.0986383, "speed": 12.2325684 },
+      "mercury": { "longitude": 288.5384016, "speed": 1.6341389 },
+      "venus": { "longitude": 314.7968267, "speed": 1.2300889 },
+      "mars": { "longitude": 236.4272854, "speed": 0.6636789 },
+      "jupiter": { "longitude": 20.370731, "speed": 0.0637457 },
+      "saturn": { "longitude": 265.72661, "speed": 0.1152096 },
+      "uranus": { "longitude": 267.7974743, "speed": 0.0592447 },
+      "neptune": { "longitude": 277.8717747, "speed": 0.0378405 },
+      "pluto": { "longitude": 222.0547186, "speed": 0.0243566 },
+      "north-node": { "longitude": 356.2194072, "speed": -0.2351229 }
+    },
+    "houseSystems": {
+      "koch": {
+        "cusps": [256.4941495, 280.8705383, 318.4242589, 18.6095632, 37.4320624, 56.3689819, 76.4941495, 100.8705383, 138.4242589, 198.6095632, 217.4320624, 236.3689819],
+        "ascendant": 256.4941495,
+        "midheaven": 198.6095632
+      },
+      "placidus": {
+        "cusps": [256.4941495, 295.9801874, 343.0169725, 18.6095632, 42.7345146, 60.8096451, 76.4941495, 115.9801874, 163.0169725, 198.6095632, 222.7345146, 240.8096451],
+        "ascendant": 256.4941495,
+        "midheaven": 198.6095632
+      }
+    }
+  }
+}

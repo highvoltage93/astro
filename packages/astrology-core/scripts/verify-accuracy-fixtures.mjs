@@ -179,8 +179,8 @@ const summary = [];
 for (const fixtureFile of fixtureFiles) {
   const fixture = JSON.parse(await readFile(join(fixturesDir, fixtureFile), "utf8"));
   const tolerances = {
-    longitude: fixture.tolerances?.longitude ?? 0.02,
-    signDegree: fixture.tolerances?.signDegree ?? 0.02,
+    longitude: fixture.tolerances?.longitude ?? 0.01,
+    signDegree: fixture.tolerances?.signDegree ?? 0.01,
     orb: fixture.tolerances?.orb ?? 0.03
   };
 

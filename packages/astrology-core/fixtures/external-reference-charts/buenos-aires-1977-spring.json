@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "locked": true,
+  "name": "Buenos Aires 1977 spring external reference",
+  "source": {
+    "provider": "Astrodienst",
+    "tool": "Swiss Ephemeris swetest web interface",
+    "version": "2.10.03",
+    "capturedAt": "2026-07-09",
+    "url": "https://www.astro.com/cgi/swetest.cgi",
+    "utc": "1977-10-10T02:05:12Z",
+    "bodyCommand": "-b10.10.1977 -ut02:05:12 -p0123456789t -fPls -eswe -n1",
+    "houseCommands": {
+      "koch": "-b10.10.1977 -ut02:05:12 -p0 -fPls -eswe -house-58.3816,-34.6037,K -n1",
+      "placidus": "-b10.10.1977 -ut02:05:12 -p0 -fPls -eswe -house-58.3816,-34.6037,P -n1"
+    }
+  },
+  "input": {
+    "birthDate": "1977-10-09",
+    "birthTime": "23:05:12",
+    "birthTimeKnown": true,
+    "timezone": "America/Argentina/Buenos_Aires",
+    "latitude": -34.6037,
+    "longitude": -58.3816,
+    "zodiac": "tropical"
+  },
+  "tolerances": {
+    "longitude": 0.01,
+    "houseCusp": 0.01,
+    "aspectOrb": 0.03
+  },
+  "expect": {
+    "bodies": {
+      "sun": { "longitude": 196.6615622, "speed": 0.9886983 },
+      "moon": { "longitude": 161.0519402, "speed": 13.3492815 },
+      "mercury": { "longitude": 190.1038019, "speed": 1.7672291 },
+      "venus": { "longitude": 171.3756843, "speed": 1.2327518 },
+      "mars": { "longitude": 112.1821088, "speed": 0.5051354 },
+      "jupiter": { "longitude": 95.8029219, "speed": 0.0468572 },
+      "saturn": { "longitude": 147.2200208, "speed": 0.0977801 },
+      "uranus": { "longitude": 220.5479074, "speed": 0.058476 },
+      "neptune": { "longitude": 253.9227193, "speed": 0.0234741 },
+      "pluto": { "longitude": 194.1868569, "speed": 0.0393019 },
+      "north-node": { "longitude": 195.2700793, "speed": 0.0024662 }
+    },
+    "houseSystems": {
+      "koch": {
+        "cusps": [67.469813, 94.5855005, 127.5082666, 170.7346508, 196.5768388, 222.0807675, 247.469813, 274.5855005, 307.5082666, 350.7346508, 16.5768388, 42.0807675],
+        "ascendant": 67.469813,
+        "midheaven": 350.7346508
+      },
+      "placidus": {
+        "cusps": [67.469813, 99.2521137, 135.1455531, 170.7346508, 201.1804555, 226.0236665, 247.469813, 279.2521137, 315.1455531, 350.7346508, 21.1804555, 46.0236665],
+        "ascendant": 67.469813,
+        "midheaven": 350.7346508
+      }
+    }
+  }
+}

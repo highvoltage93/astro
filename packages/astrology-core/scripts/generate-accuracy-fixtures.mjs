@@ -175,8 +175,8 @@ for (const fixtureCase of fixtureCases) {
     },
     input: fixtureCase.input,
     tolerances: {
-      longitude: 0.02,
-      signDegree: 0.02,
+      longitude: 0.01,
+      signDegree: 0.01,
       orb: 0.03
     },
     expect: {

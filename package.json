@@ -13,6 +13,7 @@
     "smoke:natal": "corepack pnpm --filter @astroprocessor/astrology-core smoke:natal",
     "accuracy:generate": "corepack pnpm --filter @astroprocessor/astrology-core accuracy:generate",
     "accuracy:verify": "corepack pnpm --filter @astroprocessor/astrology-core accuracy:verify",
+    "accuracy:audit": "corepack pnpm --filter @astroprocessor/astrology-core accuracy:audit",
     "prisma:generate": "corepack pnpm --filter @astroprocessor/api prisma:generate",
     "db:push": "corepack pnpm --filter @astroprocessor/api db:push"
   },

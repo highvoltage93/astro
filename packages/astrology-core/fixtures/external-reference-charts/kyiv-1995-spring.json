@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "locked": true,
+  "name": "Kyiv 1995 spring external reference",
+  "source": {
+    "provider": "Astrodienst",
+    "tool": "Swiss Ephemeris swetest web interface",
+    "version": "2.10.03",
+    "capturedAt": "2026-07-09",
+    "url": "https://www.astro.com/cgi/swetest.cgi",
+    "utc": "1995-04-12T11:30:27Z",
+    "bodyCommand": "-b12.4.1995 -ut11:30:27 -p0123456789t -fPls -eswe -n1",
+    "houseCommands": {
+      "koch": "-b12.4.1995 -ut11:30:27 -p0 -fPls -eswe -house30.5234,50.4501,K -n1",
+      "placidus": "-b12.4.1995 -ut11:30:27 -p0 -fPls -eswe -house30.5234,50.4501,P -n1"
+    }
+  },
+  "input": {
+    "birthDate": "1995-04-12",
+    "birthTime": "14:30:27",
+    "birthTimeKnown": true,
+    "timezone": "Europe/Kyiv",
+    "latitude": 50.4501,
+    "longitude": 30.5234,
+    "zodiac": "tropical"
+  },
+  "tolerances": {
+    "longitude": 0.01,
+    "houseCusp": 0.01,
+    "aspectOrb": 0.03
+  },
+  "expect": {
+    "bodies": {
+      "sun": { "longitude": 22.0989672, "speed": 0.9804164 },
+      "moon": { "longitude": 162.2075947, "speed": 13.5918568 },
+      "mercury": { "longitude": 19.8459869, "speed": 2.0597289 },
+      "venus": { "longitude": 348.3201792, "speed": 1.2032587 },
+      "mars": { "longitude": 135.1410851, "speed": 0.1998178 },
+      "jupiter": { "longitude": 255.1956298, "speed": -0.0340558 },
+      "saturn": { "longitude": 349.4469286, "speed": 0.1099648 },
+      "uranus": { "longitude": 300.2562053, "speed": 0.0189607 },
+      "neptune": { "longitude": 295.4843418, "speed": 0.0084887 },
+      "pluto": { "longitude": 240.1859793, "speed": -0.0199986 },
+      "north-node": { "longitude": 215.6368838, "speed": -0.0305859 }
+    },
+    "houseSystems": {
+      "koch": {
+        "cusps": [146.7964564, 173.1235022, 199.5574898, 225.8029484, 270.8447104, 300.3635709, 326.7964564, 353.1235022, 19.5574898, 45.8029484, 90.8447104, 120.3635709],
+        "ascendant": 146.7964564,
+        "midheaven": 45.8029484
+      },
+      "placidus": {
+        "cusps": [146.7964564, 166.5659645, 192.3501811, 225.8029484, 264.3303981, 298.9994091, 326.7964564, 346.5659645, 12.3501811, 45.8029484, 84.3303981, 118.9994091],
+        "ascendant": 146.7964564,
+        "midheaven": 45.8029484
+      }
+    }
+  }
+}

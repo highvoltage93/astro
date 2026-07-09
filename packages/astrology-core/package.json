@@ -10,6 +10,7 @@
     "ephemeris:download": "node scripts/download-ephemeris.mjs",
     "accuracy:generate": "tsc -p tsconfig.json && node scripts/generate-accuracy-fixtures.mjs",
     "accuracy:verify": "tsc -p tsconfig.json && node scripts/verify-accuracy-fixtures.mjs",
+    "accuracy:audit": "tsc -p tsconfig.json && node scripts/audit-external-references.mjs",
     "smoke:natal": "tsc -p tsconfig.json && node scripts/smoke-natal.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit"
