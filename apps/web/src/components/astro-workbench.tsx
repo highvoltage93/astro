@@ -88,12 +88,30 @@ type FormState = {
 type PointOrbSettings = Record<string, number>;
 type VisiblePointSettings = Record<string, boolean>;
 type WorkspaceTab = "interpretation" | "forecast" | "transits" | "synastry";
+type ProfessionalDataTab =
+  | "signature"
+  | "placements"
+  | "rulerships"
+  | "dignities"
+  | "houses"
+  | "connections"
+  | "aspects";
 
 const workspaceTabs: Array<{ key: WorkspaceTab; label: string }> = [
   { key: "interpretation", label: "Базова трактовка" },
   { key: "forecast", label: "Прогностичний модуль" },
   { key: "transits", label: "Транзити" },
   { key: "synastry", label: "Синастрія" }
+];
+
+const professionalDataTabs: Array<{ key: ProfessionalDataTab; label: string }> = [
+  { key: "signature", label: "Сигнатура" },
+  { key: "placements", label: "Положення" },
+  { key: "rulerships", label: "Управителі" },
+  { key: "dignities", label: "Диспозитори" },
+  { key: "houses", label: "Доми" },
+  { key: "connections", label: "Зв'язки" },
+  { key: "aspects", label: "Аспекти" }
 ];
 
 const initialForm: FormState = {
@@ -2995,41 +3013,57 @@ function ProfessionalDataCard({
   chart: ChartResult | null;
   placements: ChartPoint[];
 }) {
+  const [activeTab, setActiveTab] = useState<ProfessionalDataTab>("placements");
+
   return (
     <Card className="min-w-0 xl:sticky xl:top-5">
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardDescription className="font-semibold uppercase text-primary">Data</CardDescription>
         <CardTitle>Професійні таблиці</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <SyntheticSignatureCard chart={chart} />
+      <CardContent className="space-y-4">
+        <div
+          className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/30 p-1"
+          role="tablist"
+          aria-label="Професійні дані карти"
+        >
+          {professionalDataTabs.map((tab) => (
+            <button
+              aria-selected={activeTab === tab.key}
+              className={cn(
+                "min-h-8 shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                activeTab === tab.key
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+              )}
+              key={`professional-tab-${tab.key}`}
+              role="tab"
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        <Separator />
-        <PlacementsTable placements={placements} />
+        <div className="space-y-5 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto xl:pr-2" role="tabpanel">
+          {activeTab === "signature" ? <SyntheticSignatureCard chart={chart} /> : null}
+          {activeTab === "placements" ? <PlacementsTable placements={placements} /> : null}
+          {activeTab === "rulerships" ? <PlanetRulershipsTable chart={chart} /> : null}
+          {activeTab === "dignities" ? <DignitiesTable chart={chart} /> : null}
+          {activeTab === "houses" ? <HousesTable chart={chart} /> : null}
+          {activeTab === "connections" ? <HouseConnectionsTable chart={chart} /> : null}
+          {activeTab === "aspects" ? <AspectsTable aspects={aspects} points={placements} /> : null}
 
-        <Separator />
-        <PlanetRulershipsTable chart={chart} />
-
-        <Separator />
-        <DignitiesTable chart={chart} />
-
-        <Separator />
-        <HousesTable chart={chart} />
-
-        <Separator />
-        <HouseConnectionsTable chart={chart} />
-
-        <Separator />
-        <AspectsTable aspects={aspects} points={placements} />
-
-        {chart?.warnings.map((warning) => (
-          <div
-            className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
-            key={warning.code}
-          >
-            {warning.message}
-          </div>
-        ))}
+          {chart?.warnings.map((warning) => (
+            <div
+              className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
+              key={warning.code}
+            >
+              {warning.message}
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
