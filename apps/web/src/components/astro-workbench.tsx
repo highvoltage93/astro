@@ -3927,6 +3927,46 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function assignChartMarkerRadii(points: ChartPoint[], radii: number[], minimumSeparation = 9): Map<string, number> {
+  const assignedByRadius = new Map<number, number[]>();
+  const result = new Map<string, number>();
+  const sortedPoints = [...points].sort((pointA, pointB) => pointA.longitude - pointB.longitude);
+
+  for (const point of sortedPoints) {
+    let selectedRadius = radii[0] ?? 0;
+    let bestSeparation = -1;
+
+    for (const radius of radii) {
+      const assignedLongitudes = assignedByRadius.get(radius) ?? [];
+      const nearestSeparation =
+        assignedLongitudes.length === 0
+          ? 180
+          : Math.min(
+              ...assignedLongitudes.map((longitude) => {
+                const difference = Math.abs(normalizeDegrees(point.longitude) - normalizeDegrees(longitude));
+                return Math.min(difference, 360 - difference);
+              })
+            );
+
+      if (nearestSeparation >= minimumSeparation) {
+        selectedRadius = radius;
+        bestSeparation = nearestSeparation;
+        break;
+      }
+
+      if (nearestSeparation > bestSeparation) {
+        selectedRadius = radius;
+        bestSeparation = nearestSeparation;
+      }
+    }
+
+    assignedByRadius.set(selectedRadius, [...(assignedByRadius.get(selectedRadius) ?? []), point.longitude]);
+    result.set(point.key, selectedRadius);
+  }
+
+  return result;
+}
+
 function ChartWheel({
   chart,
   visiblePointKeys
@@ -3935,12 +3975,14 @@ function ChartWheel({
   visiblePointKeys: VisiblePointSettings;
 }) {
   const [hoveredPointKey, setHoveredPointKey] = useState<string | null>(null);
-  const center = 160;
-  const outerRadius = 138;
-  const signRadius = 119;
-  const pointRadius = 94;
-  const houseLabelRadius = 82;
-  const aspectRadius = 70;
+  const [selectedPointKey, setSelectedPointKey] = useState<string | null>(null);
+  const center = 300;
+  const outerRadius = 260;
+  const zodiacInnerRadius = 220;
+  const signRadius = 240;
+  const pointRadii = [200, 181, 162, 143];
+  const houseLabelRadius = 122;
+  const aspectRadius = 100;
   const ascendant = chart?.angles.find((angle) => angle.key === "asc") ?? null;
   const midheaven = chart?.angles.find((angle) => angle.key === "mc") ?? null;
   const wheelOffset = ascendant ? normalizeDegrees(270 + ascendant.longitude) : 0;
@@ -3957,8 +3999,11 @@ function ChartWheel({
 
   const points = chart ? [...chart.angles, ...chart.bodies].filter((point) => isPointVisible(visiblePointKeys, point.key)) : [];
   const pointMarkers = chart?.bodies.filter((point) => isPointVisible(visiblePointKeys, point.key)) ?? [];
+  const pointMarkerRadii = assignChartMarkerRadii(pointMarkers, pointRadii);
   const pointsByKey = new Map(points.map((chartPoint) => [chartPoint.key, chartPoint]));
-  const highlightedHouses = new Set(hoveredPointKey ? getRuledHouseNumbers(chart, hoveredPointKey) : []);
+  const activePointKey = hoveredPointKey ?? selectedPointKey;
+  const activePoint = activePointKey ? pointsByKey.get(activePointKey) ?? null : null;
+  const highlightedHouses = new Set(activePointKey ? getRuledHouseNumbers(chart, activePointKey) : []);
   const angleMarkers = [
     ascendant,
     chart?.angles.find((angle) => angle.key === "desc") ??
@@ -3983,194 +4028,300 @@ function ChartWheel({
       angle !== null && angle !== undefined && isPointVisible(visiblePointKeys, angle.key)
   );
 
+  const annularSectorPath = (startLongitude: number, endLongitude: number): string => {
+    const outerStart = toXY(startLongitude, outerRadius);
+    const outerEnd = toXY(endLongitude, outerRadius);
+    const innerEnd = toXY(endLongitude, zodiacInnerRadius);
+    const innerStart = toXY(startLongitude, zodiacInnerRadius);
+
+    return [
+      `M ${outerStart.x} ${outerStart.y}`,
+      `A ${outerRadius} ${outerRadius} 0 0 0 ${outerEnd.x} ${outerEnd.y}`,
+      `L ${innerEnd.x} ${innerEnd.y}`,
+      `A ${zodiacInnerRadius} ${zodiacInnerRadius} 0 0 1 ${innerStart.x} ${innerStart.y}`,
+      "Z"
+    ].join(" ");
+  };
+
   return (
-    <svg
-      className="mx-auto aspect-square w-full max-w-[560px] overflow-visible"
-      viewBox="-34 -34 388 388"
-      role="img"
-      aria-label="Колесо натальної карти"
-    >
-      <defs>
-        <marker id="angle-arrowhead" markerHeight="7" markerWidth="7" orient="auto" refX="6" refY="3.5">
-          <path d="M 0 0 L 7 3.5 L 0 7 z" fill="context-stroke" />
-        </marker>
-      </defs>
+    <div className="mx-auto w-full max-w-[780px]">
+      <svg
+        className="aspect-square w-full overflow-visible"
+        viewBox="-20 -20 640 640"
+        role="img"
+        aria-label="Колесо натальної карти"
+        onClick={() => setSelectedPointKey(null)}
+      >
+        <defs>
+          <marker id="angle-arrowhead" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
+            <path d="M 0 0 L 8 4 L 0 8 z" fill="context-stroke" />
+          </marker>
+        </defs>
 
-      <circle cx={center} cy={center} r={outerRadius} className="fill-none stroke-foreground stroke-[1.6]" />
-      <circle cx={center} cy={center} r={pointRadius + 12} className="fill-none stroke-border stroke-[1.2]" />
-      <circle
-        cx={center}
-        cy={center}
-        r={aspectRadius}
-        className="fill-none stroke-border stroke-[1.2] [stroke-dasharray:3_4]"
-      />
+        <circle cx={center} cy={center} r={outerRadius} className="fill-background stroke-foreground stroke-[1.8]" />
 
-      {chart?.houses.map((cusp, index) => {
-        const next = chart.houses[(index + 1) % chart.houses.length];
-        const start = toXY(cusp.longitude, outerRadius);
-        const end = toXY(cusp.longitude, aspectRadius);
-        const houseCenterLongitude = next
-          ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
-          : cusp.longitude;
-        const label = toXY(houseCenterLongitude, houseLabelRadius);
-        const isHighlightedHouse = highlightedHouses.has(cusp.house);
+        {Array.from({ length: 12 }, (_, index) => {
+          const signMeta = zodiacSigns[index];
+          const start = toXY(index * 30, outerRadius);
+          const end = toXY(index * 30, zodiacInnerRadius);
+          const sign = toXY(index * 30 + 15, signRadius);
 
-        return (
-          <g key={`house-${cusp.house}`}>
-            <line
-              x1={start.x}
-              y1={start.y}
-              x2={end.x}
-              y2={end.y}
-              className={cn(
-                "stroke-astro-coral",
-                isHighlightedHouse ? "stroke-[2.2]" : "stroke-[1.2]"
-              )}
-            />
-            {isHighlightedHouse ? (
-              <circle cx={label.x} cy={label.y} r="11" className="fill-astro-coral/15 stroke-astro-coral stroke-[1]" />
-            ) : null}
-            <text
-              x={label.x}
-              y={label.y}
-              className="fill-astro-coral text-[10px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
-            >
-              {cusp.house}
-            </text>
-          </g>
-        );
-      })}
-
-      {Array.from({ length: 12 }, (_, index) => {
-        const signMeta = zodiacSigns[index];
-        const start = toXY(index * 30, outerRadius);
-        const end = toXY(index * 30, aspectRadius);
-        const sign = toXY(index * 30 + 15, signRadius);
-
-        return (
-          <g key={signMeta?.key ?? index}>
-            {signMeta ? <title>{formatSignTooltip(signMeta, chart)}</title> : null}
-            <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-foreground stroke-[1]" />
-            <text
-              x={sign.x}
-              y={sign.y}
-              className="fill-foreground text-lg [dominant-baseline:middle] [text-anchor:middle]"
-            >
-              {signGlyphs[index]}
-            </text>
-          </g>
-        );
-      })}
-
-      {chart?.aspects
-        .filter((aspect) => isPointVisible(visiblePointKeys, aspect.bodyA) && isPointVisible(visiblePointKeys, aspect.bodyB))
-        .slice(0, 24)
-        .map((aspect) => {
-        const pointA = pointsByKey.get(aspect.bodyA);
-        const pointB = pointsByKey.get(aspect.bodyB);
-
-        if (!pointA || !pointB) {
-          return null;
-        }
-
-        const a = toXY(pointA.longitude, aspectRadius);
-        const b = toXY(pointB.longitude, aspectRadius);
-
-        return (
-          <line
-            key={`${aspect.bodyA}-${aspect.bodyB}-${aspect.type}`}
-            x1={a.x}
-            y1={a.y}
-            x2={b.x}
-            y2={b.y}
-            className={cn("stroke-[1.1] opacity-70", getAspectStrokeClass(aspect.type))}
-          >
-            <title>{formatAspectTitle(aspect, pointsByKey)}</title>
-          </line>
-        );
-      })}
-
-      {angleMarkers.map((anglePoint) => {
-        const tail = toXY(anglePoint.longitude, outerRadius + 26);
-        const head = toXY(anglePoint.longitude, outerRadius + 3);
-        const label = toXY(anglePoint.longitude, outerRadius + 42);
-        const fullAnglePoint = pointsByKey.get(anglePoint.key);
-
-        return (
-          <g key={`angle-${anglePoint.key}`}>
-            {fullAnglePoint ? <title>{formatPointTooltip(fullAnglePoint, chart)}</title> : null}
-            <line
-              x1={tail.x}
-              y1={tail.y}
-              x2={head.x}
-              y2={head.y}
-              markerEnd="url(#angle-arrowhead)"
-              className={cn("stroke-[2]", getAngleStrokeClass(anglePoint.key))}
-            />
-            <text
-              x={label.x}
-              y={label.y}
-              className={cn(
-                "text-[11px] font-bold uppercase [dominant-baseline:middle] [text-anchor:middle]",
-                getAngleFillClass(anglePoint.key)
-              )}
-            >
-              {planetGlyphs[anglePoint.key] ?? anglePoint.label}
-            </text>
-          </g>
-        );
-      })}
-
-      {pointMarkers.map((chartPoint) => {
-        const position = toXY(chartPoint.longitude, pointRadius);
-
-        return (
-          <g
-            className="cursor-help"
-            key={chartPoint.key}
-            onMouseEnter={() => setHoveredPointKey(chartPoint.key)}
-            onMouseLeave={() => setHoveredPointKey(null)}
-          >
-            <title>{formatPointTooltip(chartPoint, chart)}</title>
-            <circle
-              cx={position.x}
-              cy={position.y}
-              r="13"
-              className={cn(
-                "fill-background stroke-[1.4]",
-                hoveredPointKey === chartPoint.key ? "stroke-astro-coral stroke-[2]" : "stroke-primary"
-              )}
-            />
-            <text
-              x={position.x}
-              y={position.y}
-              className="fill-foreground text-xs font-bold [dominant-baseline:middle] [text-anchor:middle]"
-            >
-              {planetGlyphs[chartPoint.key] ?? chartPoint.label.slice(0, 2)}
-            </text>
-            {isRetrogradePoint(chartPoint) ? (
+          return (
+            <g className="cursor-help" key={signMeta?.key ?? index}>
+              {signMeta ? <title>{formatSignTooltip(signMeta, chart)}</title> : null}
+              <path
+                d={annularSectorPath(index * 30, (index + 1) * 30)}
+                className={index % 2 === 0 ? "fill-muted/40" : "fill-background"}
+              />
+              <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-border stroke-[1]" />
               <text
-                x={position.x + 12}
-                y={position.y - 12}
-                className="fill-astro-coral text-[8px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+                x={sign.x}
+                y={sign.y}
+                className="fill-foreground text-[22px] [dominant-baseline:middle] [text-anchor:middle]"
               >
-                R
+                {signGlyphs[index]}
               </text>
-            ) : null}
-          </g>
-        );
-      })}
+            </g>
+          );
+        })}
 
-      {!chart ? (
-        <text
-          x={center}
-          y={center}
-          className="fill-muted-foreground text-sm font-semibold [dominant-baseline:middle] [text-anchor:middle]"
-        >
-          Очікує дані
-        </text>
+        <circle cx={center} cy={center} r={zodiacInnerRadius} className="fill-none stroke-foreground stroke-[1.2]" />
+        <circle cx={center} cy={center} r={pointRadii[0] + 14} className="fill-none stroke-border stroke-[1]" />
+        <circle cx={center} cy={center} r={pointRadii[pointRadii.length - 1] - 14} className="fill-none stroke-border stroke-[1]" />
+        <circle
+          cx={center}
+          cy={center}
+          r={aspectRadius}
+          className="fill-background stroke-border stroke-[1.2]"
+        />
+
+        {chart?.houses.map((cusp, index) => {
+          const next = chart.houses[(index + 1) % chart.houses.length];
+          const start = toXY(cusp.longitude, zodiacInnerRadius);
+          const end = toXY(cusp.longitude, aspectRadius);
+          const houseCenterLongitude = next
+            ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
+            : cusp.longitude;
+          const label = toXY(houseCenterLongitude, houseLabelRadius);
+          const isHighlightedHouse = highlightedHouses.has(cusp.house);
+
+          return (
+            <g key={`house-${cusp.house}`}>
+              <line
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+                className={cn("stroke-astro-coral", isHighlightedHouse ? "stroke-[2.4]" : "stroke-[1.1] opacity-75")}
+              />
+              <circle
+                cx={label.x}
+                cy={label.y}
+                r="11"
+                className={cn(
+                  "stroke-astro-coral stroke-[1]",
+                  isHighlightedHouse ? "fill-astro-coral/20" : "fill-background"
+                )}
+              />
+              <text
+                x={label.x}
+                y={label.y}
+                className="fill-astro-coral text-[10px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+              >
+                {cusp.house}
+              </text>
+            </g>
+          );
+        })}
+
+        {chart?.aspects
+          .filter((aspect) => isPointVisible(visiblePointKeys, aspect.bodyA) && isPointVisible(visiblePointKeys, aspect.bodyB))
+          .slice(0, 24)
+          .map((aspect) => {
+            const pointA = pointsByKey.get(aspect.bodyA);
+            const pointB = pointsByKey.get(aspect.bodyB);
+
+            if (!pointA || !pointB) {
+              return null;
+            }
+
+            const a = toXY(pointA.longitude, aspectRadius);
+            const b = toXY(pointB.longitude, aspectRadius);
+            const isRelated = !activePointKey || aspect.bodyA === activePointKey || aspect.bodyB === activePointKey;
+
+            return (
+              <line
+                key={`${aspect.bodyA}-${aspect.bodyB}-${aspect.type}`}
+                x1={a.x}
+                y1={a.y}
+                x2={b.x}
+                y2={b.y}
+                className={cn(
+                  getAspectStrokeClass(aspect.type),
+                  isRelated ? "stroke-[1.7] opacity-80" : "stroke-[1] opacity-10"
+                )}
+              >
+                <title>{formatAspectTitle(aspect, pointsByKey)}</title>
+              </line>
+            );
+          })}
+
+        {angleMarkers.map((anglePoint) => {
+          const tail = toXY(anglePoint.longitude, outerRadius + 28);
+          const head = toXY(anglePoint.longitude, outerRadius + 3);
+          const label = toXY(anglePoint.longitude, outerRadius + 44);
+          const fullAnglePoint = pointsByKey.get(anglePoint.key);
+          const isActive = activePointKey === anglePoint.key;
+
+          return (
+            <g
+              className="cursor-pointer outline-none"
+              key={`angle-${anglePoint.key}`}
+              role="button"
+              tabIndex={0}
+              onBlur={() => setHoveredPointKey(null)}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedPointKey(anglePoint.key);
+              }}
+              onFocus={() => setHoveredPointKey(anglePoint.key)}
+              onMouseEnter={() => setHoveredPointKey(anglePoint.key)}
+              onMouseLeave={() => setHoveredPointKey(null)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedPointKey(anglePoint.key);
+                }
+              }}
+            >
+              {fullAnglePoint ? <title>{formatPointTooltip(fullAnglePoint, chart)}</title> : null}
+              <line
+                x1={tail.x}
+                y1={tail.y}
+                x2={head.x}
+                y2={head.y}
+                markerEnd="url(#angle-arrowhead)"
+                className={cn(isActive ? "stroke-[3]" : "stroke-[2]", getAngleStrokeClass(anglePoint.key))}
+              />
+              <text
+                x={label.x}
+                y={label.y}
+                className={cn(
+                  "text-[12px] font-bold uppercase [dominant-baseline:middle] [text-anchor:middle]",
+                  getAngleFillClass(anglePoint.key)
+                )}
+              >
+                {planetGlyphs[anglePoint.key] ?? anglePoint.label}
+              </text>
+            </g>
+          );
+        })}
+
+        {pointMarkers.map((chartPoint) => {
+          const markerRadius = pointMarkerRadii.get(chartPoint.key) ?? pointRadii[0];
+          const position = toXY(chartPoint.longitude, markerRadius);
+          const isActive = activePointKey === chartPoint.key;
+
+          return (
+            <g
+              className="cursor-pointer outline-none"
+              key={chartPoint.key}
+              role="button"
+              tabIndex={0}
+              onBlur={() => setHoveredPointKey(null)}
+              onClick={(event) => {
+                event.stopPropagation();
+                setSelectedPointKey(chartPoint.key);
+              }}
+              onFocus={() => setHoveredPointKey(chartPoint.key)}
+              onMouseEnter={() => setHoveredPointKey(chartPoint.key)}
+              onMouseLeave={() => setHoveredPointKey(null)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedPointKey(chartPoint.key);
+                }
+              }}
+            >
+              <title>{formatPointTooltip(chartPoint, chart)}</title>
+              <circle
+                cx={position.x}
+                cy={position.y}
+                r={isActive ? 16 : 14}
+                className={cn(
+                  "fill-background transition-all",
+                  isActive ? "stroke-astro-coral stroke-[2.5]" : "stroke-primary stroke-[1.5]"
+                )}
+              />
+              <text
+                x={position.x}
+                y={position.y}
+                className="fill-foreground text-[13px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+              >
+                {planetGlyphs[chartPoint.key] ?? chartPoint.label.slice(0, 2)}
+              </text>
+              {isRetrogradePoint(chartPoint) ? (
+                <text
+                  x={position.x + 14}
+                  y={position.y - 14}
+                  className="fill-astro-coral text-[9px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+                >
+                  R
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
+
+        {!chart ? (
+          <text
+            x={center}
+            y={center}
+            className="fill-muted-foreground text-base font-semibold [dominant-baseline:middle] [text-anchor:middle]"
+          >
+            Очікує дані
+          </text>
+        ) : null}
+      </svg>
+
+      {chart ? (
+        <div className="mt-3 grid min-h-16 gap-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="min-w-0">
+            {activePoint ? (
+              <>
+                <p className="truncate text-sm font-semibold">
+                  <span className="mr-2 text-lg text-primary">{planetGlyphs[activePoint.key] ?? "•"}</span>
+                  {activePoint.label}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {signLabelsUk[activePoint.sign] ?? activePoint.sign} {formatZodiacDegree(activePoint.signDegree)}
+                  {activePoint.house ? ` · ${activePoint.house} дім` : ""}
+                  {` · ${formatMotion(activePoint)}`}
+                  {highlightedHouses.size > 0 ? ` · управляє: ${[...highlightedHouses].join(", ")}` : ""}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {ascendant
+                  ? `AC ${signLabelsUk[ascendant.sign] ?? ascendant.sign} ${formatZodiacDegree(ascendant.signDegree)}`
+                  : "AC n/a"}
+                {midheaven
+                  ? ` · MC ${signLabelsUk[midheaven.sign] ?? midheaven.sign} ${formatZodiacDegree(midheaven.signDegree)}`
+                  : " · MC n/a"}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <Badge variant="outline" className="border-astro-coral/50 text-astro-coral">
+              Гармонійні
+            </Badge>
+            <Badge variant="outline" className="border-blue-600/40 text-blue-700">
+              Напружені
+            </Badge>
+          </div>
+        </div>
       ) : null}
-    </svg>
+    </div>
   );
 }
 
