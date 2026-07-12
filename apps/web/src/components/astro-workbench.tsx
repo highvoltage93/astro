@@ -3016,7 +3016,7 @@ function ProfessionalDataCard({
   const [activeTab, setActiveTab] = useState<ProfessionalDataTab>("placements");
 
   return (
-    <Card className="min-w-0 xl:sticky xl:top-5">
+    <Card className="min-w-0 xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)]">
       <CardHeader className="pb-3">
         <CardDescription className="font-semibold uppercase text-primary">Data</CardDescription>
         <CardTitle>Професійні таблиці</CardTitle>
@@ -3046,7 +3046,7 @@ function ProfessionalDataCard({
           ))}
         </div>
 
-        <div className="space-y-5 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto xl:pr-2" role="tabpanel">
+        <div className="space-y-5 xl:max-h-[calc(100vh-8.5rem)] xl:overflow-y-auto xl:pr-2" role="tabpanel">
           {activeTab === "signature" ? <SyntheticSignatureCard chart={chart} /> : null}
           {activeTab === "placements" ? <PlacementsTable placements={placements} /> : null}
           {activeTab === "rulerships" ? <PlanetRulershipsTable chart={chart} /> : null}
