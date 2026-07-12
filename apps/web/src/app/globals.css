@@ -4,30 +4,30 @@
 
 @layer base {
   :root {
-    --background: 160 18% 97%;
-    --foreground: 168 20% 11%;
+    --background: 250 32% 98%;
+    --foreground: 252 22% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 168 20% 11%;
+    --card-foreground: 252 22% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 168 20% 11%;
-    --primary: 176 78% 27%;
+    --popover-foreground: 252 22% 13%;
+    --primary: 265 68% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 160 16% 92%;
-    --secondary-foreground: 168 20% 11%;
-    --muted: 160 13% 91%;
-    --muted-foreground: 168 7% 42%;
-    --accent: 161 19% 90%;
-    --accent-foreground: 168 20% 11%;
+    --secondary: 252 30% 94%;
+    --secondary-foreground: 252 22% 18%;
+    --muted: 246 22% 94%;
+    --muted-foreground: 248 9% 43%;
+    --accent: 268 38% 92%;
+    --accent-foreground: 263 45% 25%;
     --destructive: 8 72% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 160 14% 86%;
-    --input: 160 14% 86%;
-    --ring: 176 78% 27%;
+    --border: 248 20% 86%;
+    --input: 248 20% 84%;
+    --ring: 265 68% 50%;
     --radius: 0.5rem;
 
-    --astro-teal: 176 78% 27%;
+    --astro-teal: 176 70% 30%;
     --astro-coral: 10 56% 46%;
-    --astro-violet: 247 56% 59%;
+    --astro-violet: 284 62% 54%;
     --astro-amber: 38 73% 42%;
   }
 
@@ -42,6 +42,10 @@
 
   body {
     @apply bg-background text-foreground;
+    background-image:
+      linear-gradient(135deg, hsl(var(--primary) / 0.07), transparent 34%),
+      linear-gradient(315deg, hsl(var(--astro-teal) / 0.04), transparent 42%);
+    background-attachment: fixed;
     font-feature-settings:
       "rlig" 1,
       "calt" 1;
@@ -54,3 +58,8 @@
   }
 }
 
+@layer components {
+  .app-shell-background {
+    background-color: transparent;
+  }
+}

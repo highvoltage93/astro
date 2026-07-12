@@ -1311,7 +1311,7 @@ export function AstroWorkbench() {
 
   if (!authUser) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+      <main className="app-shell-background flex min-h-screen items-center justify-center px-4 text-foreground">
         <Card className="w-full max-w-sm">
           <CardHeader>
             <CardDescription className="font-semibold uppercase text-primary">Astroprocessor</CardDescription>
@@ -1326,7 +1326,7 @@ export function AstroWorkbench() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 lg:px-8">
+    <main className="app-shell-background min-h-screen px-4 py-5 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1500px]">
         <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
