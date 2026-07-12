@@ -1327,7 +1327,7 @@ export function AstroWorkbench() {
 
   return (
     <main className="min-h-screen bg-background px-4 py-5 text-foreground sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1480px]">
+      <div className="mx-auto max-w-[1500px]">
         <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
@@ -1383,8 +1383,8 @@ export function AstroWorkbench() {
           onClose={() => setIsSettingsDrawerOpen(false)}
         />
 
-        <section className="grid items-start gap-4 xl:grid-cols-[minmax(360px,1fr)_420px]">
-          <div className="min-w-0 space-y-4">
+        <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,780px)_minmax(560px,1fr)]">
+          <div className="min-w-0 space-y-4 xl:max-w-[780px]">
             <Card className="min-w-0">
               <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                 <div className="space-y-1">
