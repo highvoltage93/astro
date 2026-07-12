@@ -13,15 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getCurrentUser, listBirthProfiles, searchPlaces } from "@/lib/api";
+import { getCurrentUser, listBirthProfiles, saveBirthProfile, searchPlaces } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import type { AuthUser, NatalPreviewPayload, PlaceSearchResult, SavedBirthProfile } from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
-import {
-  DASHBOARD_CHART_DRAFT_STORAGE_KEY,
-  SAVED_PROFILE_OPEN_STORAGE_KEY,
-  type DashboardChartDraft
-} from "@/lib/workspace-storage";
 
 type DashboardFormState = {
   displayName: string;
@@ -75,6 +70,8 @@ export function AstroDashboard() {
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
   const [placeSearchStatus, setPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeError, setPlaceError] = useState<string | null>(null);
+  const [calculationStatus, setCalculationStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [calculationError, setCalculationError] = useState<string | null>(null);
 
   const refreshSavedProfiles = async (tokenOverride: string | null = authToken): Promise<void> => {
     setSavedProfilesStatus("loading");
@@ -166,33 +163,38 @@ export function AstroDashboard() {
     setPlaceSearchStatus("idle");
   };
 
-  const submit = (event: FormEvent<HTMLFormElement>): void => {
+  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    setCalculationStatus("loading");
+    setCalculationError(null);
 
-    const draft: DashboardChartDraft = {
-      displayName: form.displayName,
-      birthplaceName: form.birthplaceName,
-      countryCode: form.countryCode || undefined,
-      natal: {
-        birthDate: form.birthDate,
-        birthTime: form.birthTime,
-        birthTimeKnown: form.birthTimeKnown,
-        timezone: form.timezone,
-        latitude: Number(form.latitude),
-        longitude: Number(form.longitude),
-        houseSystem: form.houseSystem,
-        zodiac: form.zodiac
-      },
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const result = await saveBirthProfile(
+        {
+          displayName: form.displayName,
+          birthplaceName: form.birthplaceName,
+          countryCode: form.countryCode || undefined,
+          birthDate: form.birthDate,
+          birthTime: form.birthTime,
+          birthTimeKnown: form.birthTimeKnown,
+          timezone: form.timezone,
+          latitude: Number(form.latitude),
+          longitude: Number(form.longitude),
+          houseSystem: form.houseSystem,
+          zodiac: form.zodiac
+        },
+        authToken
+      );
 
-    window.localStorage.setItem(DASHBOARD_CHART_DRAFT_STORAGE_KEY, JSON.stringify(draft));
-    router.push("/workspace");
+      router.push(`/workspace?chartId=${encodeURIComponent(result.birthProfile.id)}`);
+    } catch (requestError) {
+      setCalculationStatus("error");
+      setCalculationError(requestError instanceof Error ? requestError.message : "Не вдалося розрахувати карту");
+    }
   };
 
   const openSavedProfile = (profile: SavedBirthProfile): void => {
-    window.localStorage.setItem(SAVED_PROFILE_OPEN_STORAGE_KEY, profile.id);
-    router.push("/workspace");
+    router.push(`/workspace?chartId=${encodeURIComponent(profile.id)}`);
   };
 
   const logout = (): void => {
@@ -330,10 +332,16 @@ export function AstroDashboard() {
                   </Select>
                 </DashboardField>
                 <div className="flex items-end lg:col-span-1">
-                  <Button className="w-full" type="submit">
-                    Розрахувати
+                  <Button className="w-full" disabled={calculationStatus === "loading"} type="submit">
+                    {calculationStatus === "loading" ? <RefreshCw className="animate-spin" /> : null}
+                    {calculationStatus === "loading" ? "Розраховую" : "Розрахувати"}
                   </Button>
                 </div>
+                {calculationStatus === "error" ? (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive lg:col-span-12">
+                    {calculationError ?? "Не вдалося розрахувати карту"}
+                  </div>
+                ) : null}
               </form>
             </CardContent>
           </Card>

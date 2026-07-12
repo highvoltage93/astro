@@ -307,6 +307,8 @@ export type SavedBirthProfile = {
   latitude: number;
   longitude: number;
   timezone: string;
+  visibility: "PRIVATE" | "LINK" | "PUBLIC";
+  canEdit: boolean;
   createdAt: string;
   latestCalculation: SavedChartCalculationSummary | null;
 };
@@ -325,6 +327,13 @@ export type BirthProfileDetailResponse = {
 
 export type DeleteBirthProfileResponse = {
   deletedProfileId: string;
+};
+
+export type ShareBirthProfileResponse = {
+  profile: {
+    id: string;
+    visibility: "LINK";
+  };
 };
 
 export type AuthUser = {

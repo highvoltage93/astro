@@ -96,6 +96,8 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
           latitude: profile.latitude,
           longitude: profile.longitude,
           timezone: profile.timezone,
+          visibility: profile.visibility,
+          canEdit: true,
           createdAt: profile.createdAt,
           latestCalculation: latestCalculation
             ? {
@@ -137,7 +139,11 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
       }
     });
 
-    if (!profile || profile.ownerUserId !== (authUser?.id ?? null)) {
+    const canReadProfile =
+      profile &&
+      (profile.ownerUserId === (authUser?.id ?? null) || profile.visibility === "LINK" || profile.visibility === "PUBLIC");
+
+    if (!canReadProfile) {
       return reply.code(404).send({
         code: "BIRTH_PROFILE_NOT_FOUND",
         message: "Birth profile was not found"
@@ -159,6 +165,8 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
         latitude: profile.latitude,
         longitude: profile.longitude,
         timezone: profile.timezone,
+        visibility: profile.visibility,
+        canEdit: profile.ownerUserId === (authUser?.id ?? null),
         createdAt: profile.createdAt,
         latestCalculation: latestCalculation
           ? {
@@ -184,6 +192,59 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
             }
           : null,
       interpretation: chart ? generateNatalInterpretationPreview(chart) : null
+    };
+  });
+
+  app.post("/birth-profiles/:id/share", async (request, reply) => {
+    const authUser = await getOptionalAuthUser(request);
+    const parsed = birthProfileParamsSchema.safeParse(request.params);
+
+    if (!authUser) {
+      return reply.code(401).send({
+        code: "UNAUTHORIZED",
+        message: "Authentication is required"
+      });
+    }
+
+    if (!parsed.success) {
+      return reply.code(400).send({
+        code: "INVALID_BIRTH_PROFILE_ID",
+        issues: parsed.error.flatten()
+      });
+    }
+
+    const profile = await prisma.birthProfile.findUnique({
+      where: {
+        id: parsed.data.id
+      },
+      select: {
+        id: true,
+        ownerUserId: true
+      }
+    });
+
+    if (!profile || profile.ownerUserId !== authUser.id) {
+      return reply.code(404).send({
+        code: "BIRTH_PROFILE_NOT_FOUND",
+        message: "Birth profile was not found"
+      });
+    }
+
+    const sharedProfile = await prisma.birthProfile.update({
+      where: {
+        id: profile.id
+      },
+      data: {
+        visibility: "LINK"
+      },
+      select: {
+        id: true,
+        visibility: true
+      }
+    });
+
+    return {
+      profile: sharedProfile
     };
   });
 

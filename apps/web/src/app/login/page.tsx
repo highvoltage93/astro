@@ -25,6 +25,12 @@ const initialAuthForm: AuthFormState = {
   password: ""
 };
 
+const getSafeNextPath = (): string => {
+  const nextPath = new URLSearchParams(window.location.search).get("next");
+
+  return nextPath?.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("login");
@@ -43,7 +49,7 @@ export default function LoginPage() {
 
     void getCurrentUser(storedToken)
       .then(() => {
-        router.replace("/");
+        router.replace(getSafeNextPath());
       })
       .catch(() => {
         window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
@@ -76,7 +82,7 @@ export default function LoginPage() {
 
       window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, response.token);
       setStatus("ready");
-      router.replace("/");
+      router.replace(getSafeNextPath());
     } catch (requestError) {
       setStatus("error");
       setError(requestError instanceof Error ? requestError.message : "Unknown auth error");

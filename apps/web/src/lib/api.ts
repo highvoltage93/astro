@@ -14,6 +14,7 @@ import type {
   PlaceSearchResponse,
   SaveBirthProfilePayload,
   SaveBirthProfileResult,
+  ShareBirthProfileResponse,
   SynastryPreviewPayload,
   SynastryPreviewResult,
   TransitPreviewPayload,
@@ -180,6 +181,22 @@ export const getBirthProfile = async (id: string, token?: string | null): Promis
   }
 
   return response.json() as Promise<BirthProfileDetailResponse>;
+};
+
+export const shareBirthProfile = async (
+  id: string,
+  token?: string | null
+): Promise<ShareBirthProfileResponse> => {
+  const response = await fetch(`${API_URL}/birth-profiles/${id}/share`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw new Error(`API responded with ${response.status}`);
+  }
+
+  return response.json() as Promise<ShareBirthProfileResponse>;
 };
 
 export const deleteBirthProfile = async (

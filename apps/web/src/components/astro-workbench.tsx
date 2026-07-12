@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Share2,
   Settings2,
   Trash2,
   X
@@ -41,7 +42,8 @@ import {
   requestSynastryPreview,
   requestTransitPreview,
   saveBirthProfile,
-  searchPlaces
+  searchPlaces,
+  shareBirthProfile
 } from "@/lib/api";
 import type {
   Aspect,
@@ -680,6 +682,7 @@ export function AstroWorkbench() {
   const [synastryPreview, setSynastryPreview] = useState<SynastryPreviewResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [shareStatus, setShareStatus] = useState<"idle" | "sharing" | "copied" | "error">("idle");
   const [transitStatus, setTransitStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [forecastStatus, setForecastStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [synastryStatus, setSynastryStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -702,6 +705,7 @@ export function AstroWorkbench() {
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [partnerPlaceError, setPartnerPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
+  const [isCurrentProfileOwned, setIsCurrentProfileOwned] = useState(false);
 
   const placements = useMemo(() => {
     if (!chart) {
@@ -970,7 +974,8 @@ export function AstroWorkbench() {
     setForecastTargetYear((current) => current || String(now.getFullYear()));
 
     if (!storedToken) {
-      router.replace("/login");
+      const nextPath = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
       return;
     }
 
@@ -988,7 +993,8 @@ export function AstroWorkbench() {
         setAuthToken(null);
         setAuthUser(null);
         setAuthStatus("idle");
-        router.replace("/login");
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
       });
   }, [router]);
 
@@ -1029,15 +1035,25 @@ export function AstroWorkbench() {
       setSaveStatus("saved");
       setSaveError(null);
       setSavedProfileId(detailedProfile.id);
+      setIsCurrentProfileOwned(detailedProfile.canEdit);
+      setShareStatus("idle");
       setPlaceResults([]);
       setPlaceError(null);
       setPlaceSearchStatus("idle");
       setSavedProfilesStatus("ready");
       setActiveWorkspaceTab("interpretation");
       setIsSavedChartsDrawerOpen(false);
+      const profilePath = `/workspace?chartId=${encodeURIComponent(detailedProfile.id)}`;
+
+      if (`${window.location.pathname}${window.location.search}` !== profilePath) {
+        router.replace(profilePath, { scroll: false });
+      }
     } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : "Unknown saved profile error";
       setSavedProfilesStatus("error");
-      setSavedProfilesError(requestError instanceof Error ? requestError.message : "Unknown saved profile error");
+      setSavedProfilesError(message);
+      setStatus("error");
+      setError("Не вдалося відкрити карту за посиланням. Вона видалена, приватна або недоступна.");
     } finally {
       setLoadingProfileId(null);
     }
@@ -1133,13 +1149,18 @@ export function AstroWorkbench() {
       return;
     }
 
-    const profileId = window.localStorage.getItem(SAVED_PROFILE_OPEN_STORAGE_KEY);
+    const profileIdFromUrl = new URLSearchParams(window.location.search).get("chartId");
+    const legacyProfileId = window.localStorage.getItem(SAVED_PROFILE_OPEN_STORAGE_KEY);
+    const profileId = profileIdFromUrl ?? legacyProfileId;
 
     if (!profileId) {
       return;
     }
 
-    window.localStorage.removeItem(SAVED_PROFILE_OPEN_STORAGE_KEY);
+    if (legacyProfileId) {
+      window.localStorage.removeItem(SAVED_PROFILE_OPEN_STORAGE_KEY);
+    }
+
     void loadSavedProfileById(profileId);
   }, [authUser, authToken]);
 
@@ -1159,8 +1180,11 @@ export function AstroWorkbench() {
 
       if (savedProfileId === response.deletedProfileId) {
         setSavedProfileId(null);
+        setIsCurrentProfileOwned(false);
         setSaveStatus("idle");
         setSaveError(null);
+        setShareStatus("idle");
+        router.replace("/workspace", { scroll: false });
       }
 
       setSavedProfilesStatus("ready");
@@ -1197,11 +1221,33 @@ export function AstroWorkbench() {
       );
 
       setSavedProfileId(result.birthProfile.id);
+      setIsCurrentProfileOwned(true);
       setSaveStatus("saved");
+      setShareStatus("idle");
+      router.replace(`/workspace?chartId=${encodeURIComponent(result.birthProfile.id)}`, { scroll: false });
       await refreshSavedProfiles();
     } catch (requestError) {
       setSaveStatus("error");
       setSaveError(requestError instanceof Error ? requestError.message : "Unknown API error");
+    }
+  };
+
+  const shareProfile = async (): Promise<void> => {
+    if (!savedProfileId || !isCurrentProfileOwned) {
+      return;
+    }
+
+    setShareStatus("sharing");
+    setSaveError(null);
+
+    try {
+      await shareBirthProfile(savedProfileId, authToken);
+      const shareUrl = `${window.location.origin}/workspace?chartId=${encodeURIComponent(savedProfileId)}`;
+      await window.navigator.clipboard.writeText(shareUrl);
+      setShareStatus("copied");
+    } catch (requestError) {
+      setShareStatus("error");
+      setSaveError(requestError instanceof Error ? requestError.message : "Не вдалося створити посилання");
     }
   };
 
@@ -1393,16 +1439,31 @@ export function AstroWorkbench() {
                   </CardDescription>
                   <CardTitle>{form.displayName}</CardTitle>
                 </div>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  type="button"
-                  aria-label="Зберегти карту"
-                  disabled={saveStatus === "saving"}
-                  onClick={saveProfile}
-                >
-                  <Save />
-                </Button>
+                <div className="flex gap-2">
+                  {savedProfileId && isCurrentProfileOwned ? (
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      type="button"
+                      title={shareStatus === "copied" ? "Посилання скопійовано" : "Поділитися картою"}
+                      aria-label="Поділитися картою"
+                      disabled={shareStatus === "sharing"}
+                      onClick={() => void shareProfile()}
+                    >
+                      {shareStatus === "sharing" ? <RefreshCw className="animate-spin" /> : <Share2 />}
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    type="button"
+                    aria-label="Зберегти карту"
+                    disabled={saveStatus === "saving"}
+                    onClick={saveProfile}
+                  >
+                    <Save />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <ChartWheel chart={chart} visiblePointKeys={visiblePointKeys} />
@@ -1417,6 +1478,16 @@ export function AstroWorkbench() {
                 </div>
 
                 <SaveStateMessage error={saveError} profileId={savedProfileId} status={saveStatus} />
+                {shareStatus === "copied" ? (
+                  <div className="mt-3 rounded-lg border border-primary/25 bg-primary/10 p-3 text-sm text-primary">
+                    Посилання на карту скопійовано. Карта доступна тим, хто має це посилання.
+                  </div>
+                ) : null}
+                {shareStatus === "error" ? (
+                  <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                    {saveError ?? "Не вдалося створити посилання"}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
