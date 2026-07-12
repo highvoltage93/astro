@@ -3016,7 +3016,7 @@ function ProfessionalDataCard({
   const [activeTab, setActiveTab] = useState<ProfessionalDataTab>("placements");
 
   return (
-    <Card className="min-w-0 xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)]">
+    <Card className="min-w-0 xl:sticky xl:top-5">
       <CardHeader className="pb-3">
         <CardDescription className="font-semibold uppercase text-primary">Data</CardDescription>
         <CardTitle>Професійні таблиці</CardTitle>
@@ -3046,7 +3046,7 @@ function ProfessionalDataCard({
           ))}
         </div>
 
-        <div className="space-y-5 xl:max-h-[calc(100vh-8.5rem)] xl:overflow-y-auto xl:pr-2" role="tabpanel">
+        <div className="space-y-5" role="tabpanel">
           {activeTab === "signature" ? <SyntheticSignatureCard chart={chart} /> : null}
           {activeTab === "placements" ? <PlacementsTable placements={placements} /> : null}
           {activeTab === "rulerships" ? <PlanetRulershipsTable chart={chart} /> : null}
@@ -3206,7 +3206,7 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">Положення</h3>
-      <div className="max-h-[338px] overflow-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
@@ -3257,7 +3257,7 @@ function PlanetRulershipsTable({ chart }: { chart: ChartResult | null }) {
         <h3 className="text-sm font-semibold">Планети-управителі</h3>
         <Badge variant="secondary">{rulerships.length}</Badge>
       </div>
-      <div className="max-h-[300px] overflow-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
@@ -3311,7 +3311,7 @@ function DignitiesTable({ chart }: { chart: ChartResult | null }) {
         <h3 className="text-sm font-semibold">Диспозитори</h3>
         <Badge variant="secondary">{dignities.length}</Badge>
       </div>
-      <div className="max-h-[338px] overflow-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
@@ -3360,7 +3360,7 @@ function HousesTable({ chart }: { chart: ChartResult | null }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">Доми</h3>
-      <div className="max-h-[260px] overflow-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
