@@ -5,14 +5,14 @@ import { prisma } from "../prisma/client";
 import { createAuthToken, getOptionalAuthUser, hashPassword, verifyPassword } from "./service";
 
 const authSchema = z.object({
-  email: z.string(),
-  username: z.string(),
-  password: z.string()
+  email: z.string().trim().email().max(160),
+  username: z.string().trim().min(3).max(50),
+  password: z.string().min(4).max(128)
 });
 
 const loginSchema = z.object({
-  username: z.string(),
-  password: z.string()
+  username: z.string().trim().min(3).max(50),
+  password: z.string().min(4).max(128)
 });
 
 const authUserSelect = {

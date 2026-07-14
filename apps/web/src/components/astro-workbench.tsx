@@ -239,18 +239,18 @@ const anglePointOrder = ["asc", "desc", "ic", "mc"];
 const placementOrder = [...primaryPlanetOrder, ...secondaryPointOrder, ...anglePointOrder];
 
 const zodiacSigns = [
-  { key: "aries", glyph: "♈", label: "Овен", gender: "чоловічий", cross: "кардинальний", element: "вогонь" },
-  { key: "taurus", glyph: "♉", label: "Телець", gender: "жіночий", cross: "фіксований", element: "земля" },
-  { key: "gemini", glyph: "♊", label: "Близнюки", gender: "чоловічий", cross: "мутабельний", element: "повітря" },
-  { key: "cancer", glyph: "♋", label: "Рак", gender: "жіночий", cross: "кардинальний", element: "вода" },
-  { key: "leo", glyph: "♌", label: "Лев", gender: "чоловічий", cross: "фіксований", element: "вогонь" },
-  { key: "virgo", glyph: "♍", label: "Діва", gender: "жіночий", cross: "мутабельний", element: "земля" },
-  { key: "libra", glyph: "♎", label: "Терези", gender: "чоловічий", cross: "кардинальний", element: "повітря" },
-  { key: "scorpio", glyph: "♏", label: "Скорпіон", gender: "жіночий", cross: "фіксований", element: "вода" },
-  { key: "sagittarius", glyph: "♐", label: "Стрілець", gender: "чоловічий", cross: "мутабельний", element: "вогонь" },
-  { key: "capricorn", glyph: "♑", label: "Козеріг", gender: "жіночий", cross: "кардинальний", element: "земля" },
-  { key: "aquarius", glyph: "♒", label: "Водолій", gender: "чоловічий", cross: "фіксований", element: "повітря" },
-  { key: "pisces", glyph: "♓", label: "Риби", gender: "жіночий", cross: "мутабельний", element: "вода" }
+  { key: "aries", glyph: "♈", label: "Овен", gender: "чоловічий", cross: "кардинальний", element: "вогонь", color: "#e53935" },
+  { key: "taurus", glyph: "♉", label: "Телець", gender: "жіночий", cross: "фіксований", element: "земля", color: "#43a047" },
+  { key: "gemini", glyph: "♊", label: "Близнюки", gender: "чоловічий", cross: "мутабельний", element: "повітря", color: "#f9a825" },
+  { key: "cancer", glyph: "♋", label: "Рак", gender: "жіночий", cross: "кардинальний", element: "вода", color: "#1e88e5" },
+  { key: "leo", glyph: "♌", label: "Лев", gender: "чоловічий", cross: "фіксований", element: "вогонь", color: "#fb8c00" },
+  { key: "virgo", glyph: "♍", label: "Діва", gender: "жіночий", cross: "мутабельний", element: "земля", color: "#7cb342" },
+  { key: "libra", glyph: "♎", label: "Терези", gender: "чоловічий", cross: "кардинальний", element: "повітря", color: "#00acc1" },
+  { key: "scorpio", glyph: "♏", label: "Скорпіон", gender: "жіночий", cross: "фіксований", element: "вода", color: "#8e24aa" },
+  { key: "sagittarius", glyph: "♐", label: "Стрілець", gender: "чоловічий", cross: "мутабельний", element: "вогонь", color: "#d81b60" },
+  { key: "capricorn", glyph: "♑", label: "Козеріг", gender: "жіночий", cross: "кардинальний", element: "земля", color: "#6d4c41" },
+  { key: "aquarius", glyph: "♒", label: "Водолій", gender: "чоловічий", cross: "фіксований", element: "повітря", color: "#3949ab" },
+  { key: "pisces", glyph: "♓", label: "Риби", gender: "жіночий", cross: "мутабельний", element: "вода", color: "#00897b" }
 ] as const;
 
 const signGlyphs = zodiacSigns.map((sign) => sign.glyph);
@@ -3000,7 +3000,8 @@ function SynastryOverlayWheel({
               <text
                 x={sign.x}
                 y={sign.y}
-                className="fill-foreground text-base [dominant-baseline:middle] [text-anchor:middle]"
+                fill={signMeta?.color}
+                className="text-base font-semibold [dominant-baseline:middle] [text-anchor:middle]"
               >
                 {signGlyphs[index]}
               </text>
@@ -4142,13 +4143,15 @@ function ChartWheel({
               {signMeta ? <title>{formatSignTooltip(signMeta, chart)}</title> : null}
               <path
                 d={annularSectorPath(index * 30, (index + 1) * 30)}
-                className={index % 2 === 0 ? "fill-muted/40" : "fill-background"}
+                fill={signMeta?.color}
+                fillOpacity={index % 2 === 0 ? 0.14 : 0.09}
               />
               <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-border stroke-[1]" />
               <text
                 x={sign.x}
                 y={sign.y}
-                className="fill-foreground text-[22px] [dominant-baseline:middle] [text-anchor:middle]"
+                fill={signMeta?.color}
+                className="text-[22px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
               >
                 {signGlyphs[index]}
               </text>
