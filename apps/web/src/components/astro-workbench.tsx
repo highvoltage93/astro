@@ -62,6 +62,7 @@ import type {
   PlaceSearchResult,
   ReturnEvent,
   SavedBirthProfile,
+  SecondaryProgressionResult,
   SynastryPreviewResult,
   TransitPreviewResult
 } from "@/lib/chart-types";
@@ -2352,6 +2353,8 @@ function ForecastModuleCard({
               <ReturnEventPanel event={preview.lunarReturn} title="Лунар" />
             </div>
 
+            <SecondaryProgressionPanel progression={preview.secondaryProgression} />
+
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">Точні дати транзитів</h3>
@@ -2381,6 +2384,91 @@ function ForecastMetric({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold">{value}</p>
     </div>
+  );
+}
+
+function SecondaryProgressionPanel({ progression }: { progression: SecondaryProgressionResult }) {
+  const progressedPoints = new Map(progression.progressed.bodies.map((point) => [point.key, point]));
+  const natalPoints = new Map(
+    [...progression.natal.bodies, ...progression.natal.angles].map((point) => [point.key, point])
+  );
+
+  return (
+    <section className="space-y-4 rounded-lg border bg-muted/15 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-primary">Secondary progression</p>
+          <h3 className="mt-1 text-base font-semibold">Вторинні прогресії</h3>
+        </div>
+        <Badge variant="secondary">day-for-year · орб {progression.aspectOrbDegrees.toFixed(1)}°</Badge>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <ForecastMetric label="Дата прогнозу" value={formatDateTimeCompact(progression.targetDateTime)} />
+        <ForecastMetric label="Прогресивна дата" value={formatDateTimeCompact(progression.progressedDateTime)} />
+        <ForecastMetric label="Вік карти" value={`${progression.ageYears.toFixed(2)} р.`} />
+      </div>
+
+      <ProgressionOverlayWheel progression={progression} />
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold">Прогресивні аспекти до наталу</h4>
+          <Badge variant="secondary">{progression.progressedToNatalAspects.length}</Badge>
+        </div>
+
+        {progression.progressedToNatalAspects.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border bg-background">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Прогресія</TableHead>
+                  <TableHead>Положення</TableHead>
+                  <TableHead>Аспект</TableHead>
+                  <TableHead>Натал</TableHead>
+                  <TableHead>Орб</TableHead>
+                  <TableHead>Фаза</TableHead>
+                  <TableHead>Точна дата</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {progression.progressedToNatalAspects.map((aspect) => {
+                  const progressedPoint = progressedPoints.get(aspect.bodyA) ?? null;
+                  const natalPoint = natalPoints.get(aspect.bodyB) ?? null;
+
+                  return (
+                    <TableRow key={`progression-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
+                      <TableCell className="font-medium">
+                        {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {aspect.progressedPointLabel}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {formatPointPosition(progressedPoint)}
+                        {progressedPoint?.house ? ` · ${progressedPoint.house} дім` : ""}
+                      </TableCell>
+                      <TableCell className={cn("font-medium", getAspectTextClass(aspect.type))}>
+                        {aspectLabels[aspect.type] ?? aspect.type}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.natalPointLabel}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{transitPhaseLabelsUk[aspect.phase] ?? aspect.phase}</Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {aspect.exactAt ? formatDateTimeCompact(aspect.exactAt) : "n/a"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">В орбісі 1° прогресивних major-аспектів не знайдено.</p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -2877,11 +2965,50 @@ function SynastryMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
+function ProgressionOverlayWheel({ progression }: { progression: SecondaryProgressionResult }) {
+  const interAspects: Aspect[] = progression.progressedToNatalAspects.map((aspect) => ({
+    bodyA: aspect.bodyB,
+    bodyB: aspect.bodyA,
+    type: aspect.type,
+    exactAngle: aspect.exactAngle,
+    orb: aspect.orb
+  }));
+  const preview: SynastryPreviewResult = {
+    chartType: "synastry",
+    generatedAt: progression.targetDateTime,
+    subjectA: progression.natal,
+    subjectB: progression.progressed,
+    interAspects,
+    summary: {
+      totalAspects: interAspects.length,
+      harmoniousAspects: interAspects.filter((aspect) => aspect.type === "trine" || aspect.type === "sextile").length,
+      tenseAspects: interAspects.filter((aspect) => aspect.type === "square" || aspect.type === "opposition").length,
+      conjunctions: interAspects.filter((aspect) => aspect.type === "conjunction").length,
+      exactAspects: interAspects.filter((aspect) => aspect.orb <= 0.15).length
+    },
+    warnings: progression.warnings
+  };
+
+  return (
+    <SynastryOverlayWheel
+      ariaLabel="Накладена карта наталу і вторинної прогресії"
+      description="Bi-wheel · натальні доми та прогресивні планети"
+      preview={preview}
+      subjectAName="Натал"
+      subjectBName="Прогресія"
+    />
+  );
+}
+
 function SynastryOverlayWheel({
+  ariaLabel = "Накладена карта синастрії",
+  description = "Bi-wheel · аспекти між планетами партнерів",
   preview,
   subjectAName,
   subjectBName
 }: {
+  ariaLabel?: string;
+  description?: string;
   preview: SynastryPreviewResult;
   subjectAName: string;
   subjectBName: string;
@@ -2917,13 +3044,13 @@ function SynastryOverlayWheel({
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
         <Badge variant="secondary">{subjectAName}</Badge>
         <Badge variant="outline">{subjectBName}</Badge>
-        <span className="text-muted-foreground">Bi-wheel · аспекти між планетами партнерів</span>
+        <span className="text-muted-foreground">{description}</span>
       </div>
       <svg
         className="mx-auto aspect-square w-full max-w-[520px] overflow-visible"
         viewBox="-26 -26 372 372"
         role="img"
-        aria-label="Накладена карта синастрії"
+        aria-label={ariaLabel}
       >
         <circle cx={center} cy={center} r={outerRadius} className="fill-background stroke-foreground stroke-[1.4]" />
         <circle cx={center} cy={center} r={subjectARadius + 15} className="fill-none stroke-border stroke-[1]" />

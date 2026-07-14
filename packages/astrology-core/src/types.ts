@@ -238,6 +238,39 @@ export type ExactTransitEvent = TransitAspect & {
   natalHouse?: number;
 };
 
+export type SecondaryProgressionAspect = Aspect & {
+  phase: TransitAspectPhase;
+  exactAt: string | null;
+  yearsToExact: number | null;
+  score: number;
+  strength: TransitAspectStrength;
+  progressedPointLabel: string;
+  natalPointLabel: string;
+  natalHouse?: number;
+};
+
+export type SecondaryProgressionInput = {
+  natal: NatalPreviewInput;
+  targetDateTime: string;
+  zodiac?: ZodiacType;
+  ayanamsa?: Ayanamsa;
+  ephemerisPath?: string;
+};
+
+export type SecondaryProgressionResult = {
+  method: "secondary-day-for-year";
+  yearLengthDays: number;
+  aspectOrbDegrees: number;
+  targetDateTime: string;
+  progressedDateTime: string;
+  ageYears: number;
+  natal: ChartResult;
+  progressed: ChartResult;
+  progressedHousePlacements: ChartPoint[];
+  progressedToNatalAspects: SecondaryProgressionAspect[];
+  warnings: CalculationWarning[];
+};
+
 export type ForecastPreviewInput = {
   natal: NatalPreviewInput;
   fromDateTime: string;
@@ -292,6 +325,7 @@ export type ForecastPreviewResult = {
   natal: ChartResult;
   solarReturn: ReturnEvent | null;
   lunarReturn: ReturnEvent | null;
+  secondaryProgression: SecondaryProgressionResult;
   exactTransits: ExactTransitEvent[];
   warnings: CalculationWarning[];
 };

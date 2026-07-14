@@ -37,6 +37,9 @@ import type {
   PointOrbSettings,
   RulerType,
   ReturnEvent,
+  SecondaryProgressionAspect,
+  SecondaryProgressionInput,
+  SecondaryProgressionResult,
   SyntheticSignature,
   SynastryPreviewInput,
   SynastryPreviewResult,
@@ -301,6 +304,16 @@ const FORECAST_MAX_DAYS = 366;
 const FORECAST_EXACT_TRANSIT_BODY_KEYS = [...BODY_DEFINITIONS.map((body) => body.key), "south-node"];
 const EXACT_CROSSING_EPSILON = 0.00001;
 const CONTAINED_HOUSE_SIGN_MIN_DEGREES = 12.5;
+const SECONDARY_PROGRESSION_YEAR_DAYS = 365.2425;
+const SECONDARY_PROGRESSION_ASPECT_ORB = 1;
+const SECONDARY_PROGRESSION_MAX_EXACT_YEARS = 120;
+const SECONDARY_PROGRESSION_ASPECT_ORBS: Record<AspectType, number> = {
+  conjunction: SECONDARY_PROGRESSION_ASPECT_ORB,
+  opposition: SECONDARY_PROGRESSION_ASPECT_ORB,
+  trine: SECONDARY_PROGRESSION_ASPECT_ORB,
+  square: SECONDARY_PROGRESSION_ASPECT_ORB,
+  sextile: SECONDARY_PROGRESSION_ASPECT_ORB
+};
 
 const normalizeLongitude = (longitude: number): number => ((longitude % 360) + 360) % 360;
 
@@ -2073,6 +2086,258 @@ const calculateExactTransitEvents = ({
   );
 };
 
+const findSecondaryProgressionExactDate = ({
+  aspect,
+  flags,
+  natalPoint,
+  progressedDateTime,
+  progressedPoint,
+  warnings
+}: {
+  aspect: Aspect;
+  flags: number;
+  natalPoint: ChartPoint;
+  progressedDateTime: DateTime;
+  progressedPoint: ChartPoint;
+  warnings: CalculationWarning[];
+}): DateTime | null => {
+  const speed = progressedPoint.speed ?? 0;
+
+  if (Math.abs(speed) < 0.0001) {
+    return null;
+  }
+
+  const candidates: DateTime[] = [];
+
+  for (const targetLongitude of aspectTargetLongitudes(natalPoint.longitude, aspect.exactAngle)) {
+    const delta = signedAngularDistance(progressedPoint.longitude, targetLongitude);
+    const estimatedProgressedDays = delta / speed;
+
+    if (!Number.isFinite(estimatedProgressedDays) || Math.abs(estimatedProgressedDays) > SECONDARY_PROGRESSION_MAX_EXACT_YEARS) {
+      continue;
+    }
+
+    const estimatedDate = progressedDateTime.plus({ days: estimatedProgressedDays });
+    const marginDays = progressedPoint.key === "moon" ? 0.35 : Math.min(5, Math.max(1, Math.abs(estimatedProgressedDays) * 0.15));
+    const samples = buildTransitLongitudeSamples({
+      end: estimatedDate.plus({ days: marginDays }),
+      flags,
+      pointKey: progressedPoint.key,
+      start: estimatedDate.minus({ days: marginDays }),
+      stepHours: progressedPoint.key === "moon" ? 1 : 6,
+      warnings
+    });
+
+    for (let index = 0; index < samples.length - 1; index += 1) {
+      const left = samples[index];
+      const right = samples[index + 1];
+
+      if (!left || !right) {
+        continue;
+      }
+
+      const leftDelta = signedAngularDistance(left.longitude, targetLongitude);
+      const rightDelta = signedAngularDistance(right.longitude, targetLongitude);
+      const crossesTarget = leftDelta * rightDelta <= 0 && Math.min(Math.abs(leftDelta), Math.abs(rightDelta)) <= 20;
+
+      if (!crossesTarget && Math.abs(leftDelta) > EXACT_CROSSING_EPSILON) {
+        continue;
+      }
+
+      const exactDate =
+        Math.abs(leftDelta) <= EXACT_CROSSING_EPSILON
+          ? left.utc
+          : Math.abs(rightDelta) <= EXACT_CROSSING_EPSILON
+            ? right.utc
+            : refineLongitudeCrossing({
+                end: right.utc,
+                flags,
+                pointKey: progressedPoint.key,
+                start: left.utc,
+                targetLongitude,
+                warnings
+              });
+
+      if (exactDate) {
+        candidates.push(exactDate);
+      }
+    }
+  }
+
+  return (
+    candidates.sort(
+      (a, b) => Math.abs(a.diff(progressedDateTime, "seconds").seconds) - Math.abs(b.diff(progressedDateTime, "seconds").seconds)
+    )[0] ?? null
+  );
+};
+
+const buildSecondaryProgressionAspect = ({
+  aspect,
+  birthDateTime,
+  flags,
+  natalPoint,
+  progressedDateTime,
+  progressedPoint,
+  targetDateTime,
+  warnings
+}: {
+  aspect: Aspect;
+  birthDateTime: DateTime;
+  flags: number;
+  natalPoint: ChartPoint;
+  progressedDateTime: DateTime;
+  progressedPoint: ChartPoint;
+  targetDateTime: DateTime;
+  warnings: CalculationWarning[];
+}): SecondaryProgressionAspect => {
+  const exactProgressedDate = findSecondaryProgressionExactDate({
+    aspect,
+    flags,
+    natalPoint,
+    progressedDateTime,
+    progressedPoint,
+    warnings
+  });
+  const exactAt = exactProgressedDate
+    ? birthDateTime.plus({
+        days: exactProgressedDate.diff(birthDateTime, "days").days * SECONDARY_PROGRESSION_YEAR_DAYS
+      })
+    : null;
+  const yearsToExact = exactAt ? exactAt.diff(targetDateTime, "days").days / SECONDARY_PROGRESSION_YEAR_DAYS : null;
+  const estimatedProgressedDays =
+    Math.abs(progressedPoint.speed ?? 0) >= 0.0001
+      ? transitAspectTargetDelta(aspect, progressedPoint, natalPoint) / (progressedPoint.speed ?? 1)
+      : null;
+  const phase =
+    aspect.orb <= 0.01
+      ? "exact"
+      : yearsToExact !== null
+        ? yearsToExact > 0
+          ? "applying"
+          : "separating"
+        : estimatedProgressedDays === null
+          ? "stationary"
+          : estimatedProgressedDays > 0
+            ? "applying"
+            : "separating";
+  const closeness = Math.max(0, 1 - aspect.orb / SECONDARY_PROGRESSION_ASPECT_ORB);
+  const aspectWeight = ASPECT_SCORE_WEIGHTS[aspect.type] ?? 0.65;
+  const bodyWeight = TRANSIT_BODY_SCORE_WEIGHTS[progressedPoint.key] ?? 0.55;
+  const score = round((closeness * 0.68 + aspectWeight * 0.2 + bodyWeight * 0.12) * 100, 1);
+
+  return {
+    ...aspect,
+    phase,
+    exactAt: exactAt ? toUtcIso(exactAt) : null,
+    yearsToExact: yearsToExact === null ? null : round(yearsToExact, 4),
+    score,
+    strength: aspectStrength(score),
+    progressedPointLabel: progressedPoint.label,
+    natalPointLabel: natalPoint.label,
+    natalHouse: natalPoint.house
+  };
+};
+
+const calculateSecondaryProgressionFromNatal = (
+  input: SecondaryProgressionInput,
+  natal: ChartResult
+): SecondaryProgressionResult => {
+  const targetDateTime = parseTransitDateTime(input.targetDateTime);
+  const birthDateTime = DateTime.fromISO(natal.subject.utcDateTime, { setZone: true }).toUTC();
+
+  if (!birthDateTime.isValid) {
+    throw new Error("Natal UTC date-time is invalid for secondary progression calculation");
+  }
+
+  const elapsedDays = targetDateTime.diff(birthDateTime, "days").days;
+
+  if (elapsedDays < 0) {
+    throw new Error("Secondary progression target date cannot precede the natal date");
+  }
+
+  const ageYears = elapsedDays / SECONDARY_PROGRESSION_YEAR_DAYS;
+  const progressedDateTime = birthDateTime.plus({ days: ageYears });
+  const progressedBase = calculateTransitChart({
+    transitDateTime: toUtcIso(progressedDateTime),
+    latitude: natal.subject.latitude,
+    longitude: natal.subject.longitude,
+    zodiac: input.zodiac ?? natal.settings.zodiac,
+    ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
+    houseSystem: natal.settings.houseSystem,
+    ephemerisPath: input.ephemerisPath
+  });
+  const hasNatalHouses = natal.houses.length > 0;
+  const progressedBodies = hasNatalHouses
+    ? assignNatalHousesToTransitPoints(progressedBase.bodies, natal.houses)
+    : progressedBase.bodies;
+  const progressedHousePlacements = hasNatalHouses ? progressedBodies : [];
+  const progressed: ChartResult = {
+    ...progressedBase,
+    chartType: "progression",
+    bodies: progressedBodies
+  };
+  const natalReferencePoints = [
+    ...natal.bodies,
+    ...natal.angles.filter((point) => point.key === "asc" || point.key === "mc")
+  ];
+  const aspects = calculateAspectsBetween(
+    progressed.bodies,
+    natalReferencePoints,
+    SECONDARY_PROGRESSION_ASPECT_ORBS
+  );
+  const progressedPointsByKey = new Map(progressed.bodies.map((point) => [point.key, point]));
+  const natalPointsByKey = new Map(natalReferencePoints.map((point) => [point.key, point]));
+  const warnings: CalculationWarning[] = [...progressed.warnings];
+  const flags = buildBodyFlags({ zodiac: input.zodiac ?? natal.settings.zodiac });
+  const progressedToNatalAspects = aspects
+    .map((aspect) => {
+      const progressedPoint = progressedPointsByKey.get(aspect.bodyA);
+      const natalPoint = natalPointsByKey.get(aspect.bodyB);
+
+      if (!progressedPoint || !natalPoint) {
+        return null;
+      }
+
+      return buildSecondaryProgressionAspect({
+        aspect,
+        birthDateTime,
+        flags,
+        natalPoint,
+        progressedDateTime,
+        progressedPoint,
+        targetDateTime,
+        warnings
+      });
+    })
+    .filter((aspect): aspect is SecondaryProgressionAspect => aspect !== null)
+    .sort((a, b) => b.score - a.score || a.orb - b.orb);
+
+  return {
+    method: "secondary-day-for-year",
+    yearLengthDays: SECONDARY_PROGRESSION_YEAR_DAYS,
+    aspectOrbDegrees: SECONDARY_PROGRESSION_ASPECT_ORB,
+    targetDateTime: toUtcIso(targetDateTime),
+    progressedDateTime: toUtcIso(progressedDateTime),
+    ageYears: round(ageYears, 6),
+    natal,
+    progressed,
+    progressedHousePlacements,
+    progressedToNatalAspects,
+    warnings
+  };
+};
+
+export const calculateSecondaryProgression = (input: SecondaryProgressionInput): SecondaryProgressionResult => {
+  const natal = calculateNatalChart({
+    ...input.natal,
+    zodiac: input.zodiac ?? input.natal.zodiac,
+    ayanamsa: input.ayanamsa ?? input.natal.ayanamsa,
+    ephemerisPath: input.ephemerisPath
+  });
+
+  return calculateSecondaryProgressionFromNatal(input, natal);
+};
+
 const addReturnChartWarnings = (
   warnings: CalculationWarning[],
   returnEvent: ReturnEvent | null,
@@ -2148,9 +2413,23 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
     pointOrbs: forecastPointOrbs,
     warnings
   });
+  const secondaryProgression = calculateSecondaryProgressionFromNatal(
+    {
+      natal: input.natal,
+      targetDateTime: toUtcIso(baseDateTime),
+      zodiac: settings.zodiac,
+      ayanamsa: settings.ayanamsa,
+      ephemerisPath: input.ephemerisPath
+    },
+    natal
+  );
 
   addReturnChartWarnings(warnings, solarReturn, "SOLAR");
   addReturnChartWarnings(warnings, lunarReturn, "LUNAR");
+
+  for (const warning of secondaryProgression.warnings) {
+    addCalculationWarning(warnings, `PROGRESSION_${warning.code}`, `Secondary progression: ${warning.message}`);
+  }
 
   return {
     chartType: "forecast",
@@ -2158,6 +2437,7 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
     natal,
     solarReturn,
     lunarReturn,
+    secondaryProgression,
     exactTransits,
     warnings
   };

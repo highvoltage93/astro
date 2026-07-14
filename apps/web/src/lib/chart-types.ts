@@ -233,12 +233,41 @@ export type ExactTransitEvent = TransitAspect & {
   natalHouse?: number;
 };
 
+export type SecondaryProgressionAspect = Aspect & {
+  phase: "applying" | "separating" | "exact" | "stationary";
+  exactAt: string | null;
+  yearsToExact: number | null;
+  score: number;
+  strength: "high" | "medium" | "low";
+  progressedPointLabel: string;
+  natalPointLabel: string;
+  natalHouse?: number;
+};
+
+export type SecondaryProgressionResult = {
+  method: "secondary-day-for-year";
+  yearLengthDays: number;
+  aspectOrbDegrees: number;
+  targetDateTime: string;
+  progressedDateTime: string;
+  ageYears: number;
+  natal: ChartResult;
+  progressed: ChartResult;
+  progressedHousePlacements: ChartPoint[];
+  progressedToNatalAspects: SecondaryProgressionAspect[];
+  warnings: Array<{
+    code: string;
+    message: string;
+  }>;
+};
+
 export type ForecastPreviewResult = {
   chartType: "forecast";
   generatedAt: string;
   natal: ChartResult;
   solarReturn: ReturnEvent | null;
   lunarReturn: ReturnEvent | null;
+  secondaryProgression: SecondaryProgressionResult;
   exactTransits: ExactTransitEvent[];
   warnings: Array<{
     code: string;
