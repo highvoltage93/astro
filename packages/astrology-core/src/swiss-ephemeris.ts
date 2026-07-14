@@ -40,6 +40,8 @@ import type {
   SecondaryProgressionAspect,
   SecondaryProgressionInput,
   SecondaryProgressionResult,
+  SolarArcDirectionAspect,
+  SolarArcDirectionResult,
   SyntheticSignature,
   SynastryPreviewInput,
   SynastryPreviewResult,
@@ -313,6 +315,14 @@ const SECONDARY_PROGRESSION_ASPECT_ORBS: Record<AspectType, number> = {
   trine: SECONDARY_PROGRESSION_ASPECT_ORB,
   square: SECONDARY_PROGRESSION_ASPECT_ORB,
   sextile: SECONDARY_PROGRESSION_ASPECT_ORB
+};
+const SOLAR_ARC_ASPECT_ORB = 1;
+const SOLAR_ARC_ASPECT_ORBS: Record<AspectType, number> = {
+  conjunction: SOLAR_ARC_ASPECT_ORB,
+  opposition: SOLAR_ARC_ASPECT_ORB,
+  trine: SOLAR_ARC_ASPECT_ORB,
+  square: SOLAR_ARC_ASPECT_ORB,
+  sextile: SOLAR_ARC_ASPECT_ORB
 };
 
 const normalizeLongitude = (longitude: number): number => ((longitude % 360) + 360) % 360;
@@ -2338,6 +2348,291 @@ export const calculateSecondaryProgression = (input: SecondaryProgressionInput):
   return calculateSecondaryProgressionFromNatal(input, natal);
 };
 
+const findSolarArcExactProgressedDate = ({
+  aspect,
+  directedSourceNatalPoint,
+  flags,
+  natalSun,
+  natalTargetPoint,
+  progressedDateTime,
+  progressedSun,
+  warnings
+}: {
+  aspect: Aspect;
+  directedSourceNatalPoint: ChartPoint;
+  flags: number;
+  natalSun: ChartPoint;
+  natalTargetPoint: ChartPoint;
+  progressedDateTime: DateTime;
+  progressedSun: ChartPoint;
+  warnings: CalculationWarning[];
+}): DateTime | null => {
+  const sunSpeed = progressedSun.speed ?? 0;
+
+  if (Math.abs(sunSpeed) < 0.0001) {
+    return null;
+  }
+
+  const candidates: DateTime[] = [];
+
+  for (const directedTargetLongitude of aspectTargetLongitudes(natalTargetPoint.longitude, aspect.exactAngle)) {
+    const requiredArc = normalizeLongitude(directedTargetLongitude - directedSourceNatalPoint.longitude);
+    const progressedSunTarget = normalizeLongitude(natalSun.longitude + requiredArc);
+    const estimatedProgressedDays = signedAngularDistance(progressedSun.longitude, progressedSunTarget) / sunSpeed;
+
+    if (!Number.isFinite(estimatedProgressedDays) || Math.abs(estimatedProgressedDays) > SECONDARY_PROGRESSION_MAX_EXACT_YEARS) {
+      continue;
+    }
+
+    const estimatedDate = progressedDateTime.plus({ days: estimatedProgressedDays });
+    const marginDays = Math.min(4, Math.max(0.75, Math.abs(estimatedProgressedDays) * 0.12));
+    const samples = buildTransitLongitudeSamples({
+      end: estimatedDate.plus({ days: marginDays }),
+      flags,
+      pointKey: "sun",
+      start: estimatedDate.minus({ days: marginDays }),
+      stepHours: 6,
+      warnings
+    });
+
+    for (let index = 0; index < samples.length - 1; index += 1) {
+      const left = samples[index];
+      const right = samples[index + 1];
+
+      if (!left || !right) {
+        continue;
+      }
+
+      const leftDelta = signedAngularDistance(left.longitude, progressedSunTarget);
+      const rightDelta = signedAngularDistance(right.longitude, progressedSunTarget);
+      const crossesTarget = leftDelta * rightDelta <= 0 && Math.min(Math.abs(leftDelta), Math.abs(rightDelta)) <= 20;
+
+      if (!crossesTarget && Math.abs(leftDelta) > EXACT_CROSSING_EPSILON) {
+        continue;
+      }
+
+      const exactDate =
+        Math.abs(leftDelta) <= EXACT_CROSSING_EPSILON
+          ? left.utc
+          : Math.abs(rightDelta) <= EXACT_CROSSING_EPSILON
+            ? right.utc
+            : refineLongitudeCrossing({
+                end: right.utc,
+                flags,
+                pointKey: "sun",
+                start: left.utc,
+                targetLongitude: progressedSunTarget,
+                warnings
+              });
+
+      if (exactDate) {
+        candidates.push(exactDate);
+      }
+    }
+  }
+
+  return (
+    candidates.sort(
+      (a, b) => Math.abs(a.diff(progressedDateTime, "seconds").seconds) - Math.abs(b.diff(progressedDateTime, "seconds").seconds)
+    )[0] ?? null
+  );
+};
+
+const buildSolarArcDirectionAspect = ({
+  aspect,
+  birthDateTime,
+  directedPoint,
+  directedSourceNatalPoint,
+  flags,
+  natalSun,
+  natalTargetPoint,
+  progressedDateTime,
+  progressedSun,
+  targetDateTime,
+  warnings
+}: {
+  aspect: Aspect;
+  birthDateTime: DateTime;
+  directedPoint: ChartPoint;
+  directedSourceNatalPoint: ChartPoint;
+  flags: number;
+  natalSun: ChartPoint;
+  natalTargetPoint: ChartPoint;
+  progressedDateTime: DateTime;
+  progressedSun: ChartPoint;
+  targetDateTime: DateTime;
+  warnings: CalculationWarning[];
+}): SolarArcDirectionAspect => {
+  const exactProgressedDate = findSolarArcExactProgressedDate({
+    aspect,
+    directedSourceNatalPoint,
+    flags,
+    natalSun,
+    natalTargetPoint,
+    progressedDateTime,
+    progressedSun,
+    warnings
+  });
+  const exactAt = exactProgressedDate
+    ? birthDateTime.plus({
+        days: exactProgressedDate.diff(birthDateTime, "days").days * SECONDARY_PROGRESSION_YEAR_DAYS
+      })
+    : null;
+  const yearsToExact = exactAt ? exactAt.diff(targetDateTime, "days").days / SECONDARY_PROGRESSION_YEAR_DAYS : null;
+  const estimatedYearsToExact =
+    Math.abs(progressedSun.speed ?? 0) >= 0.0001
+      ? transitAspectTargetDelta(aspect, directedPoint, natalTargetPoint) / (progressedSun.speed ?? 1)
+      : null;
+  const phase =
+    aspect.orb <= 0.01
+      ? "exact"
+      : yearsToExact !== null
+        ? yearsToExact > 0
+          ? "applying"
+          : "separating"
+        : estimatedYearsToExact === null
+          ? "stationary"
+          : estimatedYearsToExact > 0
+            ? "applying"
+            : "separating";
+  const closeness = Math.max(0, 1 - aspect.orb / SOLAR_ARC_ASPECT_ORB);
+  const aspectWeight = ASPECT_SCORE_WEIGHTS[aspect.type] ?? 0.65;
+  const bodyWeight = TRANSIT_BODY_SCORE_WEIGHTS[directedPoint.key] ?? 0.65;
+  const score = round((closeness * 0.7 + aspectWeight * 0.2 + bodyWeight * 0.1) * 100, 1);
+
+  return {
+    ...aspect,
+    phase,
+    exactAt: exactAt ? toUtcIso(exactAt) : null,
+    yearsToExact: yearsToExact === null ? null : round(yearsToExact, 4),
+    score,
+    strength: aspectStrength(score),
+    directedPointLabel: directedPoint.label,
+    natalPointLabel: natalTargetPoint.label,
+    natalHouse: natalTargetPoint.house
+  };
+};
+
+const calculateSolarArcDirections = (
+  progression: SecondaryProgressionResult,
+  ephemerisPath?: string
+): SolarArcDirectionResult => {
+  const natal = progression.natal;
+  const natalSun = natal.bodies.find((point) => point.key === "sun");
+  const progressedSun = progression.progressed.bodies.find((point) => point.key === "sun");
+
+  if (!natalSun || !progressedSun) {
+    throw new Error("Natal and progressed Sun are required for solar arc directions");
+  }
+
+  const solarArcDegrees = normalizeLongitude(progressedSun.longitude - natalSun.longitude);
+  const directPoint = (point: ChartPoint): ChartPoint => {
+    const longitude = normalizeLongitude(point.longitude + solarArcDegrees);
+
+    return buildPoint({
+      key: point.key,
+      label: point.label,
+      kind: point.kind,
+      longitude,
+      latitude: point.latitude,
+      speed: progressedSun.speed,
+      house: findHouse(longitude, natal.houses)
+    });
+  };
+  const directedBodies = natal.bodies.map(directPoint);
+  const directedAngles = natal.angles.map(directPoint);
+  const directedHouses = natal.houses.map((house) => {
+    const longitude = round(normalizeLongitude(house.longitude + solarArcDegrees));
+
+    return {
+      house: house.house,
+      longitude,
+      ...toSign(longitude)
+    };
+  });
+  const targetDateTime = DateTime.fromISO(progression.targetDateTime, { setZone: true }).toUTC();
+  const directed: ChartResult = {
+    chartType: "direction",
+    engine: natal.engine,
+    settings: natal.settings,
+    subject: {
+      ...natal.subject,
+      utcDateTime: toUtcIso(targetDateTime)
+    },
+    angles: directedAngles,
+    houses: directedHouses,
+    houseConnections: [],
+    houseRulers: [],
+    planetRulerships: [],
+    bodies: directedBodies,
+    aspects: [],
+    warnings: []
+  };
+  const directedReferencePoints = [
+    ...directedBodies,
+    ...directedAngles.filter((point) => point.key === "asc" || point.key === "mc")
+  ];
+  const natalReferencePoints = [
+    ...natal.bodies,
+    ...natal.angles.filter((point) => point.key === "asc" || point.key === "mc")
+  ];
+  const aspects = calculateAspectsBetween(directedReferencePoints, natalReferencePoints, SOLAR_ARC_ASPECT_ORBS);
+  const directedPointsByKey = new Map(directedReferencePoints.map((point) => [point.key, point]));
+  const natalSourcePointsByKey = new Map(
+    [...natal.bodies, ...natal.angles].map((point) => [point.key, point])
+  );
+  const natalTargetPointsByKey = new Map(natalReferencePoints.map((point) => [point.key, point]));
+  const birthDateTime = DateTime.fromISO(natal.subject.utcDateTime, { setZone: true }).toUTC();
+  const progressedDateTime = DateTime.fromISO(progression.progressedDateTime, { setZone: true }).toUTC();
+  const warnings: CalculationWarning[] = [];
+
+  setEphemerisContext({
+    ephemerisPath,
+    settings: natal.settings,
+    warnings
+  });
+
+  const flags = buildBodyFlags(natal.settings);
+  const directedToNatalAspects = aspects
+    .map((aspect) => {
+      const directedPoint = directedPointsByKey.get(aspect.bodyA);
+      const directedSourceNatalPoint = natalSourcePointsByKey.get(aspect.bodyA);
+      const natalTargetPoint = natalTargetPointsByKey.get(aspect.bodyB);
+
+      if (!directedPoint || !directedSourceNatalPoint || !natalTargetPoint) {
+        return null;
+      }
+
+      return buildSolarArcDirectionAspect({
+        aspect,
+        birthDateTime,
+        directedPoint,
+        directedSourceNatalPoint,
+        flags,
+        natalSun,
+        natalTargetPoint,
+        progressedDateTime,
+        progressedSun,
+        targetDateTime,
+        warnings
+      });
+    })
+    .filter((aspect): aspect is SolarArcDirectionAspect => aspect !== null)
+    .sort((a, b) => b.score - a.score || a.orb - b.orb);
+
+  return {
+    method: "solar-arc-secondary-sun",
+    aspectOrbDegrees: SOLAR_ARC_ASPECT_ORB,
+    targetDateTime: toUtcIso(targetDateTime),
+    solarArcDegrees: round(solarArcDegrees, 6),
+    natal,
+    directed,
+    directedPoints: directedReferencePoints,
+    directedToNatalAspects,
+    warnings
+  };
+};
+
 const addReturnChartWarnings = (
   warnings: CalculationWarning[],
   returnEvent: ReturnEvent | null,
@@ -2423,12 +2718,17 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
     },
     natal
   );
+  const solarArcDirections = calculateSolarArcDirections(secondaryProgression, input.ephemerisPath);
 
   addReturnChartWarnings(warnings, solarReturn, "SOLAR");
   addReturnChartWarnings(warnings, lunarReturn, "LUNAR");
 
   for (const warning of secondaryProgression.warnings) {
     addCalculationWarning(warnings, `PROGRESSION_${warning.code}`, `Secondary progression: ${warning.message}`);
+  }
+
+  for (const warning of solarArcDirections.warnings) {
+    addCalculationWarning(warnings, `SOLAR_ARC_${warning.code}`, `Solar arc: ${warning.message}`);
   }
 
   return {
@@ -2438,6 +2738,7 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
     solarReturn,
     lunarReturn,
     secondaryProgression,
+    solarArcDirections,
     exactTransits,
     warnings
   };

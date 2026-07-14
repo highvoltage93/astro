@@ -11,7 +11,7 @@ export type HouseSystem =
   | "regiomontanus"
   | "porphyry";
 
-export type ChartType = "natal" | "transit" | "synastry" | "progression" | "return";
+export type ChartType = "natal" | "transit" | "synastry" | "progression" | "direction" | "return";
 
 export type ChartPointKind = "body" | "angle" | "node" | "asteroid" | "calculated";
 
@@ -271,6 +271,29 @@ export type SecondaryProgressionResult = {
   warnings: CalculationWarning[];
 };
 
+export type SolarArcDirectionAspect = Aspect & {
+  phase: TransitAspectPhase;
+  exactAt: string | null;
+  yearsToExact: number | null;
+  score: number;
+  strength: TransitAspectStrength;
+  directedPointLabel: string;
+  natalPointLabel: string;
+  natalHouse?: number;
+};
+
+export type SolarArcDirectionResult = {
+  method: "solar-arc-secondary-sun";
+  aspectOrbDegrees: number;
+  targetDateTime: string;
+  solarArcDegrees: number;
+  natal: ChartResult;
+  directed: ChartResult;
+  directedPoints: ChartPoint[];
+  directedToNatalAspects: SolarArcDirectionAspect[];
+  warnings: CalculationWarning[];
+};
+
 export type ForecastPreviewInput = {
   natal: NatalPreviewInput;
   fromDateTime: string;
@@ -326,6 +349,7 @@ export type ForecastPreviewResult = {
   solarReturn: ReturnEvent | null;
   lunarReturn: ReturnEvent | null;
   secondaryProgression: SecondaryProgressionResult;
+  solarArcDirections: SolarArcDirectionResult;
   exactTransits: ExactTransitEvent[];
   warnings: CalculationWarning[];
 };

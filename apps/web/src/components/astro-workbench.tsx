@@ -63,6 +63,7 @@ import type {
   ReturnEvent,
   SavedBirthProfile,
   SecondaryProgressionResult,
+  SolarArcDirectionResult,
   SynastryPreviewResult,
   TransitPreviewResult
 } from "@/lib/chart-types";
@@ -2279,6 +2280,9 @@ function ForecastModuleCard({
   onFromDateTimeChange: (value: string) => void;
   onTargetYearChange: (value: string) => void;
 }) {
+  const [activeForecastView, setActiveForecastView] = useState<"overview" | "progression" | "solar-arc" | "transits">(
+    "overview"
+  );
   const exactTransits = preview?.exactTransits ?? [];
   const highPriorityTransits = exactTransits.filter((event) => event.strength === "high").length;
 
@@ -2336,32 +2340,73 @@ function ForecastModuleCard({
 
         {!preview && status !== "loading" && !error ? (
           <p className="text-sm text-muted-foreground">
-            Модуль рахує соляр, найближчий лунар і точні дати major-транзитів до натальних точок у вибраному вікні.
+            Модуль рахує соляр, лунар, вторинні прогресії, солярну дугу і точні дати major-транзитів.
           </p>
         ) : null}
 
         {preview ? (
           <div className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <ForecastMetric label="Соляр" value={preview.solarReturn ? formatDateTimeCompact(preview.solarReturn.exactAt) : "n/a"} />
-              <ForecastMetric label="Лунар" value={preview.lunarReturn ? formatDateTimeCompact(preview.lunarReturn.exactAt) : "n/a"} />
-              <ForecastMetric label="Точних транзитів" value={`${exactTransits.length} · ${highPriorityTransits} сильних`} />
+            <div className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1" role="tablist" aria-label="Методи прогнозування">
+              {[
+                ["overview", "Огляд"],
+                ["progression", "Прогресії"],
+                ["solar-arc", "Солярна дуга"],
+                ["transits", "Транзити"]
+              ].map(([key, label]) => (
+                <button
+                  aria-selected={activeForecastView === key}
+                  className={cn(
+                    "min-h-9 shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    activeForecastView === key
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                  )}
+                  key={key}
+                  role="tab"
+                  type="button"
+                  onClick={() => setActiveForecastView(key as "overview" | "progression" | "solar-arc" | "transits")}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-2">
-              <ReturnEventPanel event={preview.solarReturn} title="Соляр" />
-              <ReturnEventPanel event={preview.lunarReturn} title="Лунар" />
-            </div>
+            {activeForecastView === "overview" ? (
+              <div className="space-y-4" role="tabpanel">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <ForecastMetric label="Соляр" value={preview.solarReturn ? formatDateTimeCompact(preview.solarReturn.exactAt) : "n/a"} />
+                  <ForecastMetric label="Лунар" value={preview.lunarReturn ? formatDateTimeCompact(preview.lunarReturn.exactAt) : "n/a"} />
+                  <ForecastMetric label="Точних транзитів" value={`${exactTransits.length} · ${highPriorityTransits} сильних`} />
+                </div>
 
-            <SecondaryProgressionPanel progression={preview.secondaryProgression} />
-
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold">Точні дати транзитів</h3>
-                <Badge variant="secondary">{exactTransits.length}</Badge>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <ReturnEventPanel event={preview.solarReturn} title="Соляр" />
+                  <ReturnEventPanel event={preview.lunarReturn} title="Лунар" />
+                </div>
               </div>
-              <ExactTransitsTable events={exactTransits} />
-            </div>
+            ) : null}
+
+            {activeForecastView === "progression" ? (
+              <div role="tabpanel">
+                <SecondaryProgressionPanel progression={preview.secondaryProgression} />
+              </div>
+            ) : null}
+
+            {activeForecastView === "solar-arc" ? (
+              <div role="tabpanel">
+                <SolarArcDirectionsPanel directions={preview.solarArcDirections} />
+              </div>
+            ) : null}
+
+            {activeForecastView === "transits" ? (
+              <div className="space-y-2" role="tabpanel">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">Точні дати транзитів</h3>
+                  <Badge variant="secondary">{exactTransits.length}</Badge>
+                </div>
+                <ExactTransitsTable events={exactTransits} />
+              </div>
+            ) : null}
 
             {preview.warnings.map((warning) => (
               <div
@@ -2466,6 +2511,90 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">В орбісі 1° прогресивних major-аспектів не знайдено.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SolarArcDirectionsPanel({ directions }: { directions: SolarArcDirectionResult }) {
+  const directedPoints = new Map(directions.directedPoints.map((point) => [point.key, point]));
+  const natalPoints = new Map(
+    [...directions.natal.bodies, ...directions.natal.angles].map((point) => [point.key, point])
+  );
+
+  return (
+    <section className="space-y-4 rounded-lg border bg-muted/15 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-primary">Solar arc</p>
+          <h3 className="mt-1 text-base font-semibold">Дирекції солярної дуги</h3>
+        </div>
+        <Badge variant="secondary">SA {directions.solarArcDegrees.toFixed(3)}° · орб {directions.aspectOrbDegrees.toFixed(1)}°</Badge>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <ForecastMetric label="Дата дирекцій" value={formatDateTimeCompact(directions.targetDateTime)} />
+        <ForecastMetric label="Солярна дуга" value={`${directions.solarArcDegrees.toFixed(4)}°`} />
+        <ForecastMetric label="Активних аспектів" value={String(directions.directedToNatalAspects.length)} />
+      </div>
+
+      <SolarArcOverlayWheel directions={directions} />
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold">Дирекції до натальних точок</h4>
+          <Badge variant="secondary">{directions.directedToNatalAspects.length}</Badge>
+        </div>
+
+        {directions.directedToNatalAspects.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border bg-background">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Дирекція</TableHead>
+                  <TableHead>Положення</TableHead>
+                  <TableHead>Аспект</TableHead>
+                  <TableHead>Натал</TableHead>
+                  <TableHead>Орб</TableHead>
+                  <TableHead>Фаза</TableHead>
+                  <TableHead>Точна дата</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {directions.directedToNatalAspects.map((aspect) => {
+                  const directedPoint = directedPoints.get(aspect.bodyA) ?? null;
+                  const natalPoint = natalPoints.get(aspect.bodyB) ?? null;
+
+                  return (
+                    <TableRow key={`solar-arc-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
+                      <TableCell className="font-medium">
+                        {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {aspect.directedPointLabel}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {formatPointPosition(directedPoint)}
+                      </TableCell>
+                      <TableCell className={cn("font-medium", getAspectTextClass(aspect.type))}>
+                        {aspectLabels[aspect.type] ?? aspect.type}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.natalPointLabel}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{transitPhaseLabelsUk[aspect.phase] ?? aspect.phase}</Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {aspect.exactAt ? formatDateTimeCompact(aspect.exactAt) : "n/a"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">В орбісі 1° дирекційних major-аспектів не знайдено.</p>
         )}
       </div>
     </section>
@@ -2996,6 +3125,45 @@ function ProgressionOverlayWheel({ progression }: { progression: SecondaryProgre
       preview={preview}
       subjectAName="Натал"
       subjectBName="Прогресія"
+    />
+  );
+}
+
+function SolarArcOverlayWheel({ directions }: { directions: SolarArcDirectionResult }) {
+  const interAspects: Aspect[] = directions.directedToNatalAspects.map((aspect) => ({
+    bodyA: aspect.bodyB,
+    bodyB: aspect.bodyA,
+    type: aspect.type,
+    exactAngle: aspect.exactAngle,
+    orb: aspect.orb
+  }));
+  const directedChart: ChartResult = {
+    ...directions.directed,
+    bodies: directions.directedPoints
+  };
+  const preview: SynastryPreviewResult = {
+    chartType: "synastry",
+    generatedAt: directions.targetDateTime,
+    subjectA: directions.natal,
+    subjectB: directedChart,
+    interAspects,
+    summary: {
+      totalAspects: interAspects.length,
+      harmoniousAspects: interAspects.filter((aspect) => aspect.type === "trine" || aspect.type === "sextile").length,
+      tenseAspects: interAspects.filter((aspect) => aspect.type === "square" || aspect.type === "opposition").length,
+      conjunctions: interAspects.filter((aspect) => aspect.type === "conjunction").length,
+      exactAspects: interAspects.filter((aspect) => aspect.orb <= 0.15).length
+    },
+    warnings: directions.warnings
+  };
+
+  return (
+    <SynastryOverlayWheel
+      ariaLabel="Накладена карта наталу і дирекцій солярної дуги"
+      description="Bi-wheel · натальна карта та солярна дуга"
+      preview={preview}
+      subjectAName="Натал"
+      subjectBName="Солярна дуга"
     />
   );
 }

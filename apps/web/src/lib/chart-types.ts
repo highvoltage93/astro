@@ -261,6 +261,32 @@ export type SecondaryProgressionResult = {
   }>;
 };
 
+export type SolarArcDirectionAspect = Aspect & {
+  phase: "applying" | "separating" | "exact" | "stationary";
+  exactAt: string | null;
+  yearsToExact: number | null;
+  score: number;
+  strength: "high" | "medium" | "low";
+  directedPointLabel: string;
+  natalPointLabel: string;
+  natalHouse?: number;
+};
+
+export type SolarArcDirectionResult = {
+  method: "solar-arc-secondary-sun";
+  aspectOrbDegrees: number;
+  targetDateTime: string;
+  solarArcDegrees: number;
+  natal: ChartResult;
+  directed: ChartResult;
+  directedPoints: ChartPoint[];
+  directedToNatalAspects: SolarArcDirectionAspect[];
+  warnings: Array<{
+    code: string;
+    message: string;
+  }>;
+};
+
 export type ForecastPreviewResult = {
   chartType: "forecast";
   generatedAt: string;
@@ -268,6 +294,7 @@ export type ForecastPreviewResult = {
   solarReturn: ReturnEvent | null;
   lunarReturn: ReturnEvent | null;
   secondaryProgression: SecondaryProgressionResult;
+  solarArcDirections: SolarArcDirectionResult;
   exactTransits: ExactTransitEvent[];
   warnings: Array<{
     code: string;
