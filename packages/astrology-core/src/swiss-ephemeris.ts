@@ -10,6 +10,7 @@ import {
   type HouseSystems
 } from "sweph";
 import { calculateAspectsBetween, calculateMajorAspects } from "./aspects";
+import { calculateAspectConfigurations } from "./aspect-configurations";
 import { DEFAULT_MAJOR_ASPECT_ORBS, MAJOR_ASPECT_ANGLES, ZODIAC_SIGNS } from "./constants";
 import type {
   Ayanamsa,
@@ -23,6 +24,8 @@ import type {
   ExactTransitEvent,
   ForecastPreviewInput,
   ForecastPreviewResult,
+  ForecastTimelineEvent,
+  ForecastTimelineSource,
   HouseConnection,
   HouseConnectionDetail,
   HouseConnectionRole,
@@ -118,6 +121,19 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
 ];
 
 const BODY_DEFINITION_BY_KEY = new Map(BODY_DEFINITIONS.map((body) => [body.key, body]));
+
+const RETURN_ASPECT_BODY_KEYS = new Set([
+  "sun",
+  "moon",
+  "mercury",
+  "venus",
+  "mars",
+  "jupiter",
+  "saturn",
+  "uranus",
+  "neptune",
+  "pluto"
+]);
 
 const PLANET_DIRECT_RULERS: Record<string, string[]> = {
   sun: ["leo"],
@@ -1408,6 +1424,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
 
   const aspectAngles = angles.filter((angle) => angle.key === "asc" || angle.key === "mc");
   const aspects = calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs);
+  const aspectConfigurations = calculateAspectConfigurations(bodies);
   const houseRulers = calculateHouseRulers(houses, bodies);
   const planetRulerships = calculatePlanetRulerships(houseRulers, bodies);
   const houseConnections = calculateHouseConnections(houseRulers, bodies, aspects);
@@ -1435,6 +1452,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     planetRulerships,
     syntheticSignature,
     essentialDignities,
+    aspectConfigurations,
     bodies,
     aspects,
     warnings
@@ -1787,8 +1805,8 @@ const calculateReturnChartAt = ({
     birthTime,
     birthTimeKnown: true,
     timezone: "UTC",
-    latitude: natal.subject.latitude,
-    longitude: natal.subject.longitude,
+    latitude: input.returnLatitude ?? natal.subject.latitude,
+    longitude: input.returnLongitude ?? natal.subject.longitude,
     houseSystem: natal.settings.houseSystem,
     zodiac: input.zodiac ?? natal.settings.zodiac,
     ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
@@ -1853,6 +1871,21 @@ const calculateReturnEvent = ({
     pointOrbs
   });
   const returnPoint = chart.bodies.find((point) => point.key === natalPoint.key);
+  const returnReferencePoints = [
+    ...chart.bodies.filter((point) => RETURN_ASPECT_BODY_KEYS.has(point.key)),
+    ...chart.angles.filter((point) => point.key === "asc" || point.key === "mc")
+  ];
+  const natalReferencePoints = [
+    ...natal.bodies.filter((point) => RETURN_ASPECT_BODY_KEYS.has(point.key)),
+    ...natal.angles.filter((point) => point.key === "asc" || point.key === "mc")
+  ];
+  const returnPointsInNatalHouses = assignNatalHousesToTransitPoints(returnReferencePoints, natal.houses);
+  const returnToNatalAspects = calculateAspectsBetween(
+    returnReferencePoints,
+    natalReferencePoints,
+    undefined,
+    pointOrbs
+  );
 
   return {
     kind,
@@ -1860,7 +1893,9 @@ const calculateReturnEvent = ({
     targetPointKey: natalPoint.key === "moon" ? "moon" : "sun",
     natalLongitude: round(natalPoint.longitude, 4),
     returnLongitude: round(returnPoint?.longitude ?? natalPoint.longitude, 4),
-    chart
+    chart,
+    returnPointsInNatalHouses,
+    returnToNatalAspects
   };
 };
 
@@ -2643,6 +2678,164 @@ const addReturnChartWarnings = (
   }
 };
 
+const FORECAST_CONFIRMATION_WINDOW_DAYS = 3;
+
+const timelineEventsShareTopic = (eventA: ForecastTimelineEvent, eventB: ForecastTimelineEvent): boolean => {
+  if (eventA.natalPointKey && eventB.natalPointKey && eventA.natalPointKey === eventB.natalPointKey) {
+    return true;
+  }
+
+  return Boolean(
+    eventA.natalHouse &&
+      eventB.natalHouse &&
+      eventA.natalHouse === eventB.natalHouse
+  );
+};
+
+const buildForecastTimeline = ({
+  baseDateTime,
+  days,
+  exactTransits,
+  lunarReturn,
+  secondaryProgression,
+  solarArcDirections,
+  solarReturn
+}: {
+  baseDateTime: DateTime;
+  days: number;
+  exactTransits: ExactTransitEvent[];
+  lunarReturn: ReturnEvent | null;
+  secondaryProgression: SecondaryProgressionResult;
+  solarArcDirections: SolarArcDirectionResult;
+  solarReturn: ReturnEvent | null;
+}): ForecastTimelineEvent[] => {
+  const candidates: ForecastTimelineEvent[] = [];
+
+  for (const event of exactTransits) {
+    if (!event.exactAt) {
+      continue;
+    }
+
+    candidates.push({
+      id: `transit-${event.bodyA}-${event.type}-${event.bodyB}-${event.exactAt}`,
+      source: "transit",
+      exactAt: event.exactAt,
+      bodyA: event.bodyA,
+      bodyB: event.bodyB,
+      aspectType: event.type,
+      orb: event.orb,
+      score: event.score,
+      strength: event.strength,
+      natalPointKey: event.bodyB,
+      natalHouse: event.natalHouse,
+      confirmationSources: []
+    });
+  }
+
+  for (const aspect of secondaryProgression.progressedToNatalAspects) {
+    if (!aspect.exactAt) {
+      continue;
+    }
+
+    candidates.push({
+      id: `progression-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}-${aspect.exactAt}`,
+      source: "secondary-progression",
+      exactAt: aspect.exactAt,
+      bodyA: aspect.bodyA,
+      bodyB: aspect.bodyB,
+      aspectType: aspect.type,
+      orb: aspect.orb,
+      score: aspect.score,
+      strength: aspect.strength,
+      natalPointKey: aspect.bodyB,
+      natalHouse: aspect.natalHouse,
+      confirmationSources: []
+    });
+  }
+
+  for (const aspect of solarArcDirections.directedToNatalAspects) {
+    if (!aspect.exactAt) {
+      continue;
+    }
+
+    candidates.push({
+      id: `solar-arc-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}-${aspect.exactAt}`,
+      source: "solar-arc",
+      exactAt: aspect.exactAt,
+      bodyA: aspect.bodyA,
+      bodyB: aspect.bodyB,
+      aspectType: aspect.type,
+      orb: aspect.orb,
+      score: aspect.score,
+      strength: aspect.strength,
+      natalPointKey: aspect.bodyB,
+      natalHouse: aspect.natalHouse,
+      confirmationSources: []
+    });
+  }
+
+  const addReturnEvent = (event: ReturnEvent | null, source: "solar-return" | "lunar-return"): void => {
+    if (!event) {
+      return;
+    }
+
+    const natalPoint = secondaryProgression.natal.bodies.find((point) => point.key === event.targetPointKey);
+
+    candidates.push({
+      id: `${source}-${event.exactAt}`,
+      source,
+      exactAt: event.exactAt,
+      bodyA: event.targetPointKey,
+      bodyB: event.targetPointKey,
+      aspectType: "conjunction",
+      orb: 0,
+      score: source === "solar-return" ? 100 : 92,
+      strength: "high",
+      natalPointKey: event.targetPointKey,
+      natalHouse: natalPoint?.house,
+      confirmationSources: []
+    });
+  };
+
+  addReturnEvent(solarReturn, "solar-return");
+  addReturnEvent(lunarReturn, "lunar-return");
+
+  const windowEnd = baseDateTime.plus({ days });
+  const events = candidates
+    .filter((event) => {
+      const exactAt = DateTime.fromISO(event.exactAt, { setZone: true }).toUTC();
+
+      return (
+        exactAt.isValid &&
+        exactAt.toMillis() >= baseDateTime.toMillis() &&
+        exactAt.toMillis() <= windowEnd.toMillis()
+      );
+    })
+    .sort((a, b) => Date.parse(a.exactAt) - Date.parse(b.exactAt) || b.score - a.score);
+
+  return events.map((event) => {
+    const eventDate = DateTime.fromISO(event.exactAt, { setZone: true }).toUTC();
+    const confirmationSources = new Set<ForecastTimelineSource>([event.source]);
+
+    for (const candidate of events) {
+      if (candidate.id === event.id || candidate.source === event.source || !timelineEventsShareTopic(event, candidate)) {
+        continue;
+      }
+
+      const candidateDate = DateTime.fromISO(candidate.exactAt, { setZone: true }).toUTC();
+
+      if (Math.abs(candidateDate.diff(eventDate, "days").days) <= FORECAST_CONFIRMATION_WINDOW_DAYS) {
+        confirmationSources.add(candidate.source);
+      }
+    }
+
+    return {
+      ...event,
+      confirmationSources: [...confirmationSources]
+    };
+  });
+};
+
 export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastPreviewResult => {
   const baseDateTime = parseTransitDateTime(input.fromDateTime);
   const requestedPointOrbs = cleanPointOrbs(input.pointOrbs);
@@ -2719,6 +2912,15 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
     natal
   );
   const solarArcDirections = calculateSolarArcDirections(secondaryProgression, input.ephemerisPath);
+  const timelineEvents = buildForecastTimeline({
+    baseDateTime,
+    days,
+    exactTransits,
+    lunarReturn,
+    secondaryProgression,
+    solarArcDirections,
+    solarReturn
+  });
 
   addReturnChartWarnings(warnings, solarReturn, "SOLAR");
   addReturnChartWarnings(warnings, lunarReturn, "LUNAR");
@@ -2740,6 +2942,7 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
     secondaryProgression,
     solarArcDirections,
     exactTransits,
+    timelineEvents,
     warnings
   };
 };

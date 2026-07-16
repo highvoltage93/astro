@@ -37,6 +37,8 @@ export const forecastPreviewSchema = z.object({
   natal: natalPreviewSchema,
   targetYear: z.number().int().min(1900).max(2100).optional(),
   days: z.number().int().min(1).max(366).default(90),
+  returnLatitude: z.number().min(-90).max(90).optional(),
+  returnLongitude: z.number().min(-180).max(180).optional(),
   zodiac: z.enum(["tropical", "sidereal"]).optional(),
   pointOrbs: pointOrbsSchema
 });

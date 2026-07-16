@@ -87,6 +87,33 @@ export type Aspect = {
   orb: number;
 };
 
+export type AspectConfigurationType =
+  | "grand-trine"
+  | "t-square"
+  | "grand-cross"
+  | "yod"
+  | "bisextile"
+  | "stellium";
+
+export type AspectConfigurationAspectType = AspectType | "quincunx";
+
+export type AspectConfigurationLink = {
+  bodyA: string;
+  bodyB: string;
+  type: AspectConfigurationAspectType;
+  exactAngle: number;
+  orb: number;
+};
+
+export type AspectConfiguration = {
+  type: AspectConfigurationType;
+  pointKeys: string[];
+  apexKey?: string;
+  maxOrb: number;
+  score: number;
+  links: AspectConfigurationLink[];
+};
+
 export type HouseConnectionRole = "placement" | "ruler";
 
 export type HouseConnectionTone = "harmonious" | "tense" | "neutral";
@@ -180,6 +207,7 @@ export type ChartResult = {
   planetRulerships?: PlanetRulership[];
   syntheticSignature?: SyntheticSignature;
   essentialDignities?: EssentialDignity[];
+  aspectConfigurations?: AspectConfiguration[];
   bodies: ChartPoint[];
   aspects: Aspect[];
   warnings: CalculationWarning[];
@@ -230,6 +258,8 @@ export type ReturnEvent = {
   natalLongitude: number;
   returnLongitude: number;
   chart: ChartResult;
+  returnPointsInNatalHouses: ChartPoint[];
+  returnToNatalAspects: Aspect[];
 };
 
 export type ExactTransitEvent = TransitAspect & {
@@ -294,11 +324,35 @@ export type SolarArcDirectionResult = {
   warnings: CalculationWarning[];
 };
 
+export type ForecastTimelineSource =
+  | "transit"
+  | "secondary-progression"
+  | "solar-arc"
+  | "solar-return"
+  | "lunar-return";
+
+export type ForecastTimelineEvent = {
+  id: string;
+  source: ForecastTimelineSource;
+  exactAt: string;
+  bodyA?: string;
+  bodyB?: string;
+  aspectType?: AspectType;
+  orb?: number;
+  score: number;
+  strength: TransitAspectStrength;
+  natalPointKey?: string;
+  natalHouse?: number;
+  confirmationSources: ForecastTimelineSource[];
+};
+
 export type ForecastPreviewInput = {
   natal: NatalPreviewInput;
   fromDateTime: string;
   targetYear?: number;
   days?: number;
+  returnLatitude?: number;
+  returnLongitude?: number;
   zodiac?: ZodiacType;
   ayanamsa?: Ayanamsa;
   pointOrbs?: PointOrbSettings;
@@ -351,6 +405,7 @@ export type ForecastPreviewResult = {
   secondaryProgression: SecondaryProgressionResult;
   solarArcDirections: SolarArcDirectionResult;
   exactTransits: ExactTransitEvent[];
+  timelineEvents: ForecastTimelineEvent[];
   warnings: CalculationWarning[];
 };
 

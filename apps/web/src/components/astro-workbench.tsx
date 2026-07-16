@@ -47,11 +47,14 @@ import {
 } from "@/lib/api";
 import type {
   Aspect,
+  AspectConfiguration,
   AuthUser,
   ChartPoint,
   ChartResult,
   EssentialDignity,
   ExactTransitEvent,
+  ForecastTimelineEvent,
+  ForecastTimelineSource,
   ForecastPreviewResult,
   HouseConnection,
   HouseRuler,
@@ -99,7 +102,8 @@ type ProfessionalDataTab =
   | "dignities"
   | "houses"
   | "connections"
-  | "aspects";
+  | "aspects"
+  | "configurations";
 
 const workspaceTabs: Array<{ key: WorkspaceTab; label: string }> = [
   { key: "interpretation", label: "Базова трактовка" },
@@ -115,7 +119,8 @@ const professionalDataTabs: Array<{ key: ProfessionalDataTab; label: string }> =
   { key: "dignities", label: "Диспозитори" },
   { key: "houses", label: "Доми" },
   { key: "connections", label: "Зв'язки" },
-  { key: "aspects", label: "Аспекти" }
+  { key: "aspects", label: "Аспекти" },
+  { key: "configurations", label: "Конфігурації" }
 ];
 
 const initialForm: FormState = {
@@ -377,7 +382,8 @@ const aspectLabels: Record<string, string> = {
   opposition: "Опозиція",
   trine: "Трин",
   square: "Квадрат",
-  sextile: "Секстиль"
+  sextile: "Секстиль",
+  quincunx: "Квінконс"
 };
 
 const aspectGlyphs: Record<string, string> = {
@@ -385,7 +391,17 @@ const aspectGlyphs: Record<string, string> = {
   opposition: "☍",
   trine: "△",
   square: "□",
-  sextile: "⚹"
+  sextile: "⚹",
+  quincunx: "⚻"
+};
+
+const aspectConfigurationLabels: Record<AspectConfiguration["type"], string> = {
+  "grand-trine": "Великий трин",
+  "t-square": "Тау-квадрат",
+  "grand-cross": "Великий хрест",
+  yod: "Йод",
+  bisextile: "Бісекстиль",
+  stellium: "Стеліум"
 };
 
 const signLabelsUk: Record<string, string> = {
@@ -448,6 +464,14 @@ const transitStrengthLabelsUk: Record<string, string> = {
   high: "сильний",
   medium: "середній",
   low: "м'який"
+};
+
+const forecastTimelineSourceLabelsUk: Record<ForecastTimelineSource, string> = {
+  transit: "Транзит",
+  "secondary-progression": "Прогресія",
+  "solar-arc": "Солярна дуга",
+  "solar-return": "Соляр",
+  "lunar-return": "Лунар"
 };
 
 const toDateTimeLocalValue = (date: Date): string => {
@@ -680,6 +704,8 @@ export function AstroWorkbench() {
   const [forecastFromDateTime, setForecastFromDateTime] = useState("");
   const [forecastTargetYear, setForecastTargetYear] = useState(String(new Date().getFullYear()));
   const [forecastDays, setForecastDays] = useState("90");
+  const [solarReturnLatitude, setSolarReturnLatitude] = useState(initialForm.latitude);
+  const [solarReturnLongitude, setSolarReturnLongitude] = useState(initialForm.longitude);
   const [forecastPreview, setForecastPreview] = useState<ForecastPreviewResult | null>(null);
   const [synastryPreview, setSynastryPreview] = useState<SynastryPreviewResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -1022,6 +1048,8 @@ export function AstroWorkbench() {
         houseSystem: detailedProfile.latestCalculation?.houseSystem ?? "koch",
         zodiac: detailedProfile.latestCalculation?.zodiacType ?? "tropical"
       });
+      setSolarReturnLatitude(String(detailedProfile.latitude));
+      setSolarReturnLongitude(String(detailedProfile.longitude));
       setPointOrbs(calculation?.result.settings.pointOrbs ?? defaultPointOrbs);
       setChart(calculation?.result ?? null);
       setInterpretation(response.interpretation);
@@ -1086,6 +1114,8 @@ export function AstroWorkbench() {
       }
 
       setChart(chartResult.value);
+      setSolarReturnLatitude(String(payload.latitude));
+      setSolarReturnLongitude(String(payload.longitude));
 
       if (interpretationResult.status === "fulfilled") {
         setInterpretation(interpretationResult.value);
@@ -1297,6 +1327,8 @@ export function AstroWorkbench() {
     const selectedForecastDate = new Date(forecastFromDateTime);
     const parsedTargetYear = Number(forecastTargetYear);
     const parsedDays = Number(forecastDays);
+    const parsedReturnLatitude = Number(solarReturnLatitude);
+    const parsedReturnLongitude = Number(solarReturnLongitude);
 
     if (Number.isNaN(selectedForecastDate.getTime())) {
       setForecastStatus("error");
@@ -1316,6 +1348,19 @@ export function AstroWorkbench() {
       return;
     }
 
+    if (
+      !Number.isFinite(parsedReturnLatitude) ||
+      parsedReturnLatitude < -90 ||
+      parsedReturnLatitude > 90 ||
+      !Number.isFinite(parsedReturnLongitude) ||
+      parsedReturnLongitude < -180 ||
+      parsedReturnLongitude > 180
+    ) {
+      setForecastStatus("error");
+      setForecastError("Вкажи коректні координати місця соляра.");
+      return;
+    }
+
     setForecastStatus("loading");
     setForecastError(null);
 
@@ -1325,6 +1370,8 @@ export function AstroWorkbench() {
         natal: buildNatalPayload(),
         targetYear: parsedTargetYear,
         days: parsedDays,
+        returnLatitude: parsedReturnLatitude,
+        returnLongitude: parsedReturnLongitude,
         zodiac: form.zodiac,
         pointOrbs
       });
@@ -1508,6 +1555,8 @@ export function AstroWorkbench() {
                     fromDateTime={forecastFromDateTime}
                     preview={forecastPreview}
                     status={forecastStatus}
+                    returnLatitude={solarReturnLatitude}
+                    returnLongitude={solarReturnLongitude}
                     targetYear={forecastTargetYear}
                     onCalculate={calculateForecast}
                     onDaysChange={(value) => {
@@ -1516,6 +1565,14 @@ export function AstroWorkbench() {
                     }}
                     onFromDateTimeChange={(value) => {
                       setForecastFromDateTime(value);
+                      clearForecastState();
+                    }}
+                    onReturnLatitudeChange={(value) => {
+                      setSolarReturnLatitude(value);
+                      clearForecastState();
+                    }}
+                    onReturnLongitudeChange={(value) => {
+                      setSolarReturnLongitude(value);
                       clearForecastState();
                     }}
                     onTargetYearChange={(value) => {
@@ -2262,27 +2319,35 @@ function ForecastModuleCard({
   error,
   fromDateTime,
   preview,
+  returnLatitude,
+  returnLongitude,
   status,
   targetYear,
   onCalculate,
   onDaysChange,
   onFromDateTimeChange,
+  onReturnLatitudeChange,
+  onReturnLongitudeChange,
   onTargetYearChange
 }: {
   days: string;
   error: string | null;
   fromDateTime: string;
   preview: ForecastPreviewResult | null;
+  returnLatitude: string;
+  returnLongitude: string;
   status: "idle" | "loading" | "ready" | "error";
   targetYear: string;
   onCalculate: () => Promise<void>;
   onDaysChange: (value: string) => void;
   onFromDateTimeChange: (value: string) => void;
+  onReturnLatitudeChange: (value: string) => void;
+  onReturnLongitudeChange: (value: string) => void;
   onTargetYearChange: (value: string) => void;
 }) {
-  const [activeForecastView, setActiveForecastView] = useState<"overview" | "progression" | "solar-arc" | "transits">(
-    "overview"
-  );
+  const [activeForecastView, setActiveForecastView] = useState<
+    "overview" | "solar-return" | "timeline" | "progression" | "solar-arc" | "transits"
+  >("overview");
   const exactTransits = preview?.exactTransits ?? [];
   const highPriorityTransits = exactTransits.filter((event) => event.strength === "high").length;
 
@@ -2332,6 +2397,27 @@ function ForecastModuleCard({
           </div>
         </div>
 
+        <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[auto_1fr_1fr] sm:items-end">
+          <div className="flex min-h-10 items-center gap-2 pr-2 text-sm font-semibold">
+            <MapPin className="h-4 w-4 text-primary" />
+            Місце соляра
+          </div>
+          <Field label="Широта">
+            <Input
+              inputMode="decimal"
+              value={returnLatitude}
+              onChange={(event) => onReturnLatitudeChange(event.target.value)}
+            />
+          </Field>
+          <Field label="Довгота">
+            <Input
+              inputMode="decimal"
+              value={returnLongitude}
+              onChange={(event) => onReturnLongitudeChange(event.target.value)}
+            />
+          </Field>
+        </div>
+
         {error ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
             {error}
@@ -2349,6 +2435,8 @@ function ForecastModuleCard({
             <div className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1" role="tablist" aria-label="Методи прогнозування">
               {[
                 ["overview", "Огляд"],
+                ["solar-return", "Соляр"],
+                ["timeline", "Шкала часу"],
                 ["progression", "Прогресії"],
                 ["solar-arc", "Солярна дуга"],
                 ["transits", "Транзити"]
@@ -2364,7 +2452,11 @@ function ForecastModuleCard({
                   key={key}
                   role="tab"
                   type="button"
-                  onClick={() => setActiveForecastView(key as "overview" | "progression" | "solar-arc" | "transits")}
+                  onClick={() =>
+                    setActiveForecastView(
+                      key as "overview" | "solar-return" | "timeline" | "progression" | "solar-arc" | "transits"
+                    )
+                  }
                 >
                   {label}
                 </button>
@@ -2389,6 +2481,18 @@ function ForecastModuleCard({
             {activeForecastView === "progression" ? (
               <div role="tabpanel">
                 <SecondaryProgressionPanel progression={preview.secondaryProgression} />
+              </div>
+            ) : null}
+
+            {activeForecastView === "solar-return" ? (
+              <div role="tabpanel">
+                <SolarReturnPanel event={preview.solarReturn} natal={preview.natal} />
+              </div>
+            ) : null}
+
+            {activeForecastView === "timeline" ? (
+              <div role="tabpanel">
+                <ForecastTimelinePanel events={preview.timelineEvents} />
               </div>
             ) : null}
 
@@ -2429,6 +2533,126 @@ function ForecastMetric({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-semibold uppercase text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold">{value}</p>
     </div>
+  );
+}
+
+const getTimelineSourceClass = (source: ForecastTimelineSource): string => {
+  switch (source) {
+    case "transit":
+      return "border-blue-300 bg-blue-50 text-blue-800";
+    case "secondary-progression":
+      return "border-violet-300 bg-violet-50 text-violet-800";
+    case "solar-arc":
+      return "border-amber-300 bg-amber-50 text-amber-900";
+    case "solar-return":
+      return "border-rose-300 bg-rose-50 text-rose-800";
+    case "lunar-return":
+      return "border-teal-300 bg-teal-50 text-teal-800";
+    default:
+      return "";
+  }
+};
+
+const formatTimelineDay = (dateTime: string): string =>
+  new Intl.DateTimeFormat("uk-UA", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric"
+  }).format(new Date(dateTime));
+
+const formatTimelineEventTitle = (event: ForecastTimelineEvent): string => {
+  if (event.source === "solar-return") {
+    return "Повернення Сонця до натальної довготи";
+  }
+
+  if (event.source === "lunar-return") {
+    return "Повернення Місяця до натальної довготи";
+  }
+
+  const sourcePoint = event.bodyA
+    ? `${planetGlyphs[event.bodyA] ?? ""} ${planetLabelsUk[event.bodyA] ?? event.bodyA}`.trim()
+    : "Точка";
+  const targetPoint = event.bodyB
+    ? `${planetGlyphs[event.bodyB] ?? ""} ${planetLabelsUk[event.bodyB] ?? event.bodyB}`.trim()
+    : "натальна точка";
+
+  return `${sourcePoint} ${aspectLabels[event.aspectType ?? ""] ?? event.aspectType ?? "аспект"} ${targetPoint}`;
+};
+
+function ForecastTimelinePanel({ events }: { events: ForecastTimelineEvent[] }) {
+  const groupedEvents = new Map<string, ForecastTimelineEvent[]>();
+
+  for (const event of events) {
+    const dayKey = event.exactAt.slice(0, 10);
+    groupedEvents.set(dayKey, [...(groupedEvents.get(dayKey) ?? []), event]);
+  }
+
+  const confirmedDays = [...groupedEvents.values()].filter((dayEvents) =>
+    dayEvents.some((event) => event.confirmationSources.length > 1)
+  ).length;
+  const activeSources = new Set(events.map((event) => event.source)).size;
+
+  return (
+    <section className="space-y-4 rounded-lg border bg-muted/15 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-primary">Forecast timeline</p>
+          <h3 className="mt-1 text-base font-semibold">Єдина шкала прогнозів</h3>
+        </div>
+        <Badge variant="secondary">підтвердження ±3 доби</Badge>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        <ForecastMetric label="Подій" value={String(events.length)} />
+        <ForecastMetric label="Методів" value={String(activeSources)} />
+        <ForecastMetric label="Днів із підтвердженням" value={String(confirmedDays)} />
+      </div>
+
+      {events.length === 0 ? (
+        <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+          У вибраному часовому вікні точних подій не знайдено. Збільш кількість днів прогнозу.
+        </p>
+      ) : (
+        <div className="divide-y rounded-lg border bg-background">
+          {[...groupedEvents.entries()].map(([dayKey, dayEvents]) => (
+            <div className="grid gap-3 p-3 md:grid-cols-[150px_minmax(0,1fr)]" key={dayKey}>
+              <div>
+                <p className="text-sm font-semibold">{formatTimelineDay(dayEvents[0]?.exactAt ?? dayKey)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{dayEvents.length} подій</p>
+              </div>
+              <div className="space-y-2">
+                {dayEvents.map((event) => (
+                  <div
+                    className="grid gap-2 rounded-md border bg-muted/20 px-3 py-2 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center"
+                    key={event.id}
+                  >
+                    <Badge className={cn("w-fit", getTimelineSourceClass(event.source))} variant="outline">
+                      {forecastTimelineSourceLabelsUk[event.source]}
+                    </Badge>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{formatTimelineEventTitle(event)}</p>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        {event.natalHouse ? <span>{event.natalHouse} натальний дім</span> : null}
+                        {event.orb !== undefined ? <span>орб {event.orb.toFixed(2)}°</span> : null}
+                        <span>score {event.score.toFixed(1)}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                      {event.confirmationSources.length > 1 ? (
+                        <Badge variant="default">{event.confirmationSources.length} методи</Badge>
+                      ) : null}
+                      <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
+                        {formatDateTimeCompact(event.exactAt)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -2621,6 +2845,189 @@ function ReturnEventPanel({ event, title }: { event: ReturnEvent | null; title: 
       ) : (
         <p className="text-sm text-muted-foreground">Повернення не знайдено в пошуковому вікні.</p>
       )}
+    </div>
+  );
+}
+
+function SolarReturnPanel({ event, natal }: { event: ReturnEvent | null; natal: ChartResult }) {
+  if (!event) {
+    return (
+      <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+        Соляр не знайдено у вибраному річному вікні.
+      </div>
+    );
+  }
+
+  const ascendant = event.chart.angles.find((point) => point.key === "asc") ?? null;
+  const midheaven = event.chart.angles.find((point) => point.key === "mc") ?? null;
+
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-primary">Solar return</p>
+          <h3 className="mt-1 text-base font-semibold">Солярна карта</h3>
+        </div>
+        <Badge variant="secondary">{formatExactAt(event.exactAt)}</Badge>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <ForecastMetric label="Момент UTC" value={formatDateTimeCompact(event.exactAt)} />
+        <ForecastMetric
+          label="Координати"
+          value={`${event.chart.subject.latitude.toFixed(4)}, ${event.chart.subject.longitude.toFixed(4)}`}
+        />
+        <ForecastMetric label="ASC соляра" value={formatPointPosition(ascendant)} />
+        <ForecastMetric label="MC соляра" value={formatPointPosition(midheaven)} />
+      </div>
+
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(360px,0.9fr)_minmax(520px,1.1fr)]">
+        <SolarReturnOverlayWheel event={event} natal={natal} />
+        <SolarReturnPlacementsTable event={event} />
+      </div>
+
+      <div className="grid items-start gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <SolarReturnHousesTable event={event} />
+        <SolarReturnAspectsTable event={event} natal={natal} />
+      </div>
+    </section>
+  );
+}
+
+function SolarReturnPlacementsTable({ event }: { event: ReturnEvent }) {
+  const natalHousesByKey = new Map(event.returnPointsInNatalHouses.map((point) => [point.key, point.house]));
+  const points = event.chart.bodies.filter((point) => primaryPlanetOrder.includes(point.key));
+
+  return (
+    <div className="min-w-0 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold">Положення планет соляра</h4>
+        <Badge variant="outline">{points.length}</Badge>
+      </div>
+      <div className="overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="bg-card">
+            <TableRow>
+              <TableHead>Планета</TableHead>
+              <TableHead>Положення</TableHead>
+              <TableHead className="text-center">Дім соляра</TableHead>
+              <TableHead className="text-center">Дім наталу</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {points.map((point) => (
+              <TableRow key={`solar-placement-${point.key}`}>
+                <TableCell className="font-medium">
+                  <span className="mr-2 text-primary">{planetGlyphs[point.key] ?? "•"}</span>
+                  {planetLabelsUk[point.key] ?? point.label}
+                  {isRetrogradePoint(point) ? <sup className="ml-1 text-astro-coral">R</sup> : null}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {signLabelsUk[point.sign] ?? point.sign} {formatZodiacDegree(point.signDegree)}
+                </TableCell>
+                <TableCell className="text-center font-semibold text-astro-coral">{point.house ?? "n/a"}</TableCell>
+                <TableCell className="text-center font-semibold">{natalHousesByKey.get(point.key) ?? "n/a"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function SolarReturnHousesTable({ event }: { event: ReturnEvent }) {
+  const rulersByHouse = new Map<number, HouseRuler[]>();
+
+  for (const ruler of event.chart.houseRulers ?? []) {
+    rulersByHouse.set(ruler.house, [...(rulersByHouse.get(ruler.house) ?? []), ruler]);
+  }
+
+  return (
+    <div className="min-w-0 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold">Доми соляра</h4>
+        <Badge variant="outline">{event.chart.settings.houseSystem}</Badge>
+      </div>
+      <div className="overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="bg-card">
+            <TableRow>
+              <TableHead>Дім</TableHead>
+              <TableHead>Куспід</TableHead>
+              <TableHead>Управитель</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {event.chart.houses.map((house) => {
+              const rulers = rulersByHouse.get(house.house) ?? [];
+
+              return (
+                <TableRow key={`solar-house-${house.house}`}>
+                  <TableCell className="font-semibold text-astro-coral">{house.house}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {signLabelsUk[house.sign] ?? house.sign} {formatZodiacDegree(house.signDegree)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {rulers.length > 0
+                      ? rulers
+                          .map((ruler) => `${planetGlyphs[ruler.rulerKey] ?? ""} ${planetLabelsUk[ruler.rulerKey] ?? ruler.rulerLabel}`)
+                          .join(", ")
+                      : "n/a"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+function SolarReturnAspectsTable({ event, natal }: { event: ReturnEvent; natal: ChartResult }) {
+  const solarPoints = new Map([...event.chart.bodies, ...event.chart.angles].map((point) => [point.key, point]));
+  const natalPoints = new Map([...natal.bodies, ...natal.angles].map((point) => [point.key, point]));
+
+  return (
+    <div className="min-w-0 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold">Аспекти соляр–натал</h4>
+        <Badge variant="secondary">{event.returnToNatalAspects.length}</Badge>
+      </div>
+      <div className="max-h-[620px] overflow-auto rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Соляр</TableHead>
+              <TableHead>Аспект</TableHead>
+              <TableHead>Натал</TableHead>
+              <TableHead>Орб</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {event.returnToNatalAspects.map((aspect) => {
+              const solarPoint = solarPoints.get(aspect.bodyA);
+              const natalPoint = natalPoints.get(aspect.bodyB);
+
+              return (
+                <TableRow key={`solar-natal-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
+                  <TableCell className="font-medium">
+                    {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {planetLabelsUk[aspect.bodyA] ?? solarPoint?.label ?? aspect.bodyA}
+                  </TableCell>
+                  <TableCell className={cn("whitespace-nowrap font-medium", getAspectTextClass(aspect.type))}>
+                    {aspectGlyphs[aspect.type] ?? ""} {aspectLabels[aspect.type] ?? aspect.type}
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {planetLabelsUk[aspect.bodyB] ?? natalPoint?.label ?? aspect.bodyB}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
@@ -3094,6 +3501,53 @@ function SynastryMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
+function SolarReturnOverlayWheel({ event, natal }: { event: ReturnEvent; natal: ChartResult }) {
+  const natalChart: ChartResult = {
+    ...natal,
+    bodies: [
+      ...natal.bodies.filter((point) => primaryPlanetOrder.includes(point.key)),
+      ...natal.angles.filter((point) => point.key === "asc" || point.key === "mc")
+    ]
+  };
+  const solarChart: ChartResult = {
+    ...event.chart,
+    bodies: [
+      ...event.chart.bodies.filter((point) => primaryPlanetOrder.includes(point.key)),
+      ...event.chart.angles.filter((point) => point.key === "asc" || point.key === "mc")
+    ]
+  };
+  const interAspects = event.returnToNatalAspects.map((aspect) => ({
+    ...aspect,
+    bodyA: aspect.bodyB,
+    bodyB: aspect.bodyA
+  }));
+  const preview: SynastryPreviewResult = {
+    chartType: "synastry",
+    generatedAt: event.exactAt,
+    subjectA: natalChart,
+    subjectB: solarChart,
+    interAspects,
+    summary: {
+      totalAspects: interAspects.length,
+      harmoniousAspects: interAspects.filter((aspect) => aspect.type === "trine" || aspect.type === "sextile").length,
+      tenseAspects: interAspects.filter((aspect) => aspect.type === "square" || aspect.type === "opposition").length,
+      conjunctions: interAspects.filter((aspect) => aspect.type === "conjunction").length,
+      exactAspects: interAspects.filter((aspect) => aspect.orb <= 1).length
+    },
+    warnings: event.chart.warnings
+  };
+
+  return (
+    <SynastryOverlayWheel
+      ariaLabel="Накладена карта наталу та соляра"
+      description="Bi-wheel · натальні й солярні доми, міжкартні аспекти"
+      preview={preview}
+      subjectAName="Натал"
+      subjectBName="Соляр"
+    />
+  );
+}
+
 function ProgressionOverlayWheel({ progression }: { progression: SecondaryProgressionResult }) {
   const interAspects: Aspect[] = progression.progressedToNatalAspects.map((aspect) => ({
     bodyA: aspect.bodyB,
@@ -3421,6 +3875,7 @@ function ProfessionalDataCard({
           {activeTab === "houses" ? <HousesTable chart={chart} /> : null}
           {activeTab === "connections" ? <HouseConnectionsTable chart={chart} /> : null}
           {activeTab === "aspects" ? <AspectsTable aspects={aspects} points={placements} /> : null}
+          {activeTab === "configurations" ? <AspectConfigurationsPanel chart={chart} /> : null}
 
           {chart?.warnings.map((warning) => (
             <div
@@ -4183,6 +4638,82 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
           </TableBody>
         </Table>
       </div>
+    </div>
+  );
+}
+
+function AspectConfigurationsPanel({ chart }: { chart: ChartResult | null }) {
+  const configurations = chart?.aspectConfigurations ?? [];
+  const pointsByKey = new Map(chart?.bodies.map((point) => [point.key, point]) ?? []);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">Аспектні конфігурації</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Фігури між десятьма основними планетами</p>
+        </div>
+        <Badge variant="secondary">{configurations.length}</Badge>
+      </div>
+
+      {configurations.length > 0 ? (
+        <div className="divide-y overflow-hidden rounded-lg border">
+          {configurations.map((configuration, index) => {
+            const apex = configuration.apexKey ? pointsByKey.get(configuration.apexKey) : undefined;
+
+            return (
+              <div className="space-y-3 p-3" key={`${configuration.type}-${configuration.pointKeys.join("-")}-${index}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold">{aspectConfigurationLabels[configuration.type]}</div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                      {configuration.pointKeys.map((pointKey) => {
+                        const point = pointsByKey.get(pointKey);
+                        return (
+                          <span className="whitespace-nowrap" key={`${configuration.type}-${pointKey}`}>
+                            <span className="font-semibold text-primary">{planetGlyphs[pointKey] ?? "•"}</span>{" "}
+                            {planetLabelsUk[pointKey] ?? point?.label ?? pointKey}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <Badge variant="outline">макс. орб {configuration.maxOrb.toFixed(2)}°</Badge>
+                    <Badge variant="secondary">точність {configuration.score.toFixed(0)}%</Badge>
+                  </div>
+                </div>
+
+                {apex ? (
+                  <div className="text-xs text-muted-foreground">
+                    Вершина: <span className="font-medium text-foreground">{planetGlyphs[apex.key] ?? "•"} {planetLabelsUk[apex.key] ?? apex.label}</span>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+                  {configuration.links.map((link) => (
+                    <div
+                      className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-muted/40 px-2.5 py-2 text-xs"
+                      key={`${configuration.type}-${link.bodyA}-${link.type}-${link.bodyB}`}
+                    >
+                      <span className="truncate" title={`${planetLabelsUk[link.bodyA] ?? link.bodyA} - ${planetLabelsUk[link.bodyB] ?? link.bodyB}`}>
+                        {planetGlyphs[link.bodyA] ?? link.bodyA}{" "}
+                        <span className={getAspectTextClass(link.type)}>{aspectGlyphs[link.type] ?? link.type}</span>{" "}
+                        {planetGlyphs[link.bodyB] ?? link.bodyB}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">{link.orb.toFixed(2)}°</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+          У цій карті не знайдено конфігурацій у межах професійних орбісів.
+        </div>
+      )}
     </div>
   );
 }

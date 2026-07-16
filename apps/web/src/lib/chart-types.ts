@@ -64,6 +64,31 @@ export type Aspect = {
   orb: number;
 };
 
+export type AspectConfigurationType =
+  | "grand-trine"
+  | "t-square"
+  | "grand-cross"
+  | "yod"
+  | "bisextile"
+  | "stellium";
+
+export type AspectConfigurationLink = {
+  bodyA: string;
+  bodyB: string;
+  type: string;
+  exactAngle: number;
+  orb: number;
+};
+
+export type AspectConfiguration = {
+  type: AspectConfigurationType;
+  pointKeys: string[];
+  apexKey?: string;
+  maxOrb: number;
+  score: number;
+  links: AspectConfigurationLink[];
+};
+
 export type HouseConnectionDetail = {
   source: "ruler-position" | "rulership" | "aspect";
   tone: "harmonious" | "tense" | "neutral";
@@ -135,6 +160,7 @@ export type ChartResult = {
   planetRulerships?: PlanetRulership[];
   syntheticSignature?: SyntheticSignature;
   essentialDignities?: EssentialDignity[];
+  aspectConfigurations?: AspectConfiguration[];
   bodies: ChartPoint[];
   aspects: Aspect[];
   warnings: Array<{
@@ -167,6 +193,8 @@ export type ForecastPreviewPayload = {
   natal: NatalPreviewPayload;
   targetYear?: number;
   days?: number;
+  returnLatitude?: number;
+  returnLongitude?: number;
   zodiac?: "tropical" | "sidereal";
   pointOrbs?: Record<string, number>;
 };
@@ -225,6 +253,8 @@ export type ReturnEvent = {
   natalLongitude: number;
   returnLongitude: number;
   chart: ChartResult;
+  returnPointsInNatalHouses: ChartPoint[];
+  returnToNatalAspects: Aspect[];
 };
 
 export type ExactTransitEvent = TransitAspect & {
@@ -287,6 +317,28 @@ export type SolarArcDirectionResult = {
   }>;
 };
 
+export type ForecastTimelineSource =
+  | "transit"
+  | "secondary-progression"
+  | "solar-arc"
+  | "solar-return"
+  | "lunar-return";
+
+export type ForecastTimelineEvent = {
+  id: string;
+  source: ForecastTimelineSource;
+  exactAt: string;
+  bodyA?: string;
+  bodyB?: string;
+  aspectType?: string;
+  orb?: number;
+  score: number;
+  strength: "high" | "medium" | "low";
+  natalPointKey?: string;
+  natalHouse?: number;
+  confirmationSources: ForecastTimelineSource[];
+};
+
 export type ForecastPreviewResult = {
   chartType: "forecast";
   generatedAt: string;
@@ -296,6 +348,7 @@ export type ForecastPreviewResult = {
   secondaryProgression: SecondaryProgressionResult;
   solarArcDirections: SolarArcDirectionResult;
   exactTransits: ExactTransitEvent[];
+  timelineEvents: ForecastTimelineEvent[];
   warnings: Array<{
     code: string;
     message: string;
