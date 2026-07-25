@@ -246,6 +246,13 @@ const SIGN_ELEMENTS: Record<string, string> = {
   pisces: "water"
 };
 
+const INCOMPATIBLE_ELEMENTS: Record<string, string> = {
+  fire: "water",
+  water: "fire",
+  earth: "air",
+  air: "earth"
+};
+
 const SIGN_CROSSES: Record<string, string> = {
   aries: "cardinal",
   taurus: "fixed",
@@ -873,13 +880,17 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
 const dignityScore = (dignity: EssentialDignityType): number => {
   switch (dignity) {
     case "domicile":
-      return 5;
+      return 3;
     case "exaltation":
-      return 4;
+      return 2;
+    case "affinity":
+      return 1;
+    case "enmity":
+      return -1;
     case "detriment":
-      return -5;
+      return -3;
     case "fall":
-      return -4;
+      return -2;
     default:
       return 0;
   }
@@ -909,7 +920,25 @@ const dignityForPoint = (point: ChartPoint): EssentialDignityType => {
     return "fall";
   }
 
-  return "peregrine";
+  const domicileElements = new Set(
+    domiciles
+      .map((sign) => SIGN_ELEMENTS[sign])
+      .filter((element): element is string => element !== undefined)
+  );
+  const currentElement = SIGN_ELEMENTS[point.sign];
+
+  if (currentElement && domicileElements.has(currentElement)) {
+    return "affinity";
+  }
+
+  if (
+    currentElement &&
+    [...domicileElements].some((domicileElement) => INCOMPATIBLE_ELEMENTS[domicileElement] === currentElement)
+  ) {
+    return "enmity";
+  }
+
+  return "neutral";
 };
 
 const buildDispositorChain = (point: ChartPoint, pointsByKey: Map<string, ChartPoint>): { chain: string[]; cycle: boolean } => {
@@ -1880,6 +1909,7 @@ const calculateReturnEvent = ({
     ...natal.angles.filter((point) => point.key === "asc" || point.key === "mc")
   ];
   const returnPointsInNatalHouses = assignNatalHousesToTransitPoints(returnReferencePoints, natal.houses);
+  const natalPointsInReturnHouses = assignNatalHousesToTransitPoints(natalReferencePoints, chart.houses);
   const returnToNatalAspects = calculateAspectsBetween(
     returnReferencePoints,
     natalReferencePoints,
@@ -1895,6 +1925,7 @@ const calculateReturnEvent = ({
     returnLongitude: round(returnPoint?.longitude ?? natalPoint.longitude, 4),
     chart,
     returnPointsInNatalHouses,
+    natalPointsInReturnHouses,
     returnToNatalAspects
   };
 };
@@ -2723,11 +2754,17 @@ const buildForecastTimeline = ({
       bodyA: event.bodyA,
       bodyB: event.bodyB,
       aspectType: event.type,
+      exactAngle: event.exactAngle,
       orb: event.orb,
+      phase: event.phase,
+      activeFrom: event.activeFrom,
+      activeUntil: event.activeUntil,
       score: event.score,
       strength: event.strength,
       natalPointKey: event.bodyB,
       natalHouse: event.natalHouse,
+      sequenceIndex: 1,
+      sequenceTotal: 1,
       confirmationSources: []
     });
   }
@@ -2744,11 +2781,15 @@ const buildForecastTimeline = ({
       bodyA: aspect.bodyA,
       bodyB: aspect.bodyB,
       aspectType: aspect.type,
+      exactAngle: aspect.exactAngle,
       orb: aspect.orb,
+      phase: aspect.phase,
       score: aspect.score,
       strength: aspect.strength,
       natalPointKey: aspect.bodyB,
       natalHouse: aspect.natalHouse,
+      sequenceIndex: 1,
+      sequenceTotal: 1,
       confirmationSources: []
     });
   }
@@ -2765,11 +2806,15 @@ const buildForecastTimeline = ({
       bodyA: aspect.bodyA,
       bodyB: aspect.bodyB,
       aspectType: aspect.type,
+      exactAngle: aspect.exactAngle,
       orb: aspect.orb,
+      phase: aspect.phase,
       score: aspect.score,
       strength: aspect.strength,
       natalPointKey: aspect.bodyB,
       natalHouse: aspect.natalHouse,
+      sequenceIndex: 1,
+      sequenceTotal: 1,
       confirmationSources: []
     });
   }
@@ -2788,11 +2833,15 @@ const buildForecastTimeline = ({
       bodyA: event.targetPointKey,
       bodyB: event.targetPointKey,
       aspectType: "conjunction",
+      exactAngle: 0,
       orb: 0,
+      phase: "exact",
       score: source === "solar-return" ? 100 : 92,
       strength: "high",
       natalPointKey: event.targetPointKey,
       natalHouse: natalPoint?.house,
+      sequenceIndex: 1,
+      sequenceTotal: 1,
       confirmationSources: []
     });
   };
@@ -2813,9 +2862,19 @@ const buildForecastTimeline = ({
     })
     .sort((a, b) => Date.parse(a.exactAt) - Date.parse(b.exactAt) || b.score - a.score);
 
+  const sequenceGroups = new Map<string, ForecastTimelineEvent[]>();
+
+  for (const event of events) {
+    const sequenceKey = [event.source, event.bodyA ?? "", event.aspectType ?? "", event.bodyB ?? ""].join(":");
+    sequenceGroups.set(sequenceKey, [...(sequenceGroups.get(sequenceKey) ?? []), event]);
+  }
+
   return events.map((event) => {
     const eventDate = DateTime.fromISO(event.exactAt, { setZone: true }).toUTC();
     const confirmationSources = new Set<ForecastTimelineSource>([event.source]);
+    const sequenceKey = [event.source, event.bodyA ?? "", event.aspectType ?? "", event.bodyB ?? ""].join(":");
+    const sequence = sequenceGroups.get(sequenceKey) ?? [event];
+    const sequenceIndex = sequence.findIndex((candidate) => candidate.id === event.id) + 1;
 
     for (const candidate of events) {
       if (candidate.id === event.id || candidate.source === event.source || !timelineEventsShareTopic(event, candidate)) {
@@ -2831,6 +2890,8 @@ const buildForecastTimeline = ({
 
     return {
       ...event,
+      sequenceIndex,
+      sequenceTotal: sequence.length,
       confirmationSources: [...confirmationSources]
     };
   });
@@ -2865,7 +2926,7 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
   const natalSun = natal.bodies.find((body) => body.key === "sun") ?? null;
   const natalMoon = natal.bodies.find((body) => body.key === "moon") ?? null;
   const solarAnchor = dateInYearForBirthDate(input.natal.birthDate, targetYear);
-  const solarReturn = natalSun
+  const solarReturnEvent = natalSun
     ? calculateReturnEvent({
         end: solarAnchor.plus({ days: 8 }),
         flags,
@@ -2878,6 +2939,24 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
         stepHours: 6,
         warnings
       })
+    : null;
+  const nextSolarAnchor = dateInYearForBirthDate(input.natal.birthDate, targetYear + 1);
+  const nextSolarReturnAt = natalSun
+    ? findBodyReturnTime({
+        end: nextSolarAnchor.plus({ days: 8 }),
+        flags,
+        natalLongitude: natalSun.longitude,
+        pointKey: "sun",
+        start: nextSolarAnchor.minus({ days: 8 }),
+        stepHours: 6,
+        warnings
+      })
+    : null;
+  const solarReturn = solarReturnEvent
+    ? {
+        ...solarReturnEvent,
+        validUntil: nextSolarReturnAt ? toUtcIso(nextSolarReturnAt) : undefined
+      }
     : null;
   const lunarReturn = natalMoon
     ? calculateReturnEvent({

@@ -5,6 +5,9 @@ import {
   Calculator,
   Check,
   Activity,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   LayoutDashboard,
   FolderOpen,
@@ -241,6 +244,7 @@ const defaultVisiblePointKeys: VisiblePointSettings = Object.fromEntries(
 ) as VisiblePointSettings;
 
 const primaryPlanetOrder = ["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"];
+const rulerPlanetOrder = [...primaryPlanetOrder, "lilith"];
 const secondaryPointOrder = ["north-node", "south-node", "chiron", "lilith"];
 const anglePointOrder = ["asc", "desc", "ic", "mc"];
 const placementOrder = [...primaryPlanetOrder, ...secondaryPointOrder, ...anglePointOrder];
@@ -287,8 +291,18 @@ const planetLabelsUk: Record<string, string> = {
   uranus: "Уран",
   neptune: "Нептун",
   pluto: "Плутон",
-  lilith: "Ліліт"
+  "north-node": "Північний вузол",
+  "south-node": "Південний вузол",
+  chiron: "Хірон",
+  lilith: "Ліліт",
+  asc: "Асцендент",
+  desc: "Десцендент",
+  ic: "Надир",
+  mc: "Середина неба"
 };
+
+const pointLabelUk = (pointKey: string, fallback?: string): string =>
+  planetLabelsUk[pointKey] ?? fallback ?? pointKey;
 
 const planetDirectRulers: Record<string, string[]> = {
   sun: ["leo"],
@@ -422,9 +436,12 @@ const signLabelsUk: Record<string, string> = {
 const dignityLabelsUk: Record<string, string> = {
   domicile: "обитель",
   exaltation: "екзальтація",
+  affinity: "спорідненість",
+  neutral: "нейтралітет",
+  enmity: "ворожнеча",
   detriment: "вигнання",
   fall: "падіння",
-  peregrine: "перегрин"
+  peregrine: "нейтралітет"
 };
 
 const moonPhaseLabelsUk: Record<string, string> = {
@@ -481,6 +498,11 @@ const toDateTimeLocalValue = (date: Date): string => {
 };
 
 const normalizeDegrees = (degrees: number): number => ((degrees % 360) + 360) % 360;
+
+const angularDistanceDegrees = (longitudeA: number, longitudeB: number): number => {
+  const difference = Math.abs(normalizeDegrees(longitudeA) - normalizeDegrees(longitudeB));
+  return Math.min(difference, 360 - difference);
+};
 
 const formatZodiacDegree = (degree: number, includeSeconds = true): string => {
   const normalized = Math.max(0, degree);
@@ -594,7 +616,7 @@ const formatPointTooltip = (point: ChartPoint, chart?: ChartResult | null): stri
   const speed = point.speed === undefined ? "" : `\nШвидкість: ${point.speed.toFixed(4)}°/день`;
   const ruledHouses = formatHouseList(getRuledHouseNumbers(chart, point.key));
 
-  return `${point.label}\nЗнак: ${signLabelsUk[point.sign] ?? point.sign}\nГрадус знака: ${formatZodiacDegree(
+  return `${pointLabelUk(point.key, point.label)}\nЗнак: ${signLabelsUk[point.sign] ?? point.sign}\nГрадус знака: ${formatZodiacDegree(
     point.signDegree
   )}\nАбсолютна довгота: ${point.longitude.toFixed(4)}°\n${house}\nПравить домами: ${ruledHouses}${speed}`;
 };
@@ -605,7 +627,7 @@ const formatSignTooltip = (sign: (typeof zodiacSigns)[number], chart?: ChartResu
   const directRulers = rulers.filter((ruler) => ruler.rulerType === "direct");
   const retrogradeRulers = rulers.filter((ruler) => ruler.rulerType === "retrograde");
   const formatRuler = (ruler: (typeof rulers)[number]): string =>
-    `${planetGlyphs[ruler.key] ?? ""} ${ruler.label} (${motionLabelForPoint(pointsByKey.get(ruler.key))})`;
+    `${planetGlyphs[ruler.key] ?? ""} ${pointLabelUk(ruler.key, ruler.label)} (${motionLabelForPoint(pointsByKey.get(ruler.key))})`;
 
   return [
     sign.label,
@@ -1478,8 +1500,8 @@ export function AstroWorkbench() {
           onClose={() => setIsSettingsDrawerOpen(false)}
         />
 
-        <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,780px)_minmax(560px,1fr)]">
-          <div className="min-w-0 space-y-4 xl:max-w-[780px]">
+        <section className="grid items-start gap-4 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[minmax(0,780px)_minmax(560px,1fr)] xl:overflow-hidden">
+          <div className="min-w-0 space-y-4 xl:h-full xl:max-w-[780px] xl:overflow-y-auto xl:pr-1">
             <Card className="min-w-0">
               <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                 <div className="space-y-1">
@@ -2436,7 +2458,7 @@ function ForecastModuleCard({
               {[
                 ["overview", "Огляд"],
                 ["solar-return", "Соляр"],
-                ["timeline", "Шкала часу"],
+                ["timeline", "Календар"],
                 ["progression", "Прогресії"],
                 ["solar-arc", "Солярна дуга"],
                 ["transits", "Транзити"]
@@ -2492,7 +2514,11 @@ function ForecastModuleCard({
 
             {activeForecastView === "timeline" ? (
               <div role="tabpanel">
-                <ForecastTimelinePanel events={preview.timelineEvents} />
+                <ForecastCalendarPanel
+                  days={Number(days)}
+                  events={preview.timelineEvents}
+                  fromDateTime={fromDateTime}
+                />
               </div>
             ) : null}
 
@@ -2579,80 +2605,469 @@ const formatTimelineEventTitle = (event: ForecastTimelineEvent): string => {
   return `${sourcePoint} ${aspectLabels[event.aspectType ?? ""] ?? event.aspectType ?? "аспект"} ${targetPoint}`;
 };
 
-function ForecastTimelinePanel({ events }: { events: ForecastTimelineEvent[] }) {
-  const groupedEvents = new Map<string, ForecastTimelineEvent[]>();
+const forecastCalendarSources: ForecastTimelineSource[] = [
+  "transit",
+  "secondary-progression",
+  "solar-arc",
+  "solar-return",
+  "lunar-return"
+];
 
-  for (const event of events) {
-    const dayKey = event.exactAt.slice(0, 10);
-    groupedEvents.set(dayKey, [...(groupedEvents.get(dayKey) ?? []), event]);
+const forecastWeekdaysUk = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
+
+const formatForecastMonth = (monthKey: string): string =>
+  new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(`${monthKey}-01T00:00:00.000Z`)
+  );
+
+const buildForecastMonthKeys = (fromDateTime: string, days: number): string[] => {
+  const start = new Date(fromDateTime);
+
+  if (Number.isNaN(start.getTime())) {
+    return [];
   }
 
-  const confirmedDays = [...groupedEvents.values()].filter((dayEvents) =>
+  const safeDays = Number.isFinite(days) ? Math.max(1, Math.min(366, days)) : 90;
+  const end = new Date(start.getTime() + (safeDays - 1) * 86_400_000);
+  const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1));
+  const endMonth = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1);
+  const monthKeys: string[] = [];
+
+  while (cursor.getTime() <= endMonth) {
+    monthKeys.push(`${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+
+  return monthKeys;
+};
+
+const buildForecastCalendarDays = (monthKey: string): Array<string | null> => {
+  const [yearText, monthText] = monthKey.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+  const firstWeekday = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay();
+  const mondayOffset = (firstWeekday + 6) % 7;
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const cells: Array<string | null> = Array.from({ length: mondayOffset }, () => null);
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(`${monthKey}-${String(day).padStart(2, "0")}`);
+  }
+
+  while (cells.length < 42) {
+    cells.push(null);
+  }
+
+  return cells;
+};
+
+const formatCalendarEventLabel = (event: ForecastTimelineEvent): string => {
+  if (event.source === "solar-return") {
+    return "☉ Соляр";
+  }
+
+  if (event.source === "lunar-return") {
+    return "☽ Лунар";
+  }
+
+  return `${planetGlyphs[event.bodyA ?? ""] ?? event.bodyA ?? "•"} ${aspectGlyphs[event.aspectType ?? ""] ?? ""} ${planetGlyphs[event.bodyB ?? ""] ?? event.bodyB ?? "•"}`;
+};
+
+function ForecastCalendarPanel({
+  days,
+  events,
+  fromDateTime
+}: {
+  days: number;
+  events: ForecastTimelineEvent[];
+  fromDateTime: string;
+}) {
+  const [enabledSources, setEnabledSources] = useState<ForecastTimelineSource[]>(forecastCalendarSources);
+  const [strengthFilter, setStrengthFilter] = useState<"all" | "high" | "medium" | "low">("all");
+  const [pointFilter, setPointFilter] = useState("all");
+  const [houseFilter, setHouseFilter] = useState("all");
+  const [monthIndex, setMonthIndex] = useState(0);
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<ForecastTimelineEvent | null>(null);
+  const monthKeys = useMemo(() => buildForecastMonthKeys(fromDateTime, days), [days, fromDateTime]);
+  const safeMonthIndex = Math.min(monthIndex, Math.max(0, monthKeys.length - 1));
+  const activeMonthKey = monthKeys[safeMonthIndex] ?? "";
+
+  useEffect(() => {
+    setMonthIndex(0);
+    setSelectedDayKey(null);
+    setSelectedEvent(null);
+  }, [days, fromDateTime]);
+
+  const filteredEvents = useMemo(
+    () =>
+      events.filter(
+        (event) =>
+          enabledSources.includes(event.source) &&
+          (strengthFilter === "all" || event.strength === strengthFilter) &&
+          (pointFilter === "all" || event.bodyA === pointFilter || event.bodyB === pointFilter) &&
+          (houseFilter === "all" || event.natalHouse === Number(houseFilter))
+      ),
+    [enabledSources, events, houseFilter, pointFilter, strengthFilter]
+  );
+  const eventsByDay = useMemo(() => {
+    const grouped = new Map<string, ForecastTimelineEvent[]>();
+
+    for (const event of filteredEvents) {
+      const dayKey = event.exactAt.slice(0, 10);
+      grouped.set(dayKey, [...(grouped.get(dayKey) ?? []), event]);
+    }
+
+    return grouped;
+  }, [filteredEvents]);
+  const calendarDays = activeMonthKey ? buildForecastCalendarDays(activeMonthKey) : [];
+  const confirmedDays = [...eventsByDay.values()].filter((dayEvents) =>
     dayEvents.some((event) => event.confirmationSources.length > 1)
   ).length;
-  const activeSources = new Set(events.map((event) => event.source)).size;
+
+  const toggleSource = (source: ForecastTimelineSource, checked: boolean): void => {
+    setEnabledSources((current) =>
+      checked ? [...new Set([...current, source])] : current.filter((item) => item !== source)
+    );
+  };
+
+  const resetFilters = (): void => {
+    setEnabledSources(forecastCalendarSources);
+    setStrengthFilter("all");
+    setPointFilter("all");
+    setHouseFilter("all");
+  };
 
   return (
     <section className="space-y-4 rounded-lg border bg-muted/15 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase text-primary">Forecast timeline</p>
-          <h3 className="mt-1 text-base font-semibold">Єдина шкала прогнозів</h3>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <CalendarDays className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-primary">Forecast calendar</p>
+            <h3 className="mt-1 text-base font-semibold">Професійний календар прогнозів</h3>
+          </div>
         </div>
         <Badge variant="secondary">підтвердження ±3 доби</Badge>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-3">
-        <ForecastMetric label="Подій" value={String(events.length)} />
-        <ForecastMetric label="Методів" value={String(activeSources)} />
+        <ForecastMetric label="Відібрано подій" value={`${filteredEvents.length}/${events.length}`} />
+        <ForecastMetric label="Активних методів" value={String(enabledSources.length)} />
         <ForecastMetric label="Днів із підтвердженням" value={String(confirmedDays)} />
       </div>
 
-      {events.length === 0 ? (
-        <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
-          У вибраному часовому вікні точних подій не знайдено. Збільш кількість днів прогнозу.
-        </p>
-      ) : (
-        <div className="divide-y rounded-lg border bg-background">
-          {[...groupedEvents.entries()].map(([dayKey, dayEvents]) => (
-            <div className="grid gap-3 p-3 md:grid-cols-[150px_minmax(0,1fr)]" key={dayKey}>
-              <div>
-                <p className="text-sm font-semibold">{formatTimelineDay(dayEvents[0]?.exactAt ?? dayKey)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{dayEvents.length} подій</p>
-              </div>
-              <div className="space-y-2">
-                {dayEvents.map((event) => (
-                  <div
-                    className="grid gap-2 rounded-md border bg-muted/20 px-3 py-2 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center"
-                    key={event.id}
-                  >
-                    <Badge className={cn("w-fit", getTimelineSourceClass(event.source))} variant="outline">
-                      {forecastTimelineSourceLabelsUk[event.source]}
-                    </Badge>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{formatTimelineEventTitle(event)}</p>
-                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        {event.natalHouse ? <span>{event.natalHouse} натальний дім</span> : null}
-                        {event.orb !== undefined ? <span>орб {event.orb.toFixed(2)}°</span> : null}
-                        <span>score {event.score.toFixed(1)}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                      {event.confirmationSources.length > 1 ? (
-                        <Badge variant="default">{event.confirmationSources.length} методи</Badge>
-                      ) : null}
-                      <span className="whitespace-nowrap text-xs font-medium text-muted-foreground">
-                        {formatDateTimeCompact(event.exactAt)}
-                      </span>
-                    </div>
+      <div className="space-y-3 rounded-lg border bg-background p-3">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {forecastCalendarSources.map((source) => (
+            <label
+              className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-2.5 text-xs font-medium"
+              key={`forecast-source-filter-${source}`}
+            >
+              <Checkbox
+                checked={enabledSources.includes(source)}
+                onCheckedChange={(checked) => toggleSource(source, checked === true)}
+              />
+              <span className="truncate">{forecastTimelineSourceLabelsUk[source]}</span>
+            </label>
+          ))}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto]">
+          <Select value={strengthFilter} onValueChange={(value) => setStrengthFilter(value as typeof strengthFilter)}>
+            <SelectTrigger aria-label="Фільтр сили події">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Усі рівні сили</SelectItem>
+              <SelectItem value="high">Висока сила</SelectItem>
+              <SelectItem value="medium">Середня сила</SelectItem>
+              <SelectItem value="low">Низька сила</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={pointFilter} onValueChange={setPointFilter}>
+            <SelectTrigger aria-label="Фільтр планети">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Усі планети й точки</SelectItem>
+              {[...primaryPlanetOrder, "asc", "mc"].map((pointKey) => (
+                <SelectItem value={pointKey} key={`forecast-point-filter-${pointKey}`}>
+                  {planetGlyphs[pointKey] ?? "•"} {planetLabelsUk[pointKey] ?? pointKey.toUpperCase()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={houseFilter} onValueChange={setHouseFilter}>
+            <SelectTrigger aria-label="Фільтр натального дому">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Усі натальні доми</SelectItem>
+              {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((house) => (
+                <SelectItem value={house} key={`forecast-house-filter-${house}`}>
+                  {house} дім
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button type="button" variant="outline" onClick={resetFilters}>
+            <RotateCcw className="h-4 w-4" />
+            Скинути
+          </Button>
+        </div>
+      </div>
+
+      {activeMonthKey ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              aria-label="Попередній місяць"
+              disabled={safeMonthIndex === 0}
+              size="icon"
+              type="button"
+              variant="outline"
+              onClick={() => setMonthIndex((current) => Math.max(0, current - 1))}
+            >
+              <ChevronLeft />
+            </Button>
+            <div className="text-center">
+              <h4 className="text-base font-semibold capitalize">{formatForecastMonth(activeMonthKey)}</h4>
+              <p className="text-xs text-muted-foreground">{safeMonthIndex + 1} з {monthKeys.length}</p>
+            </div>
+            <Button
+              aria-label="Наступний місяць"
+              disabled={safeMonthIndex >= monthKeys.length - 1}
+              size="icon"
+              type="button"
+              variant="outline"
+              onClick={() => setMonthIndex((current) => Math.min(monthKeys.length - 1, current + 1))}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border bg-background">
+            <div className="min-w-[840px]">
+              <div className="grid grid-cols-7 border-b bg-muted/35">
+                {forecastWeekdaysUk.map((weekday) => (
+                  <div className="px-2 py-2 text-center text-xs font-semibold text-muted-foreground" key={weekday}>
+                    {weekday}
                   </div>
                 ))}
               </div>
+              <div className="grid grid-cols-7">
+                {calendarDays.map((dayKey, index) => {
+                  const dayEvents = dayKey ? eventsByDay.get(dayKey) ?? [] : [];
+                  const isConfirmed = dayEvents.some((event) => event.confirmationSources.length > 1);
+
+                  return (
+                    <div
+                      className={cn(
+                        "min-h-[132px] border-b border-r p-1.5",
+                        !dayKey && "bg-muted/20",
+                        isConfirmed && "bg-primary/[0.045]"
+                      )}
+                      key={`forecast-calendar-cell-${activeMonthKey}-${index}`}
+                    >
+                      {dayKey ? (
+                        <>
+                          <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+                            <button
+                              className="text-xs font-semibold tabular-nums hover:text-primary"
+                              type="button"
+                              onClick={() => setSelectedDayKey(dayKey)}
+                            >
+                              {Number(dayKey.slice(-2))}
+                            </button>
+                            {isConfirmed ? <Check className="h-3.5 w-3.5 text-primary" aria-label="Підтверджено кількома методами" /> : null}
+                          </div>
+                          <div className="space-y-1">
+                            {dayEvents.slice(0, 3).map((event) => (
+                              <button
+                                className={cn(
+                                  "flex h-7 w-full items-center gap-1 overflow-hidden rounded-md border px-1.5 text-left text-[10px] font-medium transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                  getTimelineSourceClass(event.source)
+                                )}
+                                key={`forecast-calendar-event-${event.id}`}
+                                title={formatTimelineEventTitle(event)}
+                                type="button"
+                                onClick={() => setSelectedEvent(event)}
+                              >
+                                <span className="truncate">{formatCalendarEventLabel(event)}</span>
+                                {event.sequenceTotal > 1 ? (
+                                  <span className="ml-auto shrink-0 tabular-nums">{event.sequenceIndex}/{event.sequenceTotal}</span>
+                                ) : null}
+                              </button>
+                            ))}
+                            {dayEvents.length > 3 ? (
+                              <button
+                                className="px-1 text-left text-[10px] font-medium text-primary hover:underline"
+                                type="button"
+                                onClick={() => setSelectedDayKey(dayKey)}
+                              >
+                                +{dayEvents.length - 3} подій
+                              </button>
+                            ) : null}
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          ))}
+          </div>
+
+          {selectedDayKey && selectedDayKey.startsWith(activeMonthKey) ? (
+            <div className="space-y-2 rounded-lg border bg-background p-3">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-semibold">{formatTimelineDay(`${selectedDayKey}T12:00:00.000Z`)}</h4>
+                <Badge variant="secondary">{(eventsByDay.get(selectedDayKey) ?? []).length}</Badge>
+              </div>
+              {(eventsByDay.get(selectedDayKey) ?? []).length > 0 ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(eventsByDay.get(selectedDayKey) ?? []).map((event) => (
+                    <button
+                      className="flex min-h-12 items-center gap-3 rounded-md border bg-muted/20 px-3 py-2 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      key={`forecast-day-agenda-${event.id}`}
+                      type="button"
+                      onClick={() => setSelectedEvent(event)}
+                    >
+                      <Badge className={cn("shrink-0", getTimelineSourceClass(event.source))} variant="outline">
+                        {formatCalendarEventLabel(event)}
+                      </Badge>
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-medium">{formatTimelineEventTitle(event)}</span>
+                        <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                          {formatDateTimeCompact(event.exactAt)}
+                          {event.sequenceTotal > 1 ? ` · ${event.sequenceIndex}/${event.sequenceTotal}` : ""}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Немає подій з поточними фільтрами.</p>
+              )}
+            </div>
+          ) : null}
         </div>
+      ) : (
+        <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+          Вкажи коректний початок і тривалість прогнозу.
+        </p>
       )}
+
+      <ForecastEventDrawer event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </section>
+  );
+}
+
+function ForecastEventDrawer({ event, onClose }: { event: ForecastTimelineEvent | null; onClose: () => void }) {
+  if (!event) {
+    return null;
+  }
+
+  const phaseLabels: Record<string, string> = {
+    applying: "сходиться",
+    separating: "розходиться",
+    exact: "точний",
+    stationary: "стаціонарний"
+  };
+  const strengthLabels: Record<string, string> = {
+    high: "висока",
+    medium: "середня",
+    low: "низька"
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70]">
+      <button
+        aria-label="Закрити деталі прогнозної події"
+        className="absolute inset-0 h-full w-full bg-background/70 backdrop-blur-sm"
+        type="button"
+        onClick={onClose}
+      />
+      <aside
+        aria-label="Деталі прогнозної події"
+        className="absolute right-0 top-0 flex h-full w-full max-w-[640px] flex-col border-l bg-background text-foreground shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b p-5">
+          <div className="min-w-0 space-y-2">
+            <Badge className={getTimelineSourceClass(event.source)} variant="outline">
+              {forecastTimelineSourceLabelsUk[event.source]}
+            </Badge>
+            <h2 className="text-lg font-semibold tracking-normal">{formatTimelineEventTitle(event)}</h2>
+            <p className="text-sm text-muted-foreground">{formatTimelineDay(event.exactAt)} · {formatDateTimeCompact(event.exactAt)}</p>
+          </div>
+          <Button aria-label="Закрити" size="icon" type="button" variant="ghost" onClick={onClose}>
+            <X />
+          </Button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <ForecastMetric label="Сила" value={`${strengthLabels[event.strength] ?? event.strength} · ${event.score.toFixed(1)}`} />
+            <ForecastMetric label="Фаза" value={phaseLabels[event.phase ?? "exact"] ?? event.phase ?? "точний"} />
+            <ForecastMetric label="Натальний дім" value={event.natalHouse ? `${event.natalHouse} дім` : "n/a"} />
+            <ForecastMetric
+              label="Прохід"
+              value={event.sequenceTotal > 1 ? `${event.sequenceIndex} з ${event.sequenceTotal}` : "одиночний"}
+            />
+          </div>
+
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">Точність розрахунку</h3>
+              {event.orb !== undefined ? <Badge variant="secondary">орб {event.orb.toFixed(2)}°</Badge> : null}
+            </div>
+            {event.exactAngle !== undefined && event.orb !== undefined ? (
+              <div className="rounded-md bg-muted/45 p-3 font-mono text-xs leading-6">
+                | angularDistance({event.bodyA ?? "A"}, {event.bodyB ?? "B"}) - {event.exactAngle}° | = {event.orb.toFixed(2)}°
+              </div>
+            ) : null}
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2">
+                <span className="font-medium">Метод</span>
+                <span className="text-right text-muted-foreground">{forecastTimelineSourceLabelsUk[event.source]}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2">
+                <span className="font-medium">Точний кут</span>
+                <span className="text-right text-muted-foreground">{event.exactAngle !== undefined ? `${event.exactAngle}°` : "n/a"}</span>
+              </div>
+            </div>
+          </div>
+
+          {event.activeFrom || event.activeUntil ? (
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="text-sm font-semibold">Активне вікно</h3>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ForecastMetric label="Початок" value={event.activeFrom ? formatDateTimeCompact(event.activeFrom) : "n/a"} />
+                <ForecastMetric label="Завершення" value={event.activeUntil ? formatDateTimeCompact(event.activeUntil) : "n/a"} />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold">Підтвердження методами</h3>
+              <Badge variant={event.confirmationSources.length > 1 ? "default" : "outline"}>
+                {event.confirmationSources.length}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {event.confirmationSources.map((source) => (
+                <Badge className={getTimelineSourceClass(source)} variant="outline" key={`event-confirmation-${event.id}-${source}`}>
+                  {forecastTimelineSourceLabelsUk[source]}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
   );
 }
 
@@ -2708,7 +3123,8 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
                   return (
                     <TableRow key={`progression-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
                       <TableCell className="font-medium">
-                        {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {aspect.progressedPointLabel}
+                        {planetGlyphs[aspect.bodyA] ?? aspect.bodyA}{" "}
+                        {pointLabelUk(aspect.bodyA, aspect.progressedPointLabel)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatPointPosition(progressedPoint)}
@@ -2718,7 +3134,8 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
                         {aspectLabels[aspect.type] ?? aspect.type}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.natalPointLabel}
+                        {planetGlyphs[aspect.bodyB] ?? aspect.bodyB}{" "}
+                        {pointLabelUk(aspect.bodyB, natalPoint?.label ?? aspect.natalPointLabel)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
                       <TableCell>
@@ -2793,7 +3210,8 @@ function SolarArcDirectionsPanel({ directions }: { directions: SolarArcDirection
                   return (
                     <TableRow key={`solar-arc-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
                       <TableCell className="font-medium">
-                        {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {aspect.directedPointLabel}
+                        {planetGlyphs[aspect.bodyA] ?? aspect.bodyA}{" "}
+                        {pointLabelUk(aspect.bodyA, aspect.directedPointLabel)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatPointPosition(directedPoint)}
@@ -2802,7 +3220,8 @@ function SolarArcDirectionsPanel({ directions }: { directions: SolarArcDirection
                         {aspectLabels[aspect.type] ?? aspect.type}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.natalPointLabel}
+                        {planetGlyphs[aspect.bodyB] ?? aspect.bodyB}{" "}
+                        {pointLabelUk(aspect.bodyB, natalPoint?.label ?? aspect.natalPointLabel)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
                       <TableCell>
@@ -2871,8 +3290,12 @@ function SolarReturnPanel({ event, natal }: { event: ReturnEvent | null; natal: 
         <Badge variant="secondary">{formatExactAt(event.exactAt)}</Badge>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
         <ForecastMetric label="Момент UTC" value={formatDateTimeCompact(event.exactAt)} />
+        <ForecastMetric
+          label="Період дії"
+          value={event.validUntil ? `${formatTimelineDay(event.exactAt)} — ${formatTimelineDay(event.validUntil)}` : "n/a"}
+        />
         <ForecastMetric
           label="Координати"
           value={`${event.chart.subject.latitude.toFixed(4)}, ${event.chart.subject.longitude.toFixed(4)}`}
@@ -2880,6 +3303,8 @@ function SolarReturnPanel({ event, natal }: { event: ReturnEvent | null; natal: 
         <ForecastMetric label="ASC соляра" value={formatPointPosition(ascendant)} />
         <ForecastMetric label="MC соляра" value={formatPointPosition(midheaven)} />
       </div>
+
+      <SolarReturnFocusPanel event={event} />
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(360px,0.9fr)_minmax(520px,1.1fr)]">
         <SolarReturnOverlayWheel event={event} natal={natal} />
@@ -2896,6 +3321,9 @@ function SolarReturnPanel({ event, natal }: { event: ReturnEvent | null; natal: 
 
 function SolarReturnPlacementsTable({ event }: { event: ReturnEvent }) {
   const natalHousesByKey = new Map(event.returnPointsInNatalHouses.map((point) => [point.key, point.house]));
+  const returnHousesByNatalKey = new Map(
+    (event.natalPointsInReturnHouses ?? []).map((point) => [point.key, point.house])
+  );
   const points = event.chart.bodies.filter((point) => primaryPlanetOrder.includes(point.key));
 
   return (
@@ -2911,7 +3339,8 @@ function SolarReturnPlacementsTable({ event }: { event: ReturnEvent }) {
               <TableHead>Планета</TableHead>
               <TableHead>Положення</TableHead>
               <TableHead className="text-center">Дім соляра</TableHead>
-              <TableHead className="text-center">Дім наталу</TableHead>
+              <TableHead className="text-center">Соляр → натал</TableHead>
+              <TableHead className="text-center">Натал → соляр</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -2919,7 +3348,7 @@ function SolarReturnPlacementsTable({ event }: { event: ReturnEvent }) {
               <TableRow key={`solar-placement-${point.key}`}>
                 <TableCell className="font-medium">
                   <span className="mr-2 text-primary">{planetGlyphs[point.key] ?? "•"}</span>
-                  {planetLabelsUk[point.key] ?? point.label}
+                  {pointLabelUk(point.key, point.label)}
                   {isRetrogradePoint(point) ? <sup className="ml-1 text-astro-coral">R</sup> : null}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">
@@ -2927,10 +3356,54 @@ function SolarReturnPlacementsTable({ event }: { event: ReturnEvent }) {
                 </TableCell>
                 <TableCell className="text-center font-semibold text-astro-coral">{point.house ?? "n/a"}</TableCell>
                 <TableCell className="text-center font-semibold">{natalHousesByKey.get(point.key) ?? "n/a"}</TableCell>
+                <TableCell className="text-center font-semibold">{returnHousesByNatalKey.get(point.key) ?? "n/a"}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      </div>
+    </div>
+  );
+}
+
+function SolarReturnFocusPanel({ event }: { event: ReturnEvent }) {
+  const solarSun = event.chart.bodies.find((point) => point.key === "sun") ?? null;
+  const solarAscendant = event.chart.angles.find((point) => point.key === "asc") ?? null;
+  const solarPointsInNatalHouses = new Map(event.returnPointsInNatalHouses.map((point) => [point.key, point.house]));
+  const angularPlanets = event.chart.bodies.filter(
+    (point) => primaryPlanetOrder.includes(point.key) && point.house !== undefined && [1, 4, 7, 10].includes(point.house)
+  );
+  const exactAspects = event.returnToNatalAspects.filter((aspect) => aspect.orb <= 1);
+  const configurations = event.chart.aspectConfigurations ?? [];
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-background p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h4 className="text-sm font-semibold">Ключі солярного року</h4>
+        <Badge variant="secondary">фактичні показники</Badge>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <ReturnPointRow label="Сонце: дім соляра" point={solarSun} />
+        <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm">
+          <span className="font-medium">Сонце: дім наталу</span>
+          <span className="text-muted-foreground">{solarPointsInNatalHouses.get("sun") ?? "n/a"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm">
+          <span className="font-medium">ASC: дім наталу</span>
+          <span className="text-muted-foreground">{solarPointsInNatalHouses.get(solarAscendant?.key ?? "asc") ?? "n/a"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm">
+          <span className="font-medium">Кутові планети</span>
+          <span className="text-right text-muted-foreground">
+            {angularPlanets.length > 0
+              ? angularPlanets.map((point) => `${planetGlyphs[point.key] ?? "•"} ${point.house}`).join(", ")
+              : "немає"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2 text-sm">
+          <span className="font-medium">Точні аспекти / фігури</span>
+          <span className="text-muted-foreground">{exactAspects.length} / {configurations.length}</span>
+        </div>
       </div>
     </div>
   );
@@ -2971,7 +3444,13 @@ function SolarReturnHousesTable({ event }: { event: ReturnEvent }) {
                   <TableCell className="text-muted-foreground">
                     {rulers.length > 0
                       ? rulers
-                          .map((ruler) => `${planetGlyphs[ruler.rulerKey] ?? ""} ${planetLabelsUk[ruler.rulerKey] ?? ruler.rulerLabel}`)
+                          .map(
+                            (ruler) =>
+                              `${planetGlyphs[ruler.rulerKey] ?? ""} ${pointLabelUk(
+                                ruler.rulerKey,
+                                ruler.rulerLabel
+                              )}`
+                          )
                           .join(", ")
                       : "n/a"}
                   </TableCell>
@@ -3013,13 +3492,13 @@ function SolarReturnAspectsTable({ event, natal }: { event: ReturnEvent; natal: 
               return (
                 <TableRow key={`solar-natal-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
                   <TableCell className="font-medium">
-                    {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {planetLabelsUk[aspect.bodyA] ?? solarPoint?.label ?? aspect.bodyA}
+                    {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointLabelUk(aspect.bodyA, solarPoint?.label)}
                   </TableCell>
                   <TableCell className={cn("whitespace-nowrap font-medium", getAspectTextClass(aspect.type))}>
                     {aspectGlyphs[aspect.type] ?? ""} {aspectLabels[aspect.type] ?? aspect.type}
                   </TableCell>
                   <TableCell className="font-medium">
-                    {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {planetLabelsUk[aspect.bodyB] ?? natalPoint?.label ?? aspect.bodyB}
+                    {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointLabelUk(aspect.bodyB, natalPoint?.label)}
                   </TableCell>
                   <TableCell className="tabular-nums text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
                 </TableRow>
@@ -3064,13 +3543,13 @@ function ExactTransitsTable({ events }: { events: ExactTransitEvent[] }) {
             <TableRow key={`exact-${event.bodyA}-${event.type}-${event.bodyB}-${event.exactAt}`}>
               <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTimeCompact(event.exactAt)}</TableCell>
               <TableCell className="font-medium">
-                {planetGlyphs[event.bodyA] ?? event.bodyA} {event.transitPointLabel}
+                {planetGlyphs[event.bodyA] ?? event.bodyA} {pointLabelUk(event.bodyA, event.transitPointLabel)}
               </TableCell>
               <TableCell className={cn("font-medium", getAspectTextClass(event.type))}>
                 {aspectLabels[event.type] ?? event.type}
               </TableCell>
               <TableCell className="font-medium">
-                {planetGlyphs[event.bodyB] ?? event.bodyB} {event.natalPointLabel}
+                {planetGlyphs[event.bodyB] ?? event.bodyB} {pointLabelUk(event.bodyB, event.natalPointLabel)}
               </TableCell>
               <TableCell className="text-muted-foreground">{event.natalHouse ?? "n/a"}</TableCell>
               <TableCell className="text-muted-foreground">
@@ -3181,7 +3660,7 @@ function TransitForecastCard({
                     <div className="rounded-lg border px-3 py-2 text-sm" key={`house-transit-${point.key}`}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">
-                          {planetGlyphs[point.key] ?? point.key} {point.label}
+                          {planetGlyphs[point.key] ?? point.key} {pointLabelUk(point.key, point.label)}
                         </span>
                         <Badge variant="secondary">{point.house ?? "n/a"} дім</Badge>
                       </div>
@@ -3214,11 +3693,13 @@ function TransitForecastCard({
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="min-w-0">
                             <span className="font-medium">
-                              {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {transitPoint?.label ?? aspect.bodyA}
+                              {planetGlyphs[aspect.bodyA] ?? aspect.bodyA}{" "}
+                              {pointLabelUk(aspect.bodyA, transitPoint?.label)}
                             </span>{" "}
                             {aspectLabels[aspect.type] ?? aspect.type} натальний{" "}
                             <span className="font-medium">
-                              {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {natalPoint?.label ?? aspect.bodyB}
+                              {planetGlyphs[aspect.bodyB] ?? aspect.bodyB}{" "}
+                              {pointLabelUk(aspect.bodyB, natalPoint?.label)}
                             </span>
                           </span>
                           <span className="flex flex-wrap items-center gap-2">
@@ -3276,12 +3757,12 @@ function TransitForecastCard({
                           <p>
                             <span className="font-medium">
                               {planetGlyphs[strongestAspect.bodyA] ?? strongestAspect.bodyA}{" "}
-                              {transitPoint?.label ?? strongestAspect.bodyA}
+                              {pointLabelUk(strongestAspect.bodyA, transitPoint?.label)}
                             </span>{" "}
                             {aspectLabels[strongestAspect.type] ?? strongestAspect.type} натальний{" "}
                             <span className="font-medium">
                               {planetGlyphs[strongestAspect.bodyB] ?? strongestAspect.bodyB}{" "}
-                              {natalPoint?.label ?? strongestAspect.bodyB}
+                              {pointLabelUk(strongestAspect.bodyB, natalPoint?.label)}
                             </span>
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -3459,11 +3940,11 @@ function SynastryCard({
                         return (
                           <TableRow key={`synastry-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
                             <TableCell className="font-medium">
-                              {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointA?.label ?? aspect.bodyA}
+                              {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointLabelUk(aspect.bodyA, pointA?.label)}
                             </TableCell>
                             <TableCell className={getAspectTextClass(aspect.type)}>{aspectLabels[aspect.type] ?? aspect.type}</TableCell>
                             <TableCell className="font-medium">
-                              {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointB?.label ?? aspect.bodyB}
+                              {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointLabelUk(aspect.bodyB, pointB?.label)}
                             </TableCell>
                             <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
                           </TableRow>
@@ -3688,7 +4169,10 @@ function SynastryOverlayWheel({
             : cusp.longitude;
           const label = toXY(houseCenterLongitude, subjectAHouseLabelRadius);
           return (
-            <g key={`syn-house-${cusp.house}`}>
+            <g className="cursor-help" key={`syn-house-${cusp.house}`}>
+              <title>{`${subjectAName}: куспід ${cusp.house} дому\n${signLabelsUk[cusp.sign] ?? cusp.sign} ${formatZodiacDegree(
+                cusp.signDegree
+              )}\nАбсолютна довгота: ${cusp.longitude.toFixed(4)}°`}</title>
               <line
                 x1={start.x}
                 y1={start.y}
@@ -3717,7 +4201,10 @@ function SynastryOverlayWheel({
           const label = toXY(houseCenterLongitude, subjectBHouseLabelRadius);
 
           return (
-            <g key={`syn-partner-house-${cusp.house}`}>
+            <g className="cursor-help" key={`syn-partner-house-${cusp.house}`}>
+              <title>{`${subjectBName}: куспід ${cusp.house} дому\n${signLabelsUk[cusp.sign] ?? cusp.sign} ${formatZodiacDegree(
+                cusp.signDegree
+              )}\nАбсолютна довгота: ${cusp.longitude.toFixed(4)}°`}</title>
               <line
                 x1={start.x}
                 y1={start.y}
@@ -3779,7 +4266,9 @@ function SynastryOverlayWheel({
               className={cn("stroke-[1] opacity-75", getAspectStrokeClass(aspect.type))}
             >
               <title>
-                {pointA.label} {aspectLabels[aspect.type] ?? aspect.type} {pointB.label} · orb {aspect.orb.toFixed(2)}°
+                {pointLabelUk(pointA.key, pointA.label)} {aspectLabels[aspect.type] ?? aspect.type}{" "}
+                {pointLabelUk(pointB.key, pointB.label)} · відстань{" "}
+                {angularDistanceDegrees(pointA.longitude, pointB.longitude).toFixed(2)}° · орб {aspect.orb.toFixed(2)}°
               </title>
             </line>
           );
@@ -3837,12 +4326,12 @@ function ProfessionalDataCard({
   const [activeTab, setActiveTab] = useState<ProfessionalDataTab>("placements");
 
   return (
-    <Card className="min-w-0 xl:sticky xl:top-5">
-      <CardHeader className="pb-3">
+    <Card className="min-w-0 xl:flex xl:h-full xl:min-h-0 xl:flex-col">
+      <CardHeader className="shrink-0 pb-3">
         <CardDescription className="font-semibold uppercase text-primary">Data</CardDescription>
         <CardTitle>Професійні таблиці</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:space-y-0">
         <div
           className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/30 p-1"
           role="tablist"
@@ -3867,7 +4356,7 @@ function ProfessionalDataCard({
           ))}
         </div>
 
-        <div className="space-y-5" role="tabpanel">
+        <div className="space-y-5 xl:mt-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1" role="tabpanel">
           {activeTab === "signature" ? <SyntheticSignatureCard chart={chart} /> : null}
           {activeTab === "placements" ? <PlacementsTable placements={placements} /> : null}
           {activeTab === "rulerships" ? <PlanetRulershipsTable chart={chart} /> : null}
@@ -4046,7 +4535,7 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
                     <span className="mr-2 inline-flex w-6 font-semibold text-primary">
                       {planetGlyphs[placement.key] ?? "•"}
                     </span>
-                    {placement.label}
+                    {pointLabelUk(placement.key, placement.label)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {signLabelsUk[placement.sign] ?? placement.sign} {formatZodiacDegree(placement.signDegree)}
@@ -4070,7 +4559,15 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
 }
 
 function PlanetRulershipsTable({ chart }: { chart: ChartResult | null }) {
-  const rulerships = chart?.planetRulerships?.filter((rulership) => rulership.houses.length > 0) ?? [];
+  const rulershipOrder = new Map(rulerPlanetOrder.map((pointKey, index) => [pointKey, index]));
+  const rulerships =
+    chart?.planetRulerships
+      ?.filter((rulership) => rulership.houses.length > 0 && rulershipOrder.has(rulership.pointKey))
+      .sort(
+        (left, right) =>
+          (rulershipOrder.get(left.pointKey) ?? rulerPlanetOrder.length) -
+          (rulershipOrder.get(right.pointKey) ?? rulerPlanetOrder.length)
+      ) ?? [];
   const pointsByKey = new Map([...(chart?.angles ?? []), ...(chart?.bodies ?? [])].map((point) => [point.key, point]));
 
   return (
@@ -4100,7 +4597,7 @@ function PlanetRulershipsTable({ chart }: { chart: ChartResult | null }) {
                       <span className="mr-2 inline-flex w-6 font-semibold text-primary">
                         {planetGlyphs[rulership.pointKey] ?? "•"}
                       </span>
-                      {rulership.pointLabel}
+                      {pointLabelUk(rulership.pointKey, rulership.pointLabel)}
                     </TableCell>
                     <TableCell className="font-semibold text-foreground">
                       {placementHouse ?? "n/a"} ({formatHouseList(rulership.houses)})
@@ -4138,7 +4635,7 @@ function DignitiesTable({ chart }: { chart: ChartResult | null }) {
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead>Планета</TableHead>
-              <TableHead>Статус</TableHead>
+              <TableHead>Сила планети</TableHead>
               <TableHead>Диспозитор</TableHead>
               <TableHead>Ланцюг</TableHead>
             </TableRow>
@@ -4151,13 +4648,19 @@ function DignitiesTable({ chart }: { chart: ChartResult | null }) {
                     <span className="mr-2 inline-flex w-6 font-semibold text-primary">
                       {planetGlyphs[dignity.pointKey] ?? "•"}
                     </span>
-                    {dignity.pointLabel}
+                    {pointLabelUk(dignity.pointKey, dignity.pointLabel)}
                   </TableCell>
                   <TableCell className={cn("font-medium", getDignityTextClass(dignity.dignity))}>
-                    {dignityLabelsUk[dignity.dignity] ?? dignity.dignity} ({dignity.score})
+                    {dignityLabelsUk[dignity.dignity] ?? dignity.dignity} ({dignity.score > 0 ? "+" : ""}
+                    {dignity.score})
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {dignity.dispositorKey ? `${planetGlyphs[dignity.dispositorKey] ?? ""} ${dignity.dispositorLabel}` : "n/a"}
+                    {dignity.dispositorKey
+                      ? `${planetGlyphs[dignity.dispositorKey] ?? ""} ${pointLabelUk(
+                          dignity.dispositorKey,
+                          dignity.dispositorLabel
+                        )}`
+                      : "n/a"}
                   </TableCell>
                   <TableCell className="max-w-[180px] truncate text-muted-foreground" title={formatDispositorChain(dignity)}>
                     {formatDispositorChain(dignity)}
@@ -4348,7 +4851,7 @@ function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
                       : "куспід"}
                 </TableCell>
                 <TableCell className="font-medium">
-                  {planetGlyphs[ruler.rulerKey] ?? ruler.rulerKey} {ruler.rulerLabel}{" "}
+                  {planetGlyphs[ruler.rulerKey] ?? ruler.rulerKey} {pointLabelUk(ruler.rulerKey, ruler.rulerLabel)}{" "}
                   <span className="text-xs text-muted-foreground">({rulerTypeLabelsUk[ruler.rulerType]})</span>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{ruler.rulerHouse ? `${ruler.rulerHouse} дім` : "n/a"}</TableCell>
@@ -4550,7 +5053,7 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
                 <th
                   className="h-9 min-w-10 border-b border-r px-1 text-center font-semibold text-muted-foreground"
                   key={`aspect-col-${point.key}`}
-                  title={point.label}
+                  title={pointLabelUk(point.key, point.label)}
                 >
                   {planetGlyphs[point.key] ?? point.label.slice(0, 2)}
                 </th>
@@ -4562,7 +5065,7 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
               <tr key={`aspect-row-${rowPoint.key}`}>
                 <th
                   className="h-10 border-b border-r bg-muted/30 px-2 text-center font-semibold text-muted-foreground"
-                  title={rowPoint.label}
+                  title={pointLabelUk(rowPoint.key, rowPoint.label)}
                 >
                   {planetGlyphs[rowPoint.key] ?? rowPoint.label.slice(0, 2)}
                 </th>
@@ -4616,13 +5119,13 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
                 return (
                   <TableRow key={`${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
                     <TableCell className="font-medium">
-                      {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointA?.label ?? aspect.bodyA}
+                      {planetGlyphs[aspect.bodyA] ?? aspect.bodyA} {pointLabelUk(aspect.bodyA, pointA?.label)}
                     </TableCell>
                     <TableCell className={cn("font-medium", getAspectTextClass(aspect.type))}>
                       {aspectGlyphs[aspect.type] ?? ""} {aspectLabels[aspect.type] ?? aspect.type}
                     </TableCell>
                     <TableCell className="font-medium">
-                      {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointB?.label ?? aspect.bodyB}
+                      {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointLabelUk(aspect.bodyB, pointB?.label)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
                   </TableRow>
@@ -4672,7 +5175,7 @@ function AspectConfigurationsPanel({ chart }: { chart: ChartResult | null }) {
                         return (
                           <span className="whitespace-nowrap" key={`${configuration.type}-${pointKey}`}>
                             <span className="font-semibold text-primary">{planetGlyphs[pointKey] ?? "•"}</span>{" "}
-                            {planetLabelsUk[pointKey] ?? point?.label ?? pointKey}
+                            {pointLabelUk(pointKey, point?.label)}
                           </span>
                         );
                       })}
@@ -4686,7 +5189,10 @@ function AspectConfigurationsPanel({ chart }: { chart: ChartResult | null }) {
 
                 {apex ? (
                   <div className="text-xs text-muted-foreground">
-                    Вершина: <span className="font-medium text-foreground">{planetGlyphs[apex.key] ?? "•"} {planetLabelsUk[apex.key] ?? apex.label}</span>
+                    Вершина:{" "}
+                    <span className="font-medium text-foreground">
+                      {planetGlyphs[apex.key] ?? "•"} {pointLabelUk(apex.key, apex.label)}
+                    </span>
                   </div>
                 ) : null}
 
@@ -4879,6 +5385,8 @@ function ChartWheel({
   const zodiacInnerRadius = 220;
   const signRadius = 240;
   const pointRadii = [200, 181, 162, 143];
+  const outerPointRadius = pointRadii[0] ?? 200;
+  const innerPointRadius = pointRadii[pointRadii.length - 1] ?? 143;
   const houseLabelRadius = 122;
   const aspectRadius = 100;
   const ascendant = chart?.angles.find((angle) => angle.key === "asc") ?? null;
@@ -4986,8 +5494,8 @@ function ChartWheel({
         })}
 
         <circle cx={center} cy={center} r={zodiacInnerRadius} className="fill-none stroke-foreground stroke-[1.2]" />
-        <circle cx={center} cy={center} r={pointRadii[0] + 14} className="fill-none stroke-border stroke-[1]" />
-        <circle cx={center} cy={center} r={pointRadii[pointRadii.length - 1] - 14} className="fill-none stroke-border stroke-[1]" />
+        <circle cx={center} cy={center} r={outerPointRadius + 14} className="fill-none stroke-border stroke-[1]" />
+        <circle cx={center} cy={center} r={innerPointRadius - 14} className="fill-none stroke-border stroke-[1]" />
         <circle
           cx={center}
           cy={center}
@@ -5006,7 +5514,8 @@ function ChartWheel({
           const isHighlightedHouse = highlightedHouses.has(cusp.house);
 
           return (
-            <g key={`house-${cusp.house}`}>
+            <g className="cursor-help" key={`house-${cusp.house}`}>
+              <title>{`Куспід ${cusp.house} дому\n${signLabelsUk[cusp.sign] ?? cusp.sign} ${formatZodiacDegree(cusp.signDegree)}\nАбсолютна довгота: ${cusp.longitude.toFixed(4)}°`}</title>
               <line
                 x1={start.x}
                 y1={start.y}
@@ -5050,19 +5559,29 @@ function ChartWheel({
             const isRelated = !activePointKey || aspect.bodyA === activePointKey || aspect.bodyB === activePointKey;
 
             return (
-              <line
-                key={`${aspect.bodyA}-${aspect.bodyB}-${aspect.type}`}
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-                className={cn(
-                  getAspectStrokeClass(aspect.type),
-                  isRelated ? "stroke-[1.7] opacity-80" : "stroke-[1] opacity-10"
-                )}
-              >
-                <title>{formatAspectTitle(aspect, pointsByKey)}</title>
-              </line>
+              <g className="cursor-help" key={`${aspect.bodyA}-${aspect.bodyB}-${aspect.type}`}>
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  className="stroke-transparent stroke-[12]"
+                  style={{ pointerEvents: "stroke" }}
+                >
+                  <title>{formatAspectTitle(aspect, pointsByKey)}</title>
+                </line>
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  className={cn(
+                    "pointer-events-none",
+                    getAspectStrokeClass(aspect.type),
+                    isRelated ? "stroke-[1.7] opacity-80" : "stroke-[1] opacity-10"
+                  )}
+                />
+              </g>
             );
           })}
 
@@ -5111,14 +5630,14 @@ function ChartWheel({
                   getAngleFillClass(anglePoint.key)
                 )}
               >
-                {planetGlyphs[anglePoint.key] ?? anglePoint.label}
+                {planetGlyphs[anglePoint.key] ?? pointLabelUk(anglePoint.key, anglePoint.label)}
               </text>
             </g>
           );
         })}
 
         {pointMarkers.map((chartPoint) => {
-          const markerRadius = pointMarkerRadii.get(chartPoint.key) ?? pointRadii[0];
+          const markerRadius = pointMarkerRadii.get(chartPoint.key) ?? outerPointRadius;
           const position = toXY(chartPoint.longitude, markerRadius);
           const isActive = activePointKey === chartPoint.key;
 
@@ -5144,27 +5663,21 @@ function ChartWheel({
               }}
             >
               <title>{formatPointTooltip(chartPoint, chart)}</title>
-              <circle
-                cx={position.x}
-                cy={position.y}
-                r={isActive ? 16 : 14}
-                className={cn(
-                  "fill-background transition-all",
-                  isActive ? "stroke-astro-coral stroke-[2.5]" : "stroke-primary stroke-[1.5]"
-                )}
-              />
               <text
                 x={position.x}
                 y={position.y}
-                className="fill-foreground text-[13px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+                className={cn(
+                  "stroke-background stroke-[3] text-[17px] font-bold transition-colors [dominant-baseline:middle] [paint-order:stroke] [text-anchor:middle]",
+                  isActive ? "fill-astro-coral" : "fill-foreground"
+                )}
               >
                 {planetGlyphs[chartPoint.key] ?? chartPoint.label.slice(0, 2)}
               </text>
               {isRetrogradePoint(chartPoint) ? (
                 <text
-                  x={position.x + 14}
-                  y={position.y - 14}
-                  className="fill-astro-coral text-[9px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+                  x={position.x + 10}
+                  y={position.y - 10}
+                  className="fill-astro-coral stroke-background stroke-[2] text-[9px] font-bold [dominant-baseline:middle] [paint-order:stroke] [text-anchor:middle]"
                 >
                   R
                 </text>
@@ -5191,7 +5704,7 @@ function ChartWheel({
               <>
                 <p className="truncate text-sm font-semibold">
                   <span className="mr-2 text-lg text-primary">{planetGlyphs[activePoint.key] ?? "•"}</span>
-                  {activePoint.label}
+                  {pointLabelUk(activePoint.key, activePoint.label)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {signLabelsUk[activePoint.sign] ?? activePoint.sign} {formatZodiacDegree(activePoint.signDegree)}
@@ -5293,19 +5806,26 @@ function getAspectMatrixCellClass(type: string): string {
 function formatAspectTitle(aspect: Aspect, pointsByKey: Map<string, ChartPoint>): string {
   const pointA = pointsByKey.get(aspect.bodyA);
   const pointB = pointsByKey.get(aspect.bodyB);
+  const angularDistance =
+    pointA && pointB ? angularDistanceDegrees(pointA.longitude, pointB.longitude) : aspect.exactAngle + aspect.orb;
 
-  return `${pointA?.label ?? aspect.bodyA} ${aspectLabels[aspect.type] ?? aspect.type} ${
-    pointB?.label ?? aspect.bodyB
-  } · orb ${aspect.orb.toFixed(2)}°`;
+  return `${pointLabelUk(aspect.bodyA, pointA?.label)} — ${aspectLabels[aspect.type] ?? aspect.type} — ${pointLabelUk(
+    aspect.bodyB,
+    pointB?.label
+  )}\nГрадусна відстань: ${angularDistance.toFixed(2)}°\nТочний кут: ${aspect.exactAngle.toFixed(
+    0
+  )}°\nОрбіс: ${aspect.orb.toFixed(2)}°`;
 }
 
 function getDignityTextClass(type: string): string {
   switch (type) {
     case "domicile":
     case "exaltation":
+    case "affinity":
       return "text-primary";
     case "detriment":
     case "fall":
+    case "enmity":
       return "text-blue-600";
     default:
       return "text-muted-foreground";

@@ -116,7 +116,7 @@ export type EssentialDignity = {
   pointKey: string;
   pointLabel: string;
   sign: string;
-  dignity: "domicile" | "exaltation" | "detriment" | "fall" | "peregrine";
+  dignity: "domicile" | "exaltation" | "affinity" | "neutral" | "enmity" | "fall" | "detriment" | "peregrine";
   score: number;
   dispositorKey?: string;
   dispositorLabel?: string;
@@ -249,11 +249,13 @@ export type TransitPreviewResult = {
 export type ReturnEvent = {
   kind: "solar" | "lunar";
   exactAt: string;
+  validUntil?: string;
   targetPointKey: "sun" | "moon";
   natalLongitude: number;
   returnLongitude: number;
   chart: ChartResult;
   returnPointsInNatalHouses: ChartPoint[];
+  natalPointsInReturnHouses: ChartPoint[];
   returnToNatalAspects: Aspect[];
 };
 
@@ -331,11 +333,17 @@ export type ForecastTimelineEvent = {
   bodyA?: string;
   bodyB?: string;
   aspectType?: string;
+  exactAngle?: number;
   orb?: number;
+  phase?: "applying" | "separating" | "exact" | "stationary";
+  activeFrom?: string | null;
+  activeUntil?: string | null;
   score: number;
   strength: "high" | "medium" | "low";
   natalPointKey?: string;
   natalHouse?: number;
+  sequenceIndex: number;
+  sequenceTotal: number;
   confirmationSources: ForecastTimelineSource[];
 };
 

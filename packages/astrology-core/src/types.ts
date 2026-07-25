@@ -141,7 +141,15 @@ export type HouseConnection = {
   details: HouseConnectionDetail[];
 };
 
-export type EssentialDignityType = "domicile" | "exaltation" | "detriment" | "fall" | "peregrine";
+export type EssentialDignityType =
+  | "domicile"
+  | "exaltation"
+  | "affinity"
+  | "neutral"
+  | "enmity"
+  | "fall"
+  | "detriment"
+  | "peregrine";
 
 export type EssentialDignity = {
   pointKey: string;
@@ -254,11 +262,13 @@ export type ReturnKind = "solar" | "lunar";
 export type ReturnEvent = {
   kind: ReturnKind;
   exactAt: string;
+  validUntil?: string;
   targetPointKey: "sun" | "moon";
   natalLongitude: number;
   returnLongitude: number;
   chart: ChartResult;
   returnPointsInNatalHouses: ChartPoint[];
+  natalPointsInReturnHouses: ChartPoint[];
   returnToNatalAspects: Aspect[];
 };
 
@@ -338,11 +348,17 @@ export type ForecastTimelineEvent = {
   bodyA?: string;
   bodyB?: string;
   aspectType?: AspectType;
+  exactAngle?: number;
   orb?: number;
+  phase?: TransitAspectPhase;
+  activeFrom?: string | null;
+  activeUntil?: string | null;
   score: number;
   strength: TransitAspectStrength;
   natalPointKey?: string;
   natalHouse?: number;
+  sequenceIndex: number;
+  sequenceTotal: number;
   confirmationSources: ForecastTimelineSource[];
 };
 
