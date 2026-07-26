@@ -4,25 +4,25 @@
 
 @layer base {
   :root {
-    --background: 250 32% 98%;
-    --foreground: 252 22% 13%;
+    --background: 210 20% 98%;
+    --foreground: 224 71% 4%;
     --card: 0 0% 100%;
-    --card-foreground: 252 22% 13%;
+    --card-foreground: 224 71% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 252 22% 13%;
-    --primary: 265 68% 50%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 252 30% 94%;
-    --secondary-foreground: 252 22% 18%;
-    --muted: 246 22% 94%;
-    --muted-foreground: 248 9% 43%;
-    --accent: 268 38% 92%;
-    --accent-foreground: 263 45% 25%;
+    --popover-foreground: 224 71% 4%;
+    --primary: 225.3 95.4% 57.3%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 218 48% 96%;
+    --secondary-foreground: 222 28% 15%;
+    --muted: 222 28% 93%;
+    --muted-foreground: 222 12% 27%;
+    --accent: 220 71% 92%;
+    --accent-foreground: 222 28% 15%;
     --destructive: 8 72% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 248 20% 86%;
-    --input: 248 20% 84%;
-    --ring: 265 68% 50%;
+    --border: 222 18% 89%;
+    --input: 222 18% 89%;
+    --ring: 225.3 95.4% 57.3%;
     --radius: 0.5rem;
 
     --astro-teal: 176 70% 30%;
@@ -42,9 +42,8 @@
 
   body {
     @apply bg-background text-foreground;
-    background-image:
-      linear-gradient(135deg, hsl(var(--primary) / 0.07), transparent 34%),
-      linear-gradient(315deg, hsl(var(--astro-teal) / 0.04), transparent 42%);
+    overflow-x: hidden;
+    background-image: linear-gradient(to bottom, #f9fafb 0%, rgb(219 229 249 / 40%) 100%);
     background-attachment: fixed;
     font-feature-settings:
       "rlig" 1,
@@ -60,17 +59,14 @@
 
 @layer components {
   .app-shell-background {
-    background-color: hsl(var(--background));
-    background-image: linear-gradient(109.6deg, rgb(254 253 205 / 63%) 11.2%, rgb(163 230 255 / 83%) 91.1%);
+    background-color: #f9fafb;
+    background-image: linear-gradient(to bottom, #f9fafb 0%, rgb(219 229 249 / 40%) 100%);
     background-attachment: fixed;
   }
 
   .auth-cosmos {
-    background-color: #160b29;
-    background-image:
-      linear-gradient(135deg, rgba(122, 66, 190, 0.48), transparent 42%),
-      linear-gradient(315deg, rgba(3, 169, 244, 0.38), transparent 46%),
-      linear-gradient(160deg, #12091f 0%, #28134c 52%, #101c36 100%);
+    background-color: #f9fafb;
+    background-image: linear-gradient(to bottom, #f9fafb 0%, rgb(219 229 249 / 40%) 100%);
   }
 
   .auth-stars {
@@ -82,26 +78,34 @@
   }
 
   .auth-stars-far {
-    opacity: 0.5;
+    opacity: 0.46;
     background-image:
-      radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.92) 0 1px, transparent 1.4px),
-      radial-gradient(circle at 68% 31%, rgba(225, 214, 255, 0.82) 0 1px, transparent 1.5px),
-      radial-gradient(circle at 38% 74%, rgba(255, 255, 255, 0.74) 0 0.8px, transparent 1.3px),
-      radial-gradient(circle at 89% 82%, rgba(181, 237, 241, 0.75) 0 1px, transparent 1.5px);
+      radial-gradient(circle at 12% 18%, rgb(42 93 250 / 30%) 0 1px, transparent 1.4px),
+      radial-gradient(circle at 68% 31%, rgb(3 7 18 / 12%) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 38% 74%, rgb(42 93 250 / 20%) 0 0.8px, transparent 1.3px),
+      radial-gradient(circle at 89% 82%, rgb(61 66 77 / 14%) 0 1px, transparent 1.5px);
     background-size: 260px 230px, 310px 280px, 220px 260px, 340px 300px;
     animation: auth-star-drift 42s linear infinite;
   }
 
   .auth-stars-near {
-    opacity: 0.62;
+    opacity: 0.38;
     background-image:
-      radial-gradient(circle at 22% 36%, rgba(255, 255, 255, 0.96) 0 1.5px, transparent 2px),
-      radial-gradient(circle at 76% 14%, rgba(224, 204, 255, 0.92) 0 1.2px, transparent 1.9px),
-      radial-gradient(circle at 56% 84%, rgba(192, 242, 244, 0.88) 0 1.3px, transparent 2px);
+      radial-gradient(circle at 22% 36%, rgb(42 93 250 / 34%) 0 1.5px, transparent 2px),
+      radial-gradient(circle at 76% 14%, rgb(3 7 18 / 14%) 0 1.2px, transparent 1.9px),
+      radial-gradient(circle at 56% 84%, rgb(42 93 250 / 24%) 0 1.3px, transparent 2px);
     background-size: 460px 390px, 520px 440px, 420px 480px;
     animation:
       auth-star-drift 28s linear infinite reverse,
       auth-star-twinkle 5s ease-in-out infinite;
+  }
+
+  .mobile-tab-scroll {
+    scrollbar-width: none;
+  }
+
+  .mobile-tab-scroll::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -129,5 +133,17 @@
 @media (prefers-reduced-motion: reduce) {
   .auth-stars {
     animation: none;
+  }
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .app-shell-background {
+    background-attachment: scroll;
   }
 }

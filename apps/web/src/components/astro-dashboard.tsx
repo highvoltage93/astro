@@ -221,12 +221,12 @@ export function AstroDashboard() {
   }
 
   return (
-    <main className="app-shell-background min-h-screen px-4 py-5 text-foreground sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1480px] space-y-5">
+    <main className="app-shell-background min-h-screen overflow-x-hidden px-3 py-3 text-foreground sm:px-6 sm:py-5 lg:px-8">
+      <div className="mx-auto max-w-[1480px] space-y-4 sm:space-y-5">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
-            <h1 className="text-3xl font-semibold tracking-normal">Дешборд</h1>
+            <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">Дешборд</h1>
           </div>
           <DashboardAccountMenu
             isOpen={isUserMenuOpen}
@@ -244,8 +244,8 @@ export function AstroDashboard() {
               <CardTitle>Швидкий розрахунок карти</CardTitle>
             </CardHeader>
             <CardContent>
-              <form className="grid gap-3 lg:grid-cols-12" onSubmit={submit}>
-                <DashboardField className="lg:col-span-3" label="Назва карти">
+              <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12" onSubmit={submit}>
+                <DashboardField className="sm:col-span-2 lg:col-span-3" label="Назва карти">
                   <Input value={form.displayName} onChange={(event) => updateForm("displayName", event.target.value)} />
                 </DashboardField>
                 <DashboardField className="sm:col-span-1 lg:col-span-2" label="Дата">
@@ -260,7 +260,7 @@ export function AstroDashboard() {
                     onChange={(event) => updateForm("birthTime", event.target.value)}
                   />
                 </DashboardField>
-                <DashboardField className="lg:col-span-3" label="Місце">
+                <DashboardField className="sm:col-span-2 lg:col-span-3" label="Місце">
                   <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                     <Input
                       value={form.birthplaceName}
@@ -277,7 +277,7 @@ export function AstroDashboard() {
                     </Button>
                   </div>
                 </DashboardField>
-                <label className="flex min-h-10 items-center gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm lg:col-span-2 lg:self-end">
+                <label className="flex min-h-10 items-center gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm sm:col-span-2 lg:col-span-2 lg:self-end">
                   <Checkbox
                     checked={form.birthTimeKnown}
                     onCheckedChange={(checked) => updateForm("birthTimeKnown", checked === true)}
@@ -285,7 +285,7 @@ export function AstroDashboard() {
                   <span>Час відомий</span>
                 </label>
 
-                <div className="lg:col-span-12">
+                <div className="sm:col-span-2 lg:col-span-12">
                   <DashboardPlaceSearchPanel
                     error={placeError}
                     results={placeResults}
@@ -300,7 +300,7 @@ export function AstroDashboard() {
                 <DashboardField className="lg:col-span-2" label="Довгота">
                   <Input value={form.longitude} onChange={(event) => updateForm("longitude", event.target.value)} />
                 </DashboardField>
-                <DashboardField className="lg:col-span-3" label="Часовий пояс">
+                <DashboardField className="sm:col-span-2 lg:col-span-3" label="Часовий пояс">
                   <Input value={form.timezone} onChange={(event) => updateForm("timezone", event.target.value)} />
                 </DashboardField>
                 <DashboardField className="lg:col-span-2" label="Система домів">
@@ -331,14 +331,14 @@ export function AstroDashboard() {
                     </SelectContent>
                   </Select>
                 </DashboardField>
-                <div className="flex items-end lg:col-span-1">
+                <div className="flex items-end sm:col-span-2 lg:col-span-1">
                   <Button className="w-full" disabled={calculationStatus === "loading"} type="submit">
                     {calculationStatus === "loading" ? <RefreshCw className="animate-spin" /> : null}
                     {calculationStatus === "loading" ? "Розраховую" : "Розрахувати"}
                   </Button>
                 </div>
                 {calculationStatus === "error" ? (
-                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive lg:col-span-12">
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive sm:col-span-2 lg:col-span-12">
                     {calculationError ?? "Не вдалося розрахувати карту"}
                   </div>
                 ) : null}
@@ -373,7 +373,7 @@ function DashboardAccountMenu({
   onOpenChange: (isOpen: boolean) => void;
 }) {
   return (
-    <div className="relative">
+    <div className="relative min-w-0 lg:min-w-64">
       {isOpen ? (
         <button
           aria-label="Закрити меню користувача"
@@ -400,7 +400,7 @@ function DashboardAccountMenu({
 
       {isOpen ? (
         <div
-          className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-full min-w-64 rounded-lg border bg-card p-1 text-card-foreground shadow-xl lg:w-72"
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-full min-w-0 rounded-lg border bg-card p-1 text-card-foreground shadow-xl sm:min-w-64 lg:w-72"
           role="menu"
         >
           <div className="px-3 py-2">
@@ -536,7 +536,33 @@ function SavedProfilesDashboardCard({
         ) : null}
 
         {profiles.length > 0 ? (
-          <div className="overflow-auto rounded-lg border">
+          <div className="grid gap-2 md:hidden">
+            {profiles.map((profile) => (
+              <button
+                className="grid min-w-0 gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                key={profile.id}
+                type="button"
+                onClick={() => onOpen(profile)}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="truncate text-sm font-semibold">{profile.displayName}</span>
+                </span>
+                <span className="grid gap-1 text-xs text-muted-foreground">
+                  <span>{profile.birthDate} · {profile.birthTimeKnown ? profile.birthTime : "час невідомий"}</span>
+                  <span className="truncate">{profile.birthplaceName}</span>
+                  <span>Створено: {formatSavedProfileCreatedAt(profile.createdAt)}</span>
+                </span>
+                <span className="inline-flex min-h-9 items-center justify-center rounded-md bg-secondary px-3 text-sm font-medium text-secondary-foreground">
+                  Відкрити карту
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {profiles.length > 0 ? (
+          <div className="hidden overflow-auto rounded-lg border md:block">
             <Table>
               <TableHeader>
                 <TableRow>

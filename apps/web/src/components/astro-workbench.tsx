@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -718,6 +718,8 @@ export function AstroWorkbench() {
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
   const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
+  const [orbApplyStatus, setOrbApplyStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [orbApplyError, setOrbApplyError] = useState<string | null>(null);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>("interpretation");
   const [chart, setChart] = useState<ChartResult | null>(null);
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
@@ -818,24 +820,6 @@ export function AstroWorkbench() {
       setPlaceError(null);
       setPlaceSearchStatus("idle");
     }
-  };
-
-  const applyPointOrbs = (settings: PointOrbSettings): void => {
-    setPointOrbs(settings);
-    setSaveStatus("idle");
-    setSaveError(null);
-    setSavedProfileId(null);
-    setChart(null);
-    setInterpretation(null);
-    setInterpretationError(null);
-    setTransitPreview(null);
-    setTransitError(null);
-    setTransitStatus("idle");
-    clearForecastState();
-    setSynastryPreview(null);
-    setSynastryError(null);
-    setSynastryStatus("idle");
-    setStatus("idle");
   };
 
   const updatePartnerForm = <Field extends keyof FormState>(field: Field, value: FormState[Field]): void => {
@@ -981,7 +965,10 @@ export function AstroWorkbench() {
     setPartnerPlaceSearchStatus("idle");
   };
 
-  const buildNatalPayloadFromForm = (source: FormState): NatalPreviewPayload => ({
+  const buildNatalPayloadFromForm = (
+    source: FormState,
+    pointOrbSettings: PointOrbSettings = pointOrbs
+  ): NatalPreviewPayload => ({
     birthDate: source.birthDate,
     birthTime: source.birthTime,
     birthTimeKnown: source.birthTimeKnown,
@@ -990,7 +977,7 @@ export function AstroWorkbench() {
     longitude: Number(source.longitude),
     houseSystem: source.houseSystem,
     zodiac: source.zodiac,
-    pointOrbs
+    pointOrbs: pointOrbSettings
   });
 
   const buildNatalPayload = (): NatalPreviewPayload => buildNatalPayloadFromForm(form);
@@ -1153,6 +1140,75 @@ export function AstroWorkbench() {
     } catch (requestError) {
       setStatus("error");
       setError(requestError instanceof Error ? requestError.message : "Unknown API error");
+    }
+  };
+
+  const applyPointOrbs = async (settings: PointOrbSettings): Promise<void> => {
+    const settingKeys = new Set([...Object.keys(pointOrbs), ...Object.keys(settings)]);
+    const settingsChanged = [...settingKeys].some((key) => pointOrbs[key] !== settings[key]);
+
+    if (!settingsChanged) {
+      setOrbApplyStatus("idle");
+      setOrbApplyError(null);
+      return;
+    }
+
+    if (!chart) {
+      setPointOrbs(settings);
+      setOrbApplyStatus("idle");
+      setOrbApplyError(null);
+      return;
+    }
+
+    setOrbApplyStatus("loading");
+    setOrbApplyError(null);
+
+    try {
+      const payload = buildNatalPayloadFromForm(form, settings);
+      const [chartResult, interpretationResult] = await Promise.allSettled([
+        requestNatalPreview(payload),
+        requestNatalInterpretation(payload)
+      ]);
+
+      if (chartResult.status === "rejected") {
+        throw chartResult.reason;
+      }
+
+      setPointOrbs(settings);
+      setChart(chartResult.value);
+
+      if (interpretationResult.status === "fulfilled") {
+        setInterpretation(interpretationResult.value);
+        setInterpretationError(null);
+      } else {
+        setInterpretation(null);
+        setInterpretationError(
+          interpretationResult.reason instanceof Error
+            ? interpretationResult.reason.message
+            : "Unable to update interpretation"
+        );
+      }
+
+      setTransitPreview(null);
+      setTransitError(null);
+      setTransitStatus("idle");
+      clearForecastState();
+      setSynastryPreview(null);
+      setSynastryError(null);
+      setSynastryStatus("idle");
+      setSaveStatus("idle");
+      setSaveError(null);
+      setSavedProfileId(null);
+      setIsCurrentProfileOwned(false);
+      setShareStatus("idle");
+      setError(null);
+      setStatus("ready");
+      setOrbApplyStatus("idle");
+    } catch (requestError) {
+      setOrbApplyStatus("error");
+      setOrbApplyError(
+        requestError instanceof Error ? requestError.message : "Не вдалося застосувати налаштування орбісів"
+      );
     }
   };
 
@@ -1443,13 +1499,13 @@ export function AstroWorkbench() {
   }
 
   return (
-    <main className="app-shell-background min-h-screen px-4 py-5 text-foreground sm:px-6 lg:px-8">
+    <main className="app-shell-background min-h-screen overflow-x-hidden px-3 py-3 text-foreground sm:px-6 sm:py-5 lg:px-8">
       <div className="mx-auto max-w-[1500px]">
-        <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <header className="mb-4 flex flex-col gap-3 sm:mb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-semibold tracking-normal">Робоча зона</h1>
+              <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">Робоча зона</h1>
               <Button
                 size="icon"
                 variant="secondary"
@@ -1462,8 +1518,8 @@ export function AstroWorkbench() {
               </Button>
             </div>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button variant="secondary" type="button" onClick={() => router.push("/")}>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <Button className="min-w-0 px-3" variant="secondary" type="button" onClick={() => router.push("/")}>
               <LayoutDashboard />
               Дешборд
             </Button>
@@ -1493,6 +1549,8 @@ export function AstroWorkbench() {
 
         <ChartSettingsDrawer
           isOpen={isSettingsDrawerOpen}
+          orbApplyError={orbApplyError}
+          orbApplyStatus={orbApplyStatus}
           pointOrbs={pointOrbs}
           visiblePointKeys={visiblePointKeys}
           onApplyOrbs={applyPointOrbs}
@@ -1503,12 +1561,12 @@ export function AstroWorkbench() {
         <section className="grid items-start gap-4 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[minmax(0,780px)_minmax(560px,1fr)] xl:overflow-hidden">
           <div className="min-w-0 space-y-4 xl:h-full xl:max-w-[780px] xl:overflow-y-auto xl:pr-1">
             <Card className="min-w-0">
-              <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                <div className="space-y-1">
+              <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-4 sm:p-5">
+                <div className="min-w-0 space-y-1">
                   <CardDescription className="font-semibold uppercase text-primary">
                     {chart?.settings.houseSystem ?? "koch"}
                   </CardDescription>
-                  <CardTitle>{form.displayName}</CardTitle>
+                  <CardTitle className="truncate">{form.displayName}</CardTitle>
                 </div>
                 <div className="flex gap-2">
                   {savedProfileId && isCurrentProfileOwned ? (
@@ -1536,9 +1594,9 @@ export function AstroWorkbench() {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-2 pb-4 sm:px-5 sm:pb-5">
                 <ChartWheel chart={chart} visiblePointKeys={visiblePointKeys} />
-                <div className="mt-5 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid gap-2 min-[420px]:grid-cols-3 sm:mt-5">
                   <StatusBadge status={chart?.engine.status ?? "idle"} />
                   <Badge variant="secondary" className="justify-center py-2">
                     {chart ? `${visiblePlacements.length}/${placements.length} точок` : "0 точок"}
@@ -1650,12 +1708,12 @@ function WorkspaceTabList({
   onChange: (tab: WorkspaceTab) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1" role="tablist" aria-label="Робочі модулі">
+    <div className="mobile-tab-scroll flex snap-x gap-1 overflow-x-auto rounded-lg border bg-card p-1" role="tablist" aria-label="Робочі модулі">
       {workspaceTabs.map((tab) => (
         <button
           aria-selected={activeTab === tab.key}
           className={cn(
-            "min-h-9 shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "min-h-10 shrink-0 snap-start rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             activeTab === tab.key
               ? "bg-primary text-primary-foreground shadow-sm"
               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -1688,7 +1746,7 @@ function HeaderAccountMenu({
   onOpenSavedCharts: () => Promise<void>;
 }) {
   return (
-    <div className="relative">
+    <div className="relative min-w-0 sm:min-w-64">
       {isOpen ? (
         <button
           aria-label="Закрити меню користувача"
@@ -1715,7 +1773,7 @@ function HeaderAccountMenu({
 
       {isOpen ? (
         <div
-          className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-full min-w-64 rounded-lg border bg-card p-1 text-card-foreground shadow-xl lg:w-72"
+          className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[calc(100vw-1.5rem)] max-w-72 rounded-lg border bg-card p-1 text-card-foreground shadow-xl sm:w-full sm:min-w-64 lg:w-72"
           role="menu"
         >
           <div className="px-3 py-2">
@@ -1918,13 +1976,17 @@ function BirthDataCard({
 }
 
 function OrbSettingsCard({
+  error,
   pointOrbs,
+  status,
   onApply,
   onReset,
   onUpdate
 }: {
+  error: string | null;
   pointOrbs: PointOrbSettings;
-  onApply: () => void;
+  status: "idle" | "loading" | "error";
+  onApply: () => Promise<void>;
   onReset: () => void;
   onUpdate: (key: string, value: string) => void;
 }) {
@@ -1959,15 +2021,20 @@ function OrbSettingsCard({
           ))}
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-          <Button variant="secondary" type="button" onClick={onReset}>
+          <Button disabled={status === "loading"} variant="secondary" type="button" onClick={onReset}>
             <RotateCcw />
             Скинути
           </Button>
-          <Button type="button" onClick={onApply}>
-            <Check />
-            Застосувати
+          <Button disabled={status === "loading"} type="button" onClick={() => void onApply()}>
+            {status === "loading" ? <RefreshCw className="animate-spin" /> : <Check />}
+            {status === "loading" ? "Оновлюю карту" : "Застосувати"}
           </Button>
         </div>
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -2037,6 +2104,8 @@ function ChartObjectSettingsCard({
 
 function ChartSettingsDrawer({
   isOpen,
+  orbApplyError,
+  orbApplyStatus,
   pointOrbs,
   visiblePointKeys,
   onApplyOrbs,
@@ -2044,20 +2113,25 @@ function ChartSettingsDrawer({
   onClose
 }: {
   isOpen: boolean;
+  orbApplyError: string | null;
+  orbApplyStatus: "idle" | "loading" | "error";
   pointOrbs: PointOrbSettings;
   visiblePointKeys: VisiblePointSettings;
-  onApplyOrbs: (settings: PointOrbSettings) => void;
+  onApplyOrbs: (settings: PointOrbSettings) => Promise<void>;
   onApplyVisiblePoints: (settings: VisiblePointSettings) => void;
   onClose: () => void;
 }) {
   const [orbDraft, setOrbDraft] = useState<PointOrbSettings>(pointOrbs);
   const [visiblePointsDraft, setVisiblePointsDraft] = useState<VisiblePointSettings>(visiblePointKeys);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       setOrbDraft({ ...pointOrbs });
       setVisiblePointsDraft({ ...visiblePointKeys });
     }
+
+    wasOpenRef.current = isOpen;
   }, [isOpen, pointOrbs, visiblePointKeys]);
 
   if (!isOpen) {
@@ -2094,9 +2168,9 @@ function ChartSettingsDrawer({
       />
       <aside
         aria-label="Налаштування карти"
-        className="absolute right-0 top-0 flex h-full w-full max-w-[700px] flex-col border-l bg-background text-foreground shadow-2xl"
+        className="absolute right-0 top-0 flex h-[100dvh] w-full max-w-[700px] flex-col border-l bg-background text-foreground shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b p-5">
+        <div className="flex items-start justify-between gap-4 border-b p-4 sm:p-5">
           <div className="space-y-1">
             <p className="text-sm font-semibold uppercase text-primary">Chart settings</p>
             <h2 className="text-lg font-semibold tracking-normal">Налаштування карти</h2>
@@ -2106,9 +2180,11 @@ function ChartSettingsDrawer({
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
           <OrbSettingsCard
+            error={orbApplyError}
             pointOrbs={orbDraft}
+            status={orbApplyStatus}
             onApply={() => onApplyOrbs({ ...orbDraft })}
             onReset={() => setOrbDraft({ ...defaultPointOrbs })}
             onUpdate={updateOrbDraft}
@@ -2168,9 +2244,9 @@ function SavedChartsDrawer({
       />
       <aside
         aria-label="Збережені карти"
-        className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l bg-background text-foreground shadow-2xl"
+        className="absolute right-0 top-0 flex h-[100dvh] w-full max-w-md flex-col border-l bg-background text-foreground shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b p-5">
+        <div className="flex items-start justify-between gap-4 border-b p-4 sm:p-5">
           <div className="space-y-1">
             <p className="text-sm font-semibold uppercase text-primary">Saved charts</p>
             <h2 className="text-lg font-semibold tracking-normal">Збережені карти</h2>
@@ -2192,7 +2268,7 @@ function SavedChartsDrawer({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
           {status === "idle" ? (
             <p className="text-sm text-muted-foreground">Онови список, щоб побачити останні збережені карти.</p>
           ) : null}
@@ -2721,6 +2797,9 @@ function ForecastCalendarPanel({
     return grouped;
   }, [filteredEvents]);
   const calendarDays = activeMonthKey ? buildForecastCalendarDays(activeMonthKey) : [];
+  const activeMonthDays = [...eventsByDay.entries()]
+    .filter(([dayKey]) => dayKey.startsWith(activeMonthKey))
+    .sort(([leftDay], [rightDay]) => leftDay.localeCompare(rightDay));
   const confirmedDays = [...eventsByDay.values()].filter((dayEvents) =>
     dayEvents.some((event) => event.confirmationSources.length > 1)
   ).length;
@@ -2739,7 +2818,7 @@ function ForecastCalendarPanel({
   };
 
   return (
-    <section className="space-y-4 rounded-lg border bg-muted/15 p-4">
+    <section className="space-y-4 rounded-lg border bg-muted/15 p-3 sm:p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -2760,7 +2839,7 @@ function ForecastCalendarPanel({
       </div>
 
       <div className="space-y-3 rounded-lg border bg-background p-3">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
           {forecastCalendarSources.map((source) => (
             <label
               className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-2.5 text-xs font-medium"
@@ -2848,7 +2927,57 @@ function ForecastCalendarPanel({
             </Button>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border bg-background">
+          <div className="space-y-2 md:hidden">
+            {activeMonthDays.length > 0 ? (
+              activeMonthDays.map(([dayKey, dayEvents]) => {
+                const isConfirmed = dayEvents.some((event) => event.confirmationSources.length > 1);
+
+                return (
+                  <div className={cn("rounded-lg border bg-background p-2", isConfirmed && "border-primary/30 bg-primary/[0.035]")} key={`forecast-mobile-day-${dayKey}`}>
+                    <button
+                      className="flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      type="button"
+                      onClick={() => setSelectedDayKey(dayKey)}
+                    >
+                      <span className="text-sm font-semibold">{formatTimelineDay(`${dayKey}T12:00:00.000Z`)}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        {isConfirmed ? <Check className="h-4 w-4 text-primary" aria-label="Підтверджено кількома методами" /> : null}
+                        <Badge variant="secondary">{dayEvents.length}</Badge>
+                      </span>
+                    </button>
+                    <div className="mt-1 grid gap-1.5">
+                      {dayEvents.map((event) => (
+                        <button
+                          className={cn(
+                            "grid min-h-12 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md border px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            getTimelineSourceClass(event.source)
+                          )}
+                          key={`forecast-mobile-event-${event.id}`}
+                          type="button"
+                          onClick={() => setSelectedEvent(event)}
+                        >
+                          <span className="text-xs font-semibold">{formatCalendarEventLabel(event)}</span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-medium">{formatTimelineEventTitle(event)}</span>
+                            <span className="mt-0.5 block text-[10px] opacity-75">
+                              {formatDateTimeCompact(event.exactAt)}
+                              {event.sequenceTotal > 1 ? ` · ${event.sequenceIndex}/${event.sequenceTotal}` : ""}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="rounded-lg border bg-background p-4 text-sm text-muted-foreground">
+                У цьому місяці немає подій з поточними фільтрами.
+              </p>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border bg-background md:block">
             <div className="min-w-[840px]">
               <div className="grid grid-cols-7 border-b bg-muted/35">
                 {forecastWeekdaysUk.map((weekday) => (
@@ -2992,9 +3121,9 @@ function ForecastEventDrawer({ event, onClose }: { event: ForecastTimelineEvent 
       />
       <aside
         aria-label="Деталі прогнозної події"
-        className="absolute right-0 top-0 flex h-full w-full max-w-[640px] flex-col border-l bg-background text-foreground shadow-2xl"
+        className="absolute right-0 top-0 flex h-[100dvh] w-full max-w-[640px] flex-col border-l bg-background text-foreground shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b p-5">
+        <div className="flex items-start justify-between gap-3 border-b p-4 sm:gap-4 sm:p-5">
           <div className="min-w-0 space-y-2">
             <Badge className={getTimelineSourceClass(event.source)} variant="outline">
               {forecastTimelineSourceLabelsUk[event.source]}
@@ -3007,7 +3136,7 @@ function ForecastEventDrawer({ event, onClose }: { event: ForecastTimelineEvent 
           </Button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:space-y-5 sm:p-5">
           <div className="grid gap-2 sm:grid-cols-2">
             <ForecastMetric label="Сила" value={`${strengthLabels[event.strength] ?? event.strength} · ${event.score.toFixed(1)}`} />
             <ForecastMetric label="Фаза" value={phaseLabels[event.phase ?? "exact"] ?? event.phase ?? "точний"} />
@@ -4333,7 +4462,7 @@ function ProfessionalDataCard({
       </CardHeader>
       <CardContent className="space-y-4 xl:flex xl:min-h-0 xl:flex-1 xl:flex-col xl:space-y-0">
         <div
-          className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/30 p-1"
+          className="mobile-tab-scroll flex snap-x gap-1 overflow-x-auto rounded-lg border bg-muted/30 p-1"
           role="tablist"
           aria-label="Професійні дані карти"
         >
@@ -4341,7 +4470,7 @@ function ProfessionalDataCard({
             <button
               aria-selected={activeTab === tab.key}
               className={cn(
-                "min-h-8 shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "min-h-10 shrink-0 snap-start rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8",
                 activeTab === tab.key
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
@@ -5450,10 +5579,10 @@ function ChartWheel({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[780px]">
+    <div className="mx-auto w-full max-w-[780px] px-1 sm:px-3">
       <svg
         className="aspect-square w-full overflow-visible"
-        viewBox="-20 -20 640 640"
+        viewBox="-55 -55 710 710"
         role="img"
         aria-label="Колесо натальної карти"
         onClick={() => setSelectedPointKey(null)}
