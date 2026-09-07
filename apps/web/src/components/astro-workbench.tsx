@@ -2,6 +2,7 @@
 
 import {
   BookOpenText,
+  Archive,
   Calculator,
   Check,
   Activity,
@@ -34,10 +35,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ForecastSaveControl, SavedForecastsDrawer } from "@/components/forecast-archive";
+import type { ForecastArchiveDraft, ForecastSubject, SavedForecast } from "@/lib/forecast-archive";
+import { createForecastRequestId, forecastKindLabels, resolveForecastDateTime, toForecastDateTimeInput } from "@/lib/forecast-archive";
 import {
   deleteBirthProfile,
   getBirthProfile,
   getCurrentUser,
+  getSavedForecast,
   listBirthProfiles,
   requestForecastPreview,
   requestNatalInterpretation,
@@ -59,6 +64,7 @@ import type {
   ForecastTimelineEvent,
   ForecastTimelineSource,
   ForecastPreviewResult,
+  ForecastPreviewPayload,
   HouseConnection,
   HouseRuler,
   MoonPhase,
@@ -71,7 +77,9 @@ import type {
   SecondaryProgressionResult,
   SolarArcDirectionResult,
   SynastryPreviewResult,
-  TransitPreviewResult
+  SynastryPreviewPayload,
+  TransitPreviewResult,
+  TransitPreviewPayload
 } from "@/lib/chart-types";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { cn } from "@/lib/utils";
@@ -683,6 +691,24 @@ const buildFormFromDashboardDraft = (draft: DashboardChartDraft): FormState => (
   zodiac: draft.natal.zodiac
 });
 
+const archiveSubject = (source: FormState): ForecastSubject => ({
+  displayName: source.displayName,
+  birthplaceName: source.birthplaceName,
+  countryCode: source.countryCode
+});
+
+const formFromArchive = (natal: NatalPreviewPayload, subject: ForecastSubject): FormState => ({
+  ...subject,
+  birthDate: natal.birthDate,
+  birthTime: natal.birthTime,
+  birthTimeKnown: natal.birthTimeKnown,
+  latitude: String(natal.latitude),
+  longitude: String(natal.longitude),
+  timezone: natal.timezone,
+  houseSystem: natal.houseSystem ?? "koch",
+  zodiac: natal.zodiac ?? "tropical"
+});
+
 const buildPolarityRowsFromSignScores = (
   signScores: Array<{ key: string; score: number }>
 ): Array<{ key: "masculine" | "feminine"; score: number }> => {
@@ -716,6 +742,12 @@ export function AstroWorkbench() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSavedChartsDrawerOpen, setIsSavedChartsDrawerOpen] = useState(false);
   const [isSettingsDrawerOpen, setIsSettingsDrawerOpen] = useState(false);
+  const [isForecastArchiveOpen, setIsForecastArchiveOpen] = useState(false);
+  const [loadedForecast, setLoadedForecast] = useState<SavedForecast | null>(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [archiveLoadAttempt, setArchiveLoadAttempt] = useState(0);
+  const [forecastDrafts, setForecastDrafts] = useState<Partial<Record<WorkspaceTab, ForecastArchiveDraft>>>({});
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
   const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
   const [orbApplyStatus, setOrbApplyStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -758,6 +790,14 @@ export function AstroWorkbench() {
   const [partnerPlaceError, setPartnerPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
   const [isCurrentProfileOwned, setIsCurrentProfileOwned] = useState(false);
+
+  const previewInputs = {
+    transits: [form, pointOrbs, transitDateTime],
+    forecast: [form, pointOrbs, forecastFromDateTime, forecastTargetYear, forecastDays, solarReturnLatitude, solarReturnLongitude],
+    synastry: [form, partnerForm, pointOrbs]
+  };
+  const latestPreviewInputs = useRef(previewInputs);
+  latestPreviewInputs.current = previewInputs;
 
   const placements = useMemo(() => {
     if (!chart) {
@@ -1217,6 +1257,9 @@ export function AstroWorkbench() {
       return;
     }
 
+    const workspaceParams = new URLSearchParams(window.location.search);
+    if (workspaceParams.has("forecastId") || workspaceParams.has("chartId")) return;
+
     const draftJson = window.localStorage.getItem(DASHBOARD_CHART_DRAFT_STORAGE_KEY);
 
     if (!draftJson) {
@@ -1259,6 +1302,55 @@ export function AstroWorkbench() {
       return;
     }
 
+    const forecastIdFromUrl = new URLSearchParams(window.location.search).get("forecastId");
+    if (forecastIdFromUrl) {
+      let active = true;
+      setArchiveLoading(true);
+      setArchiveError(null);
+      void getSavedForecast(forecastIdFromUrl, authToken).then(({ forecast: record }) => {
+        if (!active) return;
+        if (record.schemaVersion !== 1 || record.input.kind !== record.kind || record.result.chartType !== record.kind) {
+          throw new Error("Цю версію збереженого прогнозу поки неможливо відкрити.");
+        }
+        const natal = record.kind === "synastry" ? record.input.parameters.subjectA : record.input.parameters.natal;
+        const natalChart = record.kind === "synastry" ? record.result.subjectA : record.result.natal;
+        setForm(formFromArchive(natal, record.input.context.subject));
+        setChart(natalChart);
+        setInterpretation(record.interpretation);
+        setPointOrbs(record.input.parameters.pointOrbs ?? natalChart.settings.pointOrbs ?? defaultPointOrbs);
+        setVisiblePointKeys({ ...defaultVisiblePointKeys, ...record.input.context.visiblePointKeys });
+        setSolarReturnLatitude(String(natal.latitude));
+        setSolarReturnLongitude(String(natal.longitude));
+        setStatus("ready");
+        setLoadedForecast(record);
+        setForecastDrafts({});
+        if (record.kind === "forecast") {
+          const parameters = record.input.parameters;
+          setForecastFromDateTime(toForecastDateTimeInput(parameters.fromDateTime));
+          setForecastTargetYear(String(parameters.targetYear));
+          setForecastDays(String(parameters.days ?? 90));
+          setSolarReturnLatitude(String(parameters.returnLatitude ?? natal.latitude));
+          setSolarReturnLongitude(String(parameters.returnLongitude ?? natal.longitude));
+          setForecastPreview(record.result);
+          setForecastStatus("ready");
+          setActiveWorkspaceTab("forecast");
+        } else if (record.kind === "transit") {
+          setTransitDateTime(toForecastDateTimeInput(record.input.parameters.transitDateTime));
+          setTransitPreview(record.result);
+          setTransitStatus("ready");
+          setActiveWorkspaceTab("transits");
+        } else {
+          setPartnerForm(formFromArchive(record.input.parameters.subjectB, record.input.context.partner));
+          setSynastryPreview(record.result);
+          setSynastryStatus("ready");
+          setActiveWorkspaceTab("synastry");
+        }
+      }).catch((requestError: unknown) => {
+        if (active) setArchiveError(requestError instanceof Error ? requestError.message : "Не вдалося відкрити прогноз.");
+      }).finally(() => { if (active) setArchiveLoading(false); });
+      return () => { active = false; };
+    }
+
     const profileIdFromUrl = new URLSearchParams(window.location.search).get("chartId");
     const legacyProfileId = window.localStorage.getItem(SAVED_PROFILE_OPEN_STORAGE_KEY);
     const profileId = profileIdFromUrl ?? legacyProfileId;
@@ -1272,7 +1364,7 @@ export function AstroWorkbench() {
     }
 
     void loadSavedProfileById(profileId);
-  }, [authUser, authToken]);
+  }, [authUser, authToken, archiveLoadAttempt]);
 
   const deleteSavedProfile = async (profile: SavedBirthProfile): Promise<void> => {
     const confirmed = window.confirm(`Видалити карту "${profile.displayName}"?`);
@@ -1334,7 +1426,9 @@ export function AstroWorkbench() {
       setIsCurrentProfileOwned(true);
       setSaveStatus("saved");
       setShareStatus("idle");
-      router.replace(`/workspace?chartId=${encodeURIComponent(result.birthProfile.id)}`, { scroll: false });
+      if (!new URLSearchParams(window.location.search).has("forecastId")) {
+        router.replace(`/workspace?chartId=${encodeURIComponent(result.birthProfile.id)}`, { scroll: false });
+      }
       await refreshSavedProfiles();
     } catch (requestError) {
       setSaveStatus("error");
@@ -1368,7 +1462,11 @@ export function AstroWorkbench() {
       return;
     }
 
-    const selectedTransitDate = new Date(transitDateTime);
+    const selectedTransitDate = resolveForecastDateTime(
+      transitDateTime,
+      forecastDrafts.transits?.input.kind === "transit" ? forecastDrafts.transits.input.parameters.transitDateTime
+        : loadedForecast?.kind === "transit" ? loadedForecast.input.parameters.transitDateTime : undefined
+    );
 
     if (Number.isNaN(selectedTransitDate.getTime())) {
       setTransitStatus("error");
@@ -1379,17 +1477,28 @@ export function AstroWorkbench() {
     setTransitStatus("loading");
     setTransitError(null);
 
+    const capturedInputs = latestPreviewInputs.current.transits;
+    const inputsUnchanged = () => capturedInputs.every((value, index) => value === latestPreviewInputs.current.transits[index]);
+
+    const parameters: TransitPreviewPayload = {
+      transitDateTime: selectedTransitDate.toISOString(),
+      natal: buildNatalPayload(),
+      zodiac: form.zodiac,
+      pointOrbs
+    };
     try {
-      const result = await requestTransitPreview({
-        transitDateTime: selectedTransitDate.toISOString(),
-        natal: buildNatalPayload(),
-        zodiac: form.zodiac,
-        pointOrbs
-      });
+      const result = await requestTransitPreview(parameters);
+      if (!inputsUnchanged()) return;
 
       setTransitPreview(result);
+      setForecastDrafts((current) => ({ ...current, transits: {
+        requestId: createForecastRequestId(),
+        title: `Транзити: ${form.displayName}`.slice(0, 120),
+        input: { kind: "transit", parameters, context: { subject: archiveSubject(form), visiblePointKeys } }
+      } }));
       setTransitStatus("ready");
     } catch (requestError) {
+      if (!inputsUnchanged()) return;
       setTransitStatus("error");
       setTransitError(requestError instanceof Error ? requestError.message : "Unknown transit API error");
     }
@@ -1402,7 +1511,11 @@ export function AstroWorkbench() {
       return;
     }
 
-    const selectedForecastDate = new Date(forecastFromDateTime);
+    const selectedForecastDate = resolveForecastDateTime(
+      forecastFromDateTime,
+      forecastDrafts.forecast?.input.kind === "forecast" ? forecastDrafts.forecast.input.parameters.fromDateTime
+        : loadedForecast?.kind === "forecast" ? loadedForecast.input.parameters.fromDateTime : undefined
+    );
     const parsedTargetYear = Number(forecastTargetYear);
     const parsedDays = Number(forecastDays);
     const parsedReturnLatitude = Number(solarReturnLatitude);
@@ -1442,21 +1555,32 @@ export function AstroWorkbench() {
     setForecastStatus("loading");
     setForecastError(null);
 
+    const capturedInputs = latestPreviewInputs.current.forecast;
+    const inputsUnchanged = () => capturedInputs.every((value, index) => value === latestPreviewInputs.current.forecast[index]);
+
+    const parameters: ForecastPreviewPayload & { targetYear: number } = {
+      fromDateTime: selectedForecastDate.toISOString(),
+      natal: buildNatalPayload(),
+      targetYear: parsedTargetYear,
+      days: parsedDays,
+      returnLatitude: parsedReturnLatitude,
+      returnLongitude: parsedReturnLongitude,
+      zodiac: form.zodiac,
+      pointOrbs
+    };
     try {
-      const result = await requestForecastPreview({
-        fromDateTime: selectedForecastDate.toISOString(),
-        natal: buildNatalPayload(),
-        targetYear: parsedTargetYear,
-        days: parsedDays,
-        returnLatitude: parsedReturnLatitude,
-        returnLongitude: parsedReturnLongitude,
-        zodiac: form.zodiac,
-        pointOrbs
-      });
+      const result = await requestForecastPreview(parameters);
+      if (!inputsUnchanged()) return;
 
       setForecastPreview(result);
+      setForecastDrafts((current) => ({ ...current, forecast: {
+        requestId: createForecastRequestId(),
+        title: `Прогноз ${parsedTargetYear}: ${form.displayName}`.slice(0, 120),
+        input: { kind: "forecast", parameters, context: { subject: archiveSubject(form), visiblePointKeys } }
+      } }));
       setForecastStatus("ready");
     } catch (requestError) {
+      if (!inputsUnchanged()) return;
       setForecastStatus("error");
       setForecastError(requestError instanceof Error ? requestError.message : "Unknown forecast API error");
     }
@@ -1466,21 +1590,43 @@ export function AstroWorkbench() {
     setSynastryStatus("loading");
     setSynastryError(null);
 
+    const capturedInputs = latestPreviewInputs.current.synastry;
+    const inputsUnchanged = () => capturedInputs.every((value, index) => value === latestPreviewInputs.current.synastry[index]);
+
+    const parameters: SynastryPreviewPayload = {
+      subjectA: buildNatalPayload(),
+      subjectB: buildNatalPayloadFromForm(partnerForm),
+      zodiac: form.zodiac,
+      pointOrbs
+    };
     try {
-      const result = await requestSynastryPreview({
-        subjectA: buildNatalPayload(),
-        subjectB: buildNatalPayloadFromForm(partnerForm),
-        zodiac: form.zodiac,
-        pointOrbs
-      });
+      const result = await requestSynastryPreview(parameters);
+      if (!inputsUnchanged()) return;
 
       setSynastryPreview(result);
+      setForecastDrafts((current) => ({ ...current, synastry: {
+        requestId: createForecastRequestId(),
+        title: `Синастрія: ${form.displayName} + ${partnerForm.displayName}`.slice(0, 120),
+        input: { kind: "synastry", parameters, context: {
+          subject: archiveSubject(form), partner: archiveSubject(partnerForm), visiblePointKeys
+        } }
+      } }));
       setSynastryStatus("ready");
     } catch (requestError) {
+      if (!inputsUnchanged()) return;
       setSynastryStatus("error");
       setSynastryError(requestError instanceof Error ? requestError.message : "Unknown synastry API error");
     }
   };
+
+  const activePreview = activeWorkspaceTab === "forecast" ? forecastPreview
+    : activeWorkspaceTab === "transits" ? transitPreview
+    : activeWorkspaceTab === "synastry" ? synastryPreview : null;
+  const saveControls = [
+    { tab: "forecast", draft: forecastDrafts.forecast, preview: forecastPreview, status: forecastStatus },
+    { tab: "transits", draft: forecastDrafts.transits, preview: transitPreview, status: transitStatus },
+    { tab: "synastry", draft: forecastDrafts.synastry, preview: synastryPreview, status: synastryStatus }
+  ];
 
   if (!authUser) {
     return (
@@ -1530,9 +1676,19 @@ export function AstroWorkbench() {
               onLogout={logout}
               onOpenChange={setIsUserMenuOpen}
               onOpenSavedCharts={openSavedChartsDrawer}
+              onOpenSavedForecasts={() => { setIsUserMenuOpen(false); setIsForecastArchiveOpen(true); }}
             />
           </div>
         </header>
+
+        {archiveLoading ? <p role="status" className="mb-4 text-sm text-muted-foreground">Відкриваю збережений прогноз…</p> : null}
+        {archiveError ? (
+          <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm">
+            <span className="text-destructive">{archiveError}</span>
+            <Button variant="secondary" onClick={() => setArchiveLoadAttempt((current) => current + 1)}><RefreshCw />Повторити</Button>
+          </div>
+        ) : null}
+        {isForecastArchiveOpen && authToken ? <SavedForecastsDrawer token={authToken} onClose={() => setIsForecastArchiveOpen(false)} /> : null}
 
         <SavedChartsDrawer
           deletingProfileId={deletingProfileId}
@@ -1558,7 +1714,7 @@ export function AstroWorkbench() {
           onClose={() => setIsSettingsDrawerOpen(false)}
         />
 
-        <section className="grid items-start gap-4 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[minmax(0,780px)_minmax(560px,1fr)] xl:overflow-hidden">
+        <section className={cn("grid items-start gap-4 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[minmax(0,780px)_minmax(560px,1fr)] xl:overflow-hidden", (archiveLoading || (archiveError && !chart)) && "hidden")}>
           <div className="min-w-0 space-y-4 xl:h-full xl:max-w-[780px] xl:overflow-y-auto xl:pr-1">
             <Card className="min-w-0">
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-4 sm:p-5">
@@ -1623,7 +1779,22 @@ export function AstroWorkbench() {
             <div className="space-y-3">
               <WorkspaceTabList activeTab={activeWorkspaceTab} onChange={setActiveWorkspaceTab} />
 
-              <div role="tabpanel">
+              <div className="space-y-3" role="tabpanel">
+                {saveControls.map((control) => control.draft && control.preview && authToken ? (
+                  <div key={control.draft.requestId} hidden={activeWorkspaceTab !== control.tab}>
+                    <ForecastSaveControl draft={control.draft} token={authToken} disabled={control.status !== "ready" || orbApplyStatus === "loading"} />
+                  </div>
+                ) : null)}
+                {loadedForecast && activePreview && loadedForecast.result === activePreview ? (
+                  <div className="space-y-2 border-b pb-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{forecastKindLabels[loadedForecast.kind]}</Badge>
+                      <time className="text-xs text-muted-foreground" dateTime={loadedForecast.createdAt}>{formatSavedProfileCreatedAt(loadedForecast.createdAt)}</time>
+                    </div>
+                    <h2 className="break-words text-base font-semibold">{loadedForecast.title}</h2>
+                    {loadedForecast.notes ? <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{loadedForecast.notes}</p> : null}
+                  </div>
+                ) : null}
                 {activeWorkspaceTab === "interpretation" ? (
                   <InterpretationCard error={interpretationError} interpretation={interpretation} status={status} />
                 ) : null}
@@ -1669,7 +1840,12 @@ export function AstroWorkbench() {
                     status={transitStatus}
                     transitDateTime={transitDateTime}
                     onCalculate={calculateTransits}
-                    onTransitDateTimeChange={setTransitDateTime}
+                    onTransitDateTimeChange={(value) => {
+                      setTransitDateTime(value);
+                      setTransitPreview(null);
+                      setTransitError(null);
+                      setTransitStatus("idle");
+                    }}
                   />
                 ) : null}
 
@@ -1736,7 +1912,8 @@ function HeaderAccountMenu({
   user,
   onLogout,
   onOpenChange,
-  onOpenSavedCharts
+  onOpenSavedCharts,
+  onOpenSavedForecasts
 }: {
   isOpen: boolean;
   status: "idle" | "loading" | "ready" | "error";
@@ -1744,6 +1921,7 @@ function HeaderAccountMenu({
   onLogout: () => Promise<void>;
   onOpenChange: (isOpen: boolean) => void;
   onOpenSavedCharts: () => Promise<void>;
+  onOpenSavedForecasts: () => void;
 }) {
   return (
     <div className="relative min-w-0 sm:min-w-64">
@@ -1792,6 +1970,12 @@ function HeaderAccountMenu({
           >
             <FolderOpen className="h-4 w-4 text-primary" />
             Збережені карти
+          </button>
+          <button
+            className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            role="menuitem" type="button" onClick={onOpenSavedForecasts}
+          >
+            <Archive className="h-4 w-4 text-primary" />Збережені прогнози
           </button>
           <button
             className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -2465,6 +2649,7 @@ function ForecastModuleCard({
           <Field label="Старт прогнозу">
             <Input
               type="datetime-local"
+              step="0.001"
               value={fromDateTime}
               onChange={(event) => onFromDateTimeChange(event.target.value)}
             />
@@ -3734,6 +3919,7 @@ function TransitForecastCard({
           <Field label="Дата і час прогнозу">
             <Input
               type="datetime-local"
+              step="0.001"
               value={transitDateTime}
               onChange={(event) => onTransitDateTimeChange(event.target.value)}
             />

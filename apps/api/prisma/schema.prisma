@@ -40,17 +40,18 @@ enum AiSessionMode {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  username      String         @unique
-  passwordHash  String
-  locale        String         @default("uk")
-  role          UserRole       @default(USER)
-  birthProfiles BirthProfile[]
-  aiSessions    AiSession[]
-  auditEvents   AuditEvent[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id             String          @id @default(cuid())
+  email          String          @unique
+  username       String          @unique
+  passwordHash   String
+  locale         String          @default("uk")
+  role           UserRole        @default(USER)
+  birthProfiles  BirthProfile[]
+  savedForecasts SavedForecast[]
+  aiSessions     AiSession[]
+  auditEvents    AuditEvent[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@map("users")
 }
@@ -101,6 +102,26 @@ model ChartCalculation {
   @@index([chartType])
   @@index([inputHash])
   @@map("chart_calculations")
+}
+
+model SavedForecast {
+  id                 String   @id @default(cuid())
+  ownerUserId        String
+  owner              User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  requestId          String
+  inputHash          String
+  kind               String
+  title              String
+  notes              String   @default("")
+  schemaVersion      Int      @default(1)
+  inputJson          Json
+  resultJson         Json
+  interpretationJson Json
+  createdAt          DateTime @default(now())
+
+  @@unique([ownerUserId, requestId])
+  @@index([ownerUserId, createdAt, id])
+  @@map("saved_forecasts")
 }
 
 model InterpretationItem {

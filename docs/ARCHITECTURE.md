@@ -522,6 +522,14 @@ Recommended internal AI context:
 7. Safety and tone policy
 ```
 
+## Implemented Forecast Archive
+
+`apps/api/src/saved-forecasts` owns the authenticated forecast archive. It validates captured calculation inputs, delegates to the existing astrology-core calculators, and persists the result and natal interpretation as JSON snapshots in the independent Prisma `SavedForecast` model. Reads never invoke the calculation engine.
+
+Every query, detail read, and deletion is owner-scoped. A unique `(ownerUserId, requestId)` key plus a payload hash supports idempotent retries. List endpoints use keyset pagination and omit calculation bodies. Saving forecasts does not add non-natal records to a birth profile's latest-calculation history.
+
+The web archive components are shared between the dashboard and workspace drawers. `/workspace?forecastId=<id>` reloads both input forms and archived output. The current record is private, not a shared natal-chart link. Full rules and deployment notes: [Архів прогнозів v1](FORECAST_ARCHIVE_UK.md).
+
 ## Deployment Shape
 
 ### MVP

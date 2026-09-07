@@ -20,6 +20,7 @@ import type {
   TransitPreviewPayload,
   TransitPreviewResult
 } from "./chart-types";
+import type { ForecastArchiveKind, SavedForecast, SavedForecastSummary, SaveForecastPayload } from "./forecast-archive";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -29,6 +30,38 @@ const jsonHeaders = (token?: string | null): HeadersInit => ({
 });
 
 const authHeaders = (token?: string | null): HeadersInit => (token ? { Authorization: `Bearer ${token}` } : {});
+
+const readArchiveResponse = async <Result>(response: Response): Promise<Result> => {
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(body?.message ?? "Не вдалося звернутися до архіву прогнозів.");
+  }
+  return response.json() as Promise<Result>;
+};
+
+export const saveForecast = async (payload: SaveForecastPayload, token: string): Promise<{ forecast: SavedForecast }> =>
+  readArchiveResponse(await fetch(`${API_URL}/saved-forecasts`, {
+    method: "POST", headers: jsonHeaders(token), body: JSON.stringify(payload)
+  }));
+
+export const getSavedForecast = async (id: string, token: string): Promise<{ forecast: SavedForecast }> =>
+  readArchiveResponse(await fetch(`${API_URL}/saved-forecasts/${encodeURIComponent(id)}`, { headers: authHeaders(token) }));
+
+export const listSavedForecasts = async (
+  token: string,
+  options: { query?: string; kind?: ForecastArchiveKind; cursor?: string } = {}
+): Promise<{ forecasts: SavedForecastSummary[]; nextCursor: string | null }> => {
+  const params = new URLSearchParams({ limit: "10" });
+  if (options.query) params.set("query", options.query);
+  if (options.kind) params.set("kind", options.kind);
+  if (options.cursor) params.set("cursor", options.cursor);
+  return readArchiveResponse(await fetch(`${API_URL}/saved-forecasts?${params}`, { headers: authHeaders(token) }));
+};
+
+export const deleteSavedForecast = async (id: string, token: string): Promise<{ deletedForecastId: string }> =>
+  readArchiveResponse(await fetch(`${API_URL}/saved-forecasts/${encodeURIComponent(id)}`, {
+    method: "DELETE", headers: authHeaders(token)
+  }));
 
 export const registerUser = async (payload: AuthPayload): Promise<AuthResponse> => {
   const response = await fetch(`${API_URL}/auth/register`, {

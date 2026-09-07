@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, FolderOpen, LogOut, MapPin, RefreshCw, Search } from "lucide-react";
+import { Archive, ChevronDown, FolderOpen, LogOut, MapPin, RefreshCw, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SavedForecastsCard, SavedForecastsDrawer } from "@/components/forecast-archive";
 import { getCurrentUser, listBirthProfiles, saveBirthProfile, searchPlaces } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import type { AuthUser, NatalPreviewPayload, PlaceSearchResult, SavedBirthProfile } from "@/lib/chart-types";
@@ -63,6 +64,7 @@ export function AstroDashboard() {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isForecastArchiveOpen, setIsForecastArchiveOpen] = useState(false);
   const [authStatus, setAuthStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [savedProfiles, setSavedProfiles] = useState<SavedBirthProfile[]>([]);
   const [savedProfilesStatus, setSavedProfilesStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -234,8 +236,11 @@ export function AstroDashboard() {
             user={authUser}
             onLogout={logout}
             onOpenChange={setIsUserMenuOpen}
+            onOpenSavedForecasts={() => { setIsUserMenuOpen(false); setIsForecastArchiveOpen(true); }}
           />
         </header>
+
+        {isForecastArchiveOpen && authToken ? <SavedForecastsDrawer token={authToken} onClose={() => setIsForecastArchiveOpen(false)} /> : null}
 
         <section className="space-y-4">
           <Card className="min-w-0">
@@ -353,6 +358,7 @@ export function AstroDashboard() {
             onOpen={openSavedProfile}
             onRefresh={refreshSavedProfiles}
           />
+          {authToken ? <SavedForecastsCard token={authToken} /> : null}
         </section>
       </div>
     </main>
@@ -364,13 +370,15 @@ function DashboardAccountMenu({
   status,
   user,
   onLogout,
-  onOpenChange
+  onOpenChange,
+  onOpenSavedForecasts
 }: {
   isOpen: boolean;
   status: "idle" | "loading" | "ready" | "error";
   user: AuthUser;
   onLogout: () => void;
   onOpenChange: (isOpen: boolean) => void;
+  onOpenSavedForecasts: () => void;
 }) {
   return (
     <div className="relative min-w-0 lg:min-w-64">
@@ -411,6 +419,13 @@ function DashboardAccountMenu({
             </Badge>
           </div>
           <Separator className="my-1" />
+          <button
+            className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            role="menuitem" type="button" onClick={onOpenSavedForecasts}
+          >
+            <Archive className="h-4 w-4" />
+            Збережені прогнози
+          </button>
           <button
             className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             role="menuitem"

@@ -58,6 +58,14 @@ The web app stores the token in localStorage. API preview endpoints remain avail
 
 The main astrology workspace is guarded on the web side. Unauthenticated users are redirected to `/login`; after login or registration they can open the calculation workspace at `/`.
 
+## Forecast Archive
+
+Calculated forecasts, transits, and synastry can be saved with a title and consultation notes. The dashboard and account menu expose a private archive with search, method filters, creation dates, and deletion. `/workspace?forecastId=<id>` restores the owner's saved parameters and result after refresh.
+
+Saving calculates a server-side snapshot using the captured preview inputs. Reading an archived forecast does not recalculate it. Existing natal profile storage is unchanged.
+
+Restart the API container after this schema update (`docker compose restart api`); its existing startup command generates Prisma Client and applies the development schema. See [the Ukrainian archive documentation](docs/FORECAST_ARCHIVE_UK.md) for data contracts, time handling, limitations, and regression scenarios.
+
 ## Swiss Ephemeris Files
 
 The calculation adapter uses the `sweph` Node binding. For high precision calculations, download the Swiss Ephemeris files before running the app:

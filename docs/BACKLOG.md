@@ -388,6 +388,20 @@ Goal: make calculation quality and production failures visible.
 - Sentry or equivalent captures frontend and backend errors.
 - Metrics include calculation latency, geocoding failure rate, and AI failure rate.
 
+## Реалізовано: архів прогнозів v1
+
+- [x] Приватне збереження прогностичного модуля, транзитів і синастрії з назвою та нотатками.
+- [x] Окрема модель PostgreSQL без зміни історії натальних карт.
+- [x] Список на дешборді та drawer з меню користувача; пошук, фільтр, дата створення, пагінація й видалення.
+- [x] Відкриття за `forecastId` після refresh із відновленням обох карт для синастрії, року соляра, часу, релокації та орбісів.
+- [x] Незмінний серверний знімок і захист від дублювання повторного запиту.
+- [x] Регресійні тести контракту архіву та документація українською.
+- [ ] Виконати тести й інтеграційну перевірку на тестовій машині; поточний запуск відкладено за запитом користувача.
+- [ ] Редагування нотаток збереженої консультації.
+- [ ] PDF/друк консультації та керований доступ за посиланням.
+
+Деталі: [Архів прогнозів v1](FORECAST_ARCHIVE_UK.md).
+
 ## Suggested MVP Sprint Breakdown
 
 ### Sprint 1: Technical Skeleton
@@ -436,4 +450,3 @@ Goal: make calculation quality and production failures visible.
 - Error states.
 - Onboarding polish.
 - Private beta instrumentation.
-

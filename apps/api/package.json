@@ -9,6 +9,7 @@
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "test:archive": "tsx --test tests/saved-forecasts.test.ts",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "db:push": "prisma db push --schema prisma/schema.prisma"
   },
@@ -26,4 +27,3 @@
     "typescript": "5.5.4"
   }
 }
-
