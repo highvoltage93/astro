@@ -1,6 +1,7 @@
 export * from "./aspects";
 export * from "./aspect-configurations";
 export * from "./constants";
+export * from "./calculation-rules";
 export * from "./interpretations";
 export * from "./preview";
 export * from "./swiss-ephemeris";

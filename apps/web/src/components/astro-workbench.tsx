@@ -36,6 +36,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ForecastSaveControl, SavedForecastsDrawer } from "@/components/forecast-archive";
+import { CalculationProfilesEditor } from "@/components/calculation-profiles-editor";
+import { legacyCalculationRules, rulershipModelLabels } from "@/lib/calculation-profiles";
+import type { CalculationProfileConfig, CalculationProfileReference, CalculationRules } from "@/lib/calculation-profiles";
 import type { ForecastArchiveDraft, ForecastSubject, SavedForecast } from "@/lib/forecast-archive";
 import { createForecastRequestId, forecastKindLabels, resolveForecastDateTime, toForecastDateTimeInput } from "@/lib/forecast-archive";
 import {
@@ -631,7 +634,7 @@ const formatPointTooltip = (point: ChartPoint, chart?: ChartResult | null): stri
 
 const formatSignTooltip = (sign: (typeof zodiacSigns)[number], chart?: ChartResult | null): string => {
   const pointsByKey = new Map(chart?.bodies.map((point) => [point.key, point]) ?? []);
-  const rulers = signRulers[sign.key] ?? [];
+  const rulers = chart?.signRulerships ? chart.signRulerships[sign.key] ?? [] : signRulers[sign.key] ?? [];
   const directRulers = rulers.filter((ruler) => ruler.rulerType === "direct");
   const retrogradeRulers = rulers.filter((ruler) => ruler.rulerType === "retrograde");
   const formatRuler = (ruler: (typeof rulers)[number]): string =>
@@ -749,6 +752,9 @@ export function AstroWorkbench() {
   const [archiveLoadAttempt, setArchiveLoadAttempt] = useState(0);
   const [forecastDrafts, setForecastDrafts] = useState<Partial<Record<WorkspaceTab, ForecastArchiveDraft>>>({});
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
+  const [calculationRules, setCalculationRules] = useState<CalculationRules>(legacyCalculationRules);
+  const [calculationProfile, setCalculationProfile] = useState<CalculationProfileReference | undefined>();
+  const settingsRequestInFlight = useRef(false);
   const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
   const [orbApplyStatus, setOrbApplyStatus] = useState<"idle" | "loading" | "error">("idle");
   const [orbApplyError, setOrbApplyError] = useState<string | null>(null);
@@ -792,9 +798,9 @@ export function AstroWorkbench() {
   const [isCurrentProfileOwned, setIsCurrentProfileOwned] = useState(false);
 
   const previewInputs = {
-    transits: [form, pointOrbs, transitDateTime],
-    forecast: [form, pointOrbs, forecastFromDateTime, forecastTargetYear, forecastDays, solarReturnLatitude, solarReturnLongitude],
-    synastry: [form, partnerForm, pointOrbs]
+    transits: [form, pointOrbs, calculationRules, transitDateTime],
+    forecast: [form, pointOrbs, calculationRules, forecastFromDateTime, forecastTargetYear, forecastDays, solarReturnLatitude, solarReturnLongitude],
+    synastry: [form, partnerForm, pointOrbs, calculationRules]
   };
   const latestPreviewInputs = useRef(previewInputs);
   latestPreviewInputs.current = previewInputs;
@@ -890,13 +896,17 @@ export function AstroWorkbench() {
   };
 
   const applyVisiblePointKeys = (settings: VisiblePointSettings): void => {
+    if (orbApplyStatus === "loading") return;
     setVisiblePointKeys(settings);
+    setCalculationProfile(undefined);
   };
 
   const resetForm = (): void => {
     setForm(initialForm);
     setPartnerForm(initialPartnerForm);
     setPointOrbs(defaultPointOrbs);
+    setCalculationRules(legacyCalculationRules());
+    setCalculationProfile(undefined);
     setVisiblePointKeys(defaultVisiblePointKeys);
     setChart(null);
     setInterpretation(null);
@@ -1017,7 +1027,10 @@ export function AstroWorkbench() {
     longitude: Number(source.longitude),
     houseSystem: source.houseSystem,
     zodiac: source.zodiac,
-    pointOrbs: pointOrbSettings
+    pointOrbs: pointOrbSettings,
+    calculationRules,
+    calculationProfile: source.houseSystem === form.houseSystem && source.zodiac === form.zodiac ? calculationProfile : undefined,
+    visiblePointKeys
   });
 
   const buildNatalPayload = (): NatalPreviewPayload => buildNatalPayloadFromForm(form);
@@ -1100,6 +1113,9 @@ export function AstroWorkbench() {
       setSolarReturnLatitude(String(detailedProfile.latitude));
       setSolarReturnLongitude(String(detailedProfile.longitude));
       setPointOrbs(calculation?.result.settings.pointOrbs ?? defaultPointOrbs);
+      setCalculationRules(calculation?.result.settings.calculationRules ?? legacyCalculationRules());
+      setCalculationProfile(calculation?.result.settings.calculationProfile);
+      setVisiblePointKeys({ ...defaultVisiblePointKeys, ...calculation?.result.settings.visiblePointKeys });
       setChart(calculation?.result ?? null);
       setInterpretation(response.interpretation);
       setInterpretationError(null);
@@ -1183,38 +1199,39 @@ export function AstroWorkbench() {
     }
   };
 
-  const applyPointOrbs = async (settings: PointOrbSettings): Promise<void> => {
-    const settingKeys = new Set([...Object.keys(pointOrbs), ...Object.keys(settings)]);
-    const settingsChanged = [...settingKeys].some((key) => pointOrbs[key] !== settings[key]);
-
-    if (!settingsChanged) {
-      setOrbApplyStatus("idle");
-      setOrbApplyError(null);
-      return;
-    }
-
-    if (!chart) {
-      setPointOrbs(settings);
-      setOrbApplyStatus("idle");
-      setOrbApplyError(null);
-      return;
-    }
-
+  const applyCalculationProfile = async (config: CalculationProfileConfig, reference?: CalculationProfileReference): Promise<boolean> => {
+    if (settingsRequestInFlight.current) return false;
+    settingsRequestInFlight.current = true;
     setOrbApplyStatus("loading");
     setOrbApplyError(null);
 
     try {
-      const payload = buildNatalPayloadFromForm(form, settings);
+      const nextForm = { ...form, houseSystem: config.houseSystem, zodiac: config.zodiac };
+      const payload: NatalPreviewPayload = {
+        ...buildNatalPayloadFromForm(nextForm, config.pointOrbs),
+        calculationRules: config.calculationRules,
+        calculationProfile: reference,
+        visiblePointKeys: config.visiblePointKeys
+      };
       const [chartResult, interpretationResult] = await Promise.allSettled([
         requestNatalPreview(payload),
         requestNatalInterpretation(payload)
       ]);
 
+      if (latestPreviewInputs.current.transits[0] !== form) {
+        setOrbApplyStatus("idle");
+        return false;
+      }
+
       if (chartResult.status === "rejected") {
         throw chartResult.reason;
       }
 
-      setPointOrbs(settings);
+      setForm(nextForm);
+      setPointOrbs(config.pointOrbs);
+      setCalculationRules(config.calculationRules);
+      setCalculationProfile(reference);
+      setVisiblePointKeys(config.visiblePointKeys);
       setChart(chartResult.value);
 
       if (interpretationResult.status === "fulfilled") {
@@ -1244,12 +1261,32 @@ export function AstroWorkbench() {
       setError(null);
       setStatus("ready");
       setOrbApplyStatus("idle");
+      return true;
     } catch (requestError) {
       setOrbApplyStatus("error");
       setOrbApplyError(
-        requestError instanceof Error ? requestError.message : "Не вдалося застосувати налаштування орбісів"
+        requestError instanceof Error ? requestError.message : "Не вдалося застосувати профіль розрахунку"
       );
+      return false;
+    } finally {
+      settingsRequestInFlight.current = false;
     }
+  };
+
+  const applyPointOrbs = async (settings: PointOrbSettings): Promise<void> => {
+    const settingKeys = new Set([...Object.keys(pointOrbs), ...Object.keys(settings)]);
+    if (![...settingKeys].some((key) => pointOrbs[key] !== settings[key])) {
+      if (!settingsRequestInFlight.current) setOrbApplyStatus("idle");
+      setOrbApplyError(null);
+      return;
+    }
+    if (!chart) {
+      setPointOrbs(settings); setCalculationProfile(undefined); setOrbApplyStatus("idle"); setOrbApplyError(null);
+      return;
+    }
+    await applyCalculationProfile({
+      calculationRules, houseSystem: form.houseSystem, zodiac: form.zodiac, pointOrbs: settings, visiblePointKeys
+    });
   };
 
   useEffect(() => {
@@ -1273,6 +1310,9 @@ export function AstroWorkbench() {
 
       setForm(buildFormFromDashboardDraft(draft));
       setPointOrbs(draft.natal.pointOrbs ?? defaultPointOrbs);
+      setCalculationRules(draft.natal.calculationRules ?? legacyCalculationRules());
+      setCalculationProfile(draft.natal.calculationProfile);
+      setVisiblePointKeys({ ...defaultVisiblePointKeys, ...draft.natal.visiblePointKeys });
       setChart(null);
       setInterpretation(null);
       setInterpretationError(null);
@@ -1318,6 +1358,8 @@ export function AstroWorkbench() {
         setChart(natalChart);
         setInterpretation(record.interpretation);
         setPointOrbs(record.input.parameters.pointOrbs ?? natalChart.settings.pointOrbs ?? defaultPointOrbs);
+        setCalculationRules(natalChart.settings.calculationRules ?? legacyCalculationRules());
+        setCalculationProfile(natalChart.settings.calculationProfile);
         setVisiblePointKeys({ ...defaultVisiblePointKeys, ...record.input.context.visiblePointKeys });
         setSolarReturnLatitude(String(natal.latitude));
         setSolarReturnLongitude(String(natal.longitude));
@@ -1704,6 +1746,12 @@ export function AstroWorkbench() {
         />
 
         <ChartSettingsDrawer
+          token={authToken}
+          calculationRules={calculationRules}
+          calculationProfile={calculationProfile}
+          houseSystem={form.houseSystem}
+          zodiac={form.zodiac}
+          onApplyProfile={applyCalculationProfile}
           isOpen={isSettingsDrawerOpen}
           orbApplyError={orbApplyError}
           orbApplyStatus={orbApplyStatus}
@@ -1723,6 +1771,9 @@ export function AstroWorkbench() {
                     {chart?.settings.houseSystem ?? "koch"}
                   </CardDescription>
                   <CardTitle className="truncate">{form.displayName}</CardTitle>
+                  <p className="break-words text-xs text-muted-foreground">
+                    {calculationProfile ? `${calculationProfile.name} · v${calculationProfile.revision}` : rulershipModelLabels[calculationRules.rulershipModel]}
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   {savedProfileId && isCurrentProfileOwned ? (
@@ -1743,7 +1794,7 @@ export function AstroWorkbench() {
                     variant="secondary"
                     type="button"
                     aria-label="Зберегти карту"
-                    disabled={saveStatus === "saving"}
+                    disabled={saveStatus === "saving" || orbApplyStatus === "loading"}
                     onClick={saveProfile}
                   >
                     <Save />
@@ -2287,6 +2338,12 @@ function ChartObjectSettingsCard({
 }
 
 function ChartSettingsDrawer({
+  token,
+  calculationRules,
+  calculationProfile,
+  houseSystem,
+  zodiac,
+  onApplyProfile,
   isOpen,
   orbApplyError,
   orbApplyStatus,
@@ -2296,6 +2353,12 @@ function ChartSettingsDrawer({
   onApplyVisiblePoints,
   onClose
 }: {
+  token: string | null;
+  calculationRules: CalculationRules;
+  calculationProfile?: CalculationProfileReference;
+  houseSystem: string;
+  zodiac: "tropical" | "sidereal";
+  onApplyProfile: (config: CalculationProfileConfig, reference?: CalculationProfileReference) => Promise<boolean>;
   isOpen: boolean;
   orbApplyError: string | null;
   orbApplyStatus: "idle" | "loading" | "error";
@@ -2307,16 +2370,22 @@ function ChartSettingsDrawer({
 }) {
   const [orbDraft, setOrbDraft] = useState<PointOrbSettings>(pointOrbs);
   const [visiblePointsDraft, setVisiblePointsDraft] = useState<VisiblePointSettings>(visiblePointKeys);
+  const [rulesDraft, setRulesDraft] = useState<CalculationRules>(calculationRules);
+  const [houseSystemDraft, setHouseSystemDraft] = useState(houseSystem);
+  const [zodiacDraft, setZodiacDraft] = useState(zodiac);
   const wasOpenRef = useRef(false);
 
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       setOrbDraft({ ...pointOrbs });
       setVisiblePointsDraft({ ...visiblePointKeys });
+      setRulesDraft(structuredClone(calculationRules));
+      setHouseSystemDraft(houseSystem);
+      setZodiacDraft(zodiac);
     }
 
     wasOpenRef.current = isOpen;
-  }, [isOpen, pointOrbs, visiblePointKeys]);
+  }, [isOpen, pointOrbs, visiblePointKeys, calculationRules, houseSystem, zodiac]);
 
   if (!isOpen) {
     return null;
@@ -2365,6 +2434,18 @@ function ChartSettingsDrawer({
         </div>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
+          {token ? <CalculationProfilesEditor
+            token={token}
+            config={{ calculationRules: rulesDraft, houseSystem: houseSystemDraft, zodiac: zodiacDraft, pointOrbs: orbDraft, visiblePointKeys: visiblePointsDraft }}
+            reference={calculationProfile}
+            busy={orbApplyStatus === "loading"}
+            applyError={orbApplyError}
+            onChange={(config) => {
+              setRulesDraft(config.calculationRules); setHouseSystemDraft(config.houseSystem); setZodiacDraft(config.zodiac);
+              setOrbDraft(config.pointOrbs); setVisiblePointsDraft(config.visiblePointKeys);
+            }}
+            onApply={onApplyProfile}
+          /> : null}
           <OrbSettingsCard
             error={orbApplyError}
             pointOrbs={orbDraft}
@@ -5162,7 +5243,7 @@ function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
                   {ruler.rulerSource === "fixed-house"
                     ? "фікс. 8 дім"
                     : ruler.rulerSource === "contained-sign"
-                      ? `>12.5° · ${ruler.signCoverageDegrees?.toFixed(1) ?? "n/a"}°`
+                      ? `дод. знак · ${ruler.signCoverageDegrees?.toFixed(1) ?? "n/a"}°`
                       : "куспід"}
                 </TableCell>
                 <TableCell className="font-medium">

@@ -58,6 +58,12 @@ The web app stores the token in localStorage. API preview endpoints remain avail
 
 The main astrology workspace is guarded on the web side. Unauthenticated users are redirected to `/login`; after login or registration they can open the calculation workspace at `/`.
 
+## Calculation Profiles
+
+Personal calculation profiles combine rulership rules, house system, zodiac, point orbs, and point visibility. The chart settings drawer includes the unchanged Astroprocessor rulership preset plus traditional and modern primary-ruler presets. Profiles can be saved, revised, deleted, and selected as the user's default for new dashboard calculations.
+
+Charts retain full rule snapshots and the applied profile revision. Changing a live profile does not change saved charts or forecasts. Restart the API container after pulling this update to build the core and apply the additive Prisma schema. See [the Ukrainian calculation-profile documentation](docs/CALCULATION_PROFILES_UK.md) for exact mappings, conditions, versioning, and test commands.
+
 ## Forecast Archive
 
 Calculated forecasts, transits, and synastry can be saved with a title and consultation notes. The dashboard and account menu expose a private archive with search, method filters, creation dates, and deletion. `/workspace?forecastId=<id>` restores the owner's saved parameters and result after refresh.

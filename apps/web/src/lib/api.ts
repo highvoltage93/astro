@@ -21,6 +21,7 @@ import type {
   TransitPreviewResult
 } from "./chart-types";
 import type { ForecastArchiveKind, SavedForecast, SavedForecastSummary, SaveForecastPayload } from "./forecast-archive";
+import type { CalculationProfile, CalculationProfileConfig, CalculationProfilesResponse } from "./calculation-profiles";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -30,6 +31,34 @@ const jsonHeaders = (token?: string | null): HeadersInit => ({
 });
 
 const authHeaders = (token?: string | null): HeadersInit => (token ? { Authorization: `Bearer ${token}` } : {});
+
+const profileResponse = async <Result>(response: Response): Promise<Result> => {
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(body?.message ?? "Не вдалося завантажити профілі розрахунку.");
+  }
+  return response.json() as Promise<Result>;
+};
+
+export const listCalculationProfiles = async (token: string): Promise<CalculationProfilesResponse> =>
+  profileResponse(await fetch(`${API_URL}/calculation-profiles`, { headers: authHeaders(token), cache: "no-store" }));
+
+export const saveCalculationProfile = async (
+  token: string, payload: { name: string; config: CalculationProfileConfig }, existing?: { id: string; revision: number }
+): Promise<{ profile: CalculationProfile }> => profileResponse(await fetch(
+  `${API_URL}/calculation-profiles${existing ? `/${encodeURIComponent(existing.id)}` : ""}`, {
+    method: existing ? "PUT" : "POST", headers: jsonHeaders(token),
+    body: JSON.stringify({ ...payload, ...(existing ? { revision: existing.revision } : {}) })
+  }
+));
+
+export const deleteCalculationProfile = async (token: string, id: string): Promise<{ deletedProfileId: string }> =>
+  profileResponse(await fetch(`${API_URL}/calculation-profiles/${encodeURIComponent(id)}`, { method: "DELETE", headers: authHeaders(token) }));
+
+export const setDefaultCalculationProfile = async (token: string, id: string | null): Promise<{ defaultProfileId: string | null }> =>
+  profileResponse(await fetch(`${API_URL}/calculation-profiles/default`, {
+    method: "PUT", headers: jsonHeaders(token), body: JSON.stringify({ id })
+  }));
 
 const readArchiveResponse = async <Result>(response: Response): Promise<Result> => {
   if (!response.ok) {

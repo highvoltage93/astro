@@ -1,3 +1,5 @@
+import type { CalculationRuleSettings } from "./calculation-rules";
+
 export type ZodiacType = "tropical" | "sidereal";
 
 export type Ayanamsa = "lahiri" | "fagan-bradley";
@@ -185,7 +187,7 @@ export type CalculationWarning = {
   message: string;
 };
 
-export type ChartSettings = {
+export type ChartSettings = CalculationRuleSettings & {
   zodiac: ZodiacType;
   ayanamsa?: Ayanamsa;
   houseSystem: HouseSystem;
@@ -213,6 +215,7 @@ export type ChartResult = {
   houseConnections?: HouseConnection[];
   houseRulers?: HouseRuler[];
   planetRulerships?: PlanetRulership[];
+  signRulerships?: Record<string, Array<{ key: string; label: string; rulerType: RulerType }>>;
   syntheticSignature?: SyntheticSignature;
   essentialDignities?: EssentialDignity[];
   aspectConfigurations?: AspectConfiguration[];
@@ -221,7 +224,7 @@ export type ChartResult = {
   warnings: CalculationWarning[];
 };
 
-export type NatalPreviewInput = {
+export type NatalPreviewInput = CalculationRuleSettings & {
   birthDate: string;
   birthTime: string;
   birthTimeKnown?: boolean;
@@ -237,7 +240,7 @@ export type NatalPreviewInput = {
 
 export type NatalCalculationInput = NatalPreviewInput;
 
-export type TransitCalculationInput = {
+export type TransitCalculationInput = CalculationRuleSettings & {
   transitDateTime: string;
   latitude: number;
   longitude: number;

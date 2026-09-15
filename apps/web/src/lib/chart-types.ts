@@ -1,3 +1,5 @@
+import type { CalculationProfileReference, CalculationRules } from "./calculation-profiles";
+
 export type ChartPoint = {
   key: string;
   label: string;
@@ -146,6 +148,9 @@ export type ChartResult = {
     zodiac: string;
     houseSystem: string;
     pointOrbs?: Record<string, number>;
+    calculationRules?: CalculationRules;
+    calculationProfile?: CalculationProfileReference;
+    visiblePointKeys?: Record<string, boolean>;
   };
   subject: {
     utcDateTime: string;
@@ -158,6 +163,7 @@ export type ChartResult = {
   houseConnections?: HouseConnection[];
   houseRulers?: HouseRuler[];
   planetRulerships?: PlanetRulership[];
+  signRulerships?: Record<string, Array<{ key: string; label: string; rulerType: "direct" | "retrograde" }>>;
   syntheticSignature?: SyntheticSignature;
   essentialDignities?: EssentialDignity[];
   aspectConfigurations?: AspectConfiguration[];
@@ -179,6 +185,9 @@ export type NatalPreviewPayload = {
   houseSystem: string;
   zodiac: "tropical" | "sidereal";
   pointOrbs?: Record<string, number>;
+  calculationRules?: CalculationRules;
+  calculationProfile?: CalculationProfileReference;
+  visiblePointKeys?: Record<string, boolean>;
 };
 
 export type TransitPreviewPayload = {

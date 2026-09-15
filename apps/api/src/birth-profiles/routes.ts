@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getOptionalAuthUser } from "../auth/service";
 import { env } from "../config/env";
 import { prisma } from "../prisma/client";
+import { calculationProfileReferenceSchema, calculationRulesSchema } from "../calculation-profiles/schemas";
 
 const houseSystemValues = [
   "placidus",
@@ -30,7 +31,10 @@ const createBirthProfileSchema = z.object({
   longitude: z.number().min(-180).max(180),
   houseSystem: z.enum(houseSystemValues).default("koch"),
   zodiac: z.enum(["tropical", "sidereal"]).default("tropical"),
-  pointOrbs: z.record(z.number().min(0).max(15)).optional()
+  pointOrbs: z.record(z.number().min(0).max(15)).optional(),
+  calculationRules: calculationRulesSchema.optional(),
+  calculationProfile: calculationProfileReferenceSchema.optional(),
+  visiblePointKeys: z.record(z.boolean()).optional()
 });
 
 const listBirthProfilesSchema = z.object({
@@ -324,6 +328,9 @@ export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<
         houseSystem: input.houseSystem,
         zodiac: input.zodiac,
         pointOrbs: input.pointOrbs,
+        calculationRules: input.calculationRules,
+        calculationProfile: input.calculationProfile,
+        visiblePointKeys: input.visiblePointKeys,
         ephemerisPath: env.swissEphEphePath
       });
     } catch (error) {

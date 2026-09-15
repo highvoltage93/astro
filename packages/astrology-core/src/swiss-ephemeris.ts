@@ -11,6 +11,7 @@ import {
 } from "sweph";
 import { calculateAspectsBetween, calculateMajorAspects } from "./aspects";
 import { calculateAspectConfigurations } from "./aspect-configurations";
+import { resolveCalculationRules, rulershipTables, type CalculationRules } from "./calculation-rules";
 import { DEFAULT_MAJOR_ASPECT_ORBS, MAJOR_ASPECT_ANGLES, ZODIAC_SIGNS } from "./constants";
 import type {
   Ayanamsa,
@@ -135,50 +136,7 @@ const RETURN_ASPECT_BODY_KEYS = new Set([
   "pluto"
 ]);
 
-const PLANET_DIRECT_RULERS: Record<string, string[]> = {
-  sun: ["leo"],
-  moon: ["cancer"],
-  mercury: ["virgo", "gemini"],
-  venus: ["taurus", "libra"],
-  mars: ["scorpio"],
-  jupiter: ["sagittarius"],
-  saturn: ["capricorn"],
-  uranus: ["aquarius"],
-  neptune: ["pisces"],
-  pluto: ["aries"]
-};
-
-const PLANET_RETROGRADE_RULERS: Record<string, string[]> = {
-  mars: ["scorpio", "aries"],
-  jupiter: ["pisces", "sagittarius"],
-  saturn: ["capricorn", "aquarius"],
-  uranus: ["aquarius", "capricorn"],
-  neptune: ["pisces", "sagittarius"],
-  pluto: ["aries", "scorpio"]
-};
-
 const FIXED_HOUSE_RULERS: FixedHouseRulerDefinition[] = [{ house: 8, key: "lilith", rulerType: "direct" }];
-
-const SIGN_RULERS: Record<string, SignRulerDefinition[]> = Object.fromEntries(
-  ZODIAC_SIGNS.map((sign) => {
-    const directRulers = Object.entries(PLANET_DIRECT_RULERS)
-      .filter(([, signs]) => signs.includes(sign))
-      .map(([key]) => ({
-        key,
-        label: BODY_DEFINITION_BY_KEY.get(key)?.label ?? key,
-        rulerType: "direct" as const
-      }));
-    const retrogradeRulers = Object.entries(PLANET_RETROGRADE_RULERS)
-      .filter(([, signs]) => signs.includes(sign))
-      .map(([key]) => ({
-        key,
-        label: BODY_DEFINITION_BY_KEY.get(key)?.label ?? key,
-        rulerType: "retrograde" as const
-      }));
-
-    return [sign, [...directRulers, ...retrogradeRulers]];
-  })
-) as Record<string, SignRulerDefinition[]>;
 
 const isRetrograde = (point: ChartPoint | undefined): boolean => (point?.speed ?? 0) < -0.0001;
 
@@ -188,23 +146,32 @@ const createSignRuler = (key: string, rulerType: RulerType): SignRulerDefinition
   rulerType
 });
 
-const activeSignRulers = (sign: string, pointsByKey: Map<string, ChartPoint>): SignRulerDefinition[] => {
-  const directRulers = Object.entries(PLANET_DIRECT_RULERS)
+const signRulersForRules = (rules: CalculationRules): Record<string, SignRulerDefinition[]> => {
+  const tables = rulershipTables(rules);
+  return Object.fromEntries(ZODIAC_SIGNS.map((sign) => [sign, [
+    ...Object.entries(tables.direct).filter(([, signs]) => signs.includes(sign)).map(([key]) => createSignRuler(key, "direct")),
+    ...Object.entries(tables.retrograde).filter(([, signs]) => signs.includes(sign)).map(([key]) => createSignRuler(key, "retrograde"))
+  ]]));
+};
+
+const activeSignRulers = (sign: string, pointsByKey: Map<string, ChartPoint>, rules: CalculationRules): SignRulerDefinition[] => {
+  const tables = rulershipTables(rules);
+  const directRulers = Object.entries(tables.direct)
     .filter(([key, signs]) => {
-      const hasRetrogradeModel = (PLANET_RETROGRADE_RULERS[key]?.length ?? 0) > 0;
+      const hasRetrogradeModel = (tables.retrograde[key]?.length ?? 0) > 0;
       return signs.includes(sign) && (!isRetrograde(pointsByKey.get(key)) || !hasRetrogradeModel);
     })
     .map(([key]) => createSignRuler(key, "direct"));
 
-  const retrogradeRulers = Object.entries(PLANET_RETROGRADE_RULERS)
+  const retrogradeRulers = Object.entries(tables.retrograde)
     .filter(([key, signs]) => signs.includes(sign) && isRetrograde(pointsByKey.get(key)))
     .map(([key]) => createSignRuler(key, "retrograde"));
 
   return [...directRulers, ...retrogradeRulers];
 };
 
-const primaryActiveSignRuler = (sign: string, pointsByKey: Map<string, ChartPoint>): SignRulerDefinition | undefined =>
-  activeSignRulers(sign, pointsByKey)[0] ?? SIGN_RULERS[sign]?.[0];
+const primaryActiveSignRuler = (sign: string, pointsByKey: Map<string, ChartPoint>, rules: CalculationRules): SignRulerDefinition | undefined =>
+  activeSignRulers(sign, pointsByKey, rules)[0] ?? signRulersForRules(rules)[sign]?.[0];
 
 const PLANET_EXALTATIONS: Record<string, string> = {
   sun: "aries",
@@ -328,7 +295,6 @@ const FORECAST_DEFAULT_DAYS = 90;
 const FORECAST_MAX_DAYS = 366;
 const FORECAST_EXACT_TRANSIT_BODY_KEYS = [...BODY_DEFINITIONS.map((body) => body.key), "south-node"];
 const EXACT_CROSSING_EPSILON = 0.00001;
-const CONTAINED_HOUSE_SIGN_MIN_DEGREES = 12.5;
 const SECONDARY_PROGRESSION_YEAR_DAYS = 365.2425;
 const SECONDARY_PROGRESSION_ASPECT_ORB = 1;
 const SECONDARY_PROGRESSION_MAX_EXACT_YEARS = 120;
@@ -491,7 +457,7 @@ const findHouse = (longitude: number, cusps: HouseCusp[]): number | undefined =>
   return undefined;
 };
 
-const calculateHouseSignSegments = (houses: HouseCusp[]): HouseSignSegment[] => {
+const calculateHouseSignSegments = (houses: HouseCusp[], rules: CalculationRules): HouseSignSegment[] => {
   const segments: HouseSignSegment[] = [];
 
   for (let index = 0; index < houses.length; index += 1) {
@@ -519,7 +485,7 @@ const calculateHouseSignSegments = (houses: HouseCusp[]): HouseSignSegment[] => 
         continue;
       }
 
-      if (!isCuspSign && coverageDegrees <= CONTAINED_HOUSE_SIGN_MIN_DEGREES) {
+      if (!isCuspSign && (rules.containedSignMinDegrees === null || coverageDegrees <= rules.containedSignMinDegrees)) {
         continue;
       }
 
@@ -535,10 +501,9 @@ const calculateHouseSignSegments = (houses: HouseCusp[]): HouseSignSegment[] => 
   return segments.sort((a, b) => a.house - b.house || (a.source === b.source ? 0 : a.source === "cusp" ? -1 : 1));
 };
 
-const MALEFIC_HOUSES = new Set([6, 8, 12]);
 const HOUSE_CONNECTION_EXCLUDED_POINT_KEYS = new Set(["chiron"]);
 
-const hasMaleficHouse = (...houses: number[]): boolean => houses.some((house) => MALEFIC_HOUSES.has(house));
+const hasMaleficHouse = (rules: CalculationRules, ...houses: number[]): boolean => houses.some((house) => rules.tenseHouses.includes(house));
 
 const aspectTone = (aspectType: AspectType): HouseConnectionTone => {
   if (aspectType === "trine" || aspectType === "sextile") {
@@ -552,14 +517,14 @@ const aspectTone = (aspectType: AspectType): HouseConnectionTone => {
   return "neutral";
 };
 
-const conjunctionToneForHousePair = (fromHouse: number, toHouse: number): HouseConnectionTone =>
-  hasMaleficHouse(fromHouse, toHouse) ? "tense" : "harmonious";
+const conjunctionToneForHousePair = (fromHouse: number, toHouse: number, rules: CalculationRules): HouseConnectionTone =>
+  hasMaleficHouse(rules, fromHouse, toHouse) ? "tense" : "harmonious";
 
-const responsibilityToneForHousePair = (fromHouse: number, toHouse: number): HouseConnectionTone =>
-  hasMaleficHouse(fromHouse, toHouse) ? "tense" : "harmonious";
+const responsibilityToneForHousePair = (fromHouse: number, toHouse: number, rules: CalculationRules): HouseConnectionTone =>
+  hasMaleficHouse(rules, fromHouse, toHouse) ? "tense" : "harmonious";
 
-const aspectToneForHousePair = (aspectType: AspectType, fromHouse: number, toHouse: number): HouseConnectionTone =>
-  aspectType === "conjunction" ? conjunctionToneForHousePair(fromHouse, toHouse) : aspectTone(aspectType);
+const aspectToneForHousePair = (aspectType: AspectType, fromHouse: number, toHouse: number, rules: CalculationRules): HouseConnectionTone =>
+  aspectType === "conjunction" ? conjunctionToneForHousePair(fromHouse, toHouse, rules) : aspectTone(aspectType);
 
 const motionForPoint = (point: ChartPoint | undefined): PlanetMotion | undefined => {
   if (!point || point.speed === undefined) {
@@ -573,17 +538,17 @@ const motionForPoint = (point: ChartPoint | undefined): PlanetMotion | undefined
   return point.speed < 0 ? "retrograde" : "direct";
 };
 
-const calculateHouseRulers = (houses: HouseCusp[], bodies: ChartPoint[]): HouseRuler[] => {
+const calculateHouseRulers = (houses: HouseCusp[], bodies: ChartPoint[], rules: CalculationRules): HouseRuler[] => {
   if (houses.length === 0) {
     return [];
   }
 
   const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
-  const signSegments = calculateHouseSignSegments(houses);
+  const signSegments = calculateHouseSignSegments(houses, rules);
   const houseByNumber = new Map(houses.map((house) => [house.house, house]));
 
   const signRulers = signSegments.flatMap((segment) =>
-    activeSignRulers(segment.sign, pointsByKey).map((ruler) => {
+    activeSignRulers(segment.sign, pointsByKey, rules).map((ruler) => {
       const rulerPoint = pointsByKey.get(ruler.key);
 
       return {
@@ -600,7 +565,7 @@ const calculateHouseRulers = (houses: HouseCusp[], bodies: ChartPoint[]): HouseR
     })
   );
 
-  const fixedHouseRulers = FIXED_HOUSE_RULERS.map((ruler) => {
+  const fixedHouseRulers = (rules.lilithRulesEighthHouse ? FIXED_HOUSE_RULERS : []).map((ruler) => {
     const house = houseByNumber.get(ruler.house);
     const rulerPoint = pointsByKey.get(ruler.key);
 
@@ -732,7 +697,7 @@ const calculateSyntheticSignature = (points: ChartPoint[]): SyntheticSignature =
   };
 };
 
-const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint[], aspects: Aspect[]): HouseConnection[] => {
+const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint[], aspects: Aspect[], rules: CalculationRules): HouseConnection[] => {
   if (houseRulers.length === 0) {
     return [];
   }
@@ -816,7 +781,7 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
             responsibilityA.role === "placement" || responsibilityB.role === "placement"
               ? "ruler-position"
               : "rulership",
-          tone: responsibilityToneForHousePair(responsibilityA.house, responsibilityB.house),
+          tone: responsibilityToneForHousePair(responsibilityA.house, responsibilityB.house, rules),
           fromHouse: responsibilityA.house,
           toHouse: responsibilityB.house,
           planetA: planetKey,
@@ -860,7 +825,7 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
         aspectPairs.add(aspectPairKey);
         addConnection(fromHouse, toHouse, {
           source: "aspect",
-          tone: aspectToneForHousePair(aspect.type, fromHouse, toHouse),
+          tone: aspectToneForHousePair(aspect.type, fromHouse, toHouse, rules),
           fromHouse: responsibilityA.house,
           toHouse: responsibilityB.house,
           planetA: responsibilityA.planetKey,
@@ -896,9 +861,10 @@ const dignityScore = (dignity: EssentialDignityType): number => {
   }
 };
 
-const dignityForPoint = (point: ChartPoint): EssentialDignityType => {
-  const directDomiciles = PLANET_DIRECT_RULERS[point.key] ?? [];
-  const retrogradeDomiciles = PLANET_RETROGRADE_RULERS[point.key] ?? [];
+const dignityForPoint = (point: ChartPoint, rules: CalculationRules): EssentialDignityType => {
+  const tables = rulershipTables(rules);
+  const directDomiciles = tables.direct[point.key] ?? [];
+  const retrogradeDomiciles = tables.retrograde[point.key] ?? [];
   const domiciles = point.speed !== undefined && point.speed < -0.0001 && retrogradeDomiciles.length > 0
     ? retrogradeDomiciles
     : directDomiciles;
@@ -941,13 +907,13 @@ const dignityForPoint = (point: ChartPoint): EssentialDignityType => {
   return "neutral";
 };
 
-const buildDispositorChain = (point: ChartPoint, pointsByKey: Map<string, ChartPoint>): { chain: string[]; cycle: boolean } => {
+const buildDispositorChain = (point: ChartPoint, pointsByKey: Map<string, ChartPoint>, rules: CalculationRules): { chain: string[]; cycle: boolean } => {
   const chain = [point.key];
   const visited = new Set([point.key]);
   let current = point;
 
   for (let index = 0; index < 12; index += 1) {
-    const dispositorKey = primaryActiveSignRuler(current.sign, pointsByKey)?.key;
+    const dispositorKey = primaryActiveSignRuler(current.sign, pointsByKey, rules)?.key;
 
     if (!dispositorKey) {
       return { chain, cycle: false };
@@ -972,13 +938,13 @@ const buildDispositorChain = (point: ChartPoint, pointsByKey: Map<string, ChartP
   return { chain, cycle: false };
 };
 
-const calculateEssentialDignities = (bodies: ChartPoint[]): EssentialDignity[] => {
+const calculateEssentialDignities = (bodies: ChartPoint[], rules: CalculationRules): EssentialDignity[] => {
   const pointsByKey = new Map(bodies.map((body) => [body.key, body]));
 
   return bodies.map((body) => {
-    const dignity = dignityForPoint(body);
-    const dispositor = primaryActiveSignRuler(body.sign, pointsByKey);
-    const chain = buildDispositorChain(body, pointsByKey);
+    const dignity = dignityForPoint(body, rules);
+    const dispositor = primaryActiveSignRuler(body.sign, pointsByKey, rules);
+    const chain = buildDispositorChain(body, pointsByKey, rules);
 
     return {
       pointKey: body.key,
@@ -1342,7 +1308,10 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
     houseSystem: input.houseSystem ?? "koch",
-    pointOrbs: cleanPointOrbs(input.pointOrbs)
+    pointOrbs: cleanPointOrbs(input.pointOrbs),
+    calculationRules: resolveCalculationRules(input.calculationRules),
+    calculationProfile: input.calculationProfile ? { ...input.calculationProfile } : undefined,
+    visiblePointKeys: input.visiblePointKeys ? { ...input.visiblePointKeys } : undefined
   };
 
   if (input.ephemerisPath) {
@@ -1454,10 +1423,10 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
   const aspectAngles = angles.filter((angle) => angle.key === "asc" || angle.key === "mc");
   const aspects = calculateMajorAspects([...aspectAngles, ...bodies], undefined, settings.pointOrbs);
   const aspectConfigurations = calculateAspectConfigurations(bodies);
-  const houseRulers = calculateHouseRulers(houses, bodies);
+  const houseRulers = calculateHouseRulers(houses, bodies, settings.calculationRules);
   const planetRulerships = calculatePlanetRulerships(houseRulers, bodies);
-  const houseConnections = calculateHouseConnections(houseRulers, bodies, aspects);
-  const essentialDignities = calculateEssentialDignities(bodies);
+  const houseConnections = calculateHouseConnections(houseRulers, bodies, aspects, settings.calculationRules);
+  const essentialDignities = calculateEssentialDignities(bodies, settings.calculationRules);
   const syntheticSignature = calculateSyntheticSignature([...angles, ...bodies]);
 
   return {
@@ -1479,6 +1448,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     houseConnections,
     houseRulers,
     planetRulerships,
+    signRulerships: signRulersForRules(settings.calculationRules),
     syntheticSignature,
     essentialDignities,
     aspectConfigurations,
@@ -1494,7 +1464,10 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
     houseSystem: input.houseSystem ?? "koch",
-    pointOrbs: cleanPointOrbs(input.pointOrbs)
+    pointOrbs: cleanPointOrbs(input.pointOrbs),
+    calculationRules: resolveCalculationRules(input.calculationRules),
+    calculationProfile: input.calculationProfile ? { ...input.calculationProfile } : undefined,
+    visiblePointKeys: input.visiblePointKeys ? { ...input.visiblePointKeys } : undefined
   };
 
   if (input.ephemerisPath) {
@@ -1559,7 +1532,8 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
     houseRulers: [],
     planetRulerships: [],
     syntheticSignature: calculateSyntheticSignature(bodies),
-    essentialDignities: calculateEssentialDignities(bodies),
+    essentialDignities: calculateEssentialDignities(bodies, settings.calculationRules),
+    signRulerships: signRulersForRules(settings.calculationRules),
     bodies,
     aspects: calculateMajorAspects(bodies, undefined, settings.pointOrbs),
     warnings
@@ -1581,6 +1555,9 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
     houseSystem: natal.settings.houseSystem,
     pointOrbs: previewPointOrbs,
+    calculationRules: natal.settings.calculationRules,
+    calculationProfile: natal.settings.calculationProfile,
+    visiblePointKeys: natal.settings.visiblePointKeys,
     ephemerisPath: input.ephemerisPath
   });
   const natalPoints = [...natal.angles, ...natal.bodies];
@@ -1601,6 +1578,9 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
       ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
       houseSystem: natal.settings.houseSystem,
       pointOrbs: previewPointOrbs,
+      calculationRules: natal.settings.calculationRules,
+      calculationProfile: natal.settings.calculationProfile,
+      visiblePointKeys: natal.settings.visiblePointKeys,
       ephemerisPath: input.ephemerisPath
     });
     const dayTransitHousePlacements = assignNatalHousesToTransitPoints(dayTransit.bodies, natal.houses);
@@ -1840,6 +1820,9 @@ const calculateReturnChartAt = ({
     zodiac: input.zodiac ?? natal.settings.zodiac,
     ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
     pointOrbs,
+    calculationRules: natal.settings.calculationRules,
+    calculationProfile: natal.settings.calculationProfile,
+    visiblePointKeys: natal.settings.visiblePointKeys,
     ephemerisPath: input.ephemerisPath
   });
 
@@ -2340,6 +2323,9 @@ const calculateSecondaryProgressionFromNatal = (
     zodiac: input.zodiac ?? natal.settings.zodiac,
     ayanamsa: input.ayanamsa ?? natal.settings.ayanamsa,
     houseSystem: natal.settings.houseSystem,
+    calculationRules: natal.settings.calculationRules,
+    calculationProfile: natal.settings.calculationProfile,
+    visiblePointKeys: natal.settings.visiblePointKeys,
     ephemerisPath: input.ephemerisPath
   });
   const hasNatalHouses = natal.houses.length > 0;
@@ -2631,6 +2617,7 @@ const calculateSolarArcDirections = (
     houseRulers: [],
     planetRulerships: [],
     bodies: directedBodies,
+    signRulerships: natal.signRulerships,
     aspects: [],
     warnings: []
   };

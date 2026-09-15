@@ -3,7 +3,7 @@
 import { Archive, ChevronDown, FolderOpen, LogOut, MapPin, RefreshCw, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SavedForecastsCard, SavedForecastsDrawer } from "@/components/forecast-archive";
-import { getCurrentUser, listBirthProfiles, saveBirthProfile, searchPlaces } from "@/lib/api";
+import { getCurrentUser, listBirthProfiles, listCalculationProfiles, saveBirthProfile, searchPlaces } from "@/lib/api";
+import { legacyCalculationRules, profileReference } from "@/lib/calculation-profiles";
+import type { CalculationProfile } from "@/lib/calculation-profiles";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import type { AuthUser, NatalPreviewPayload, PlaceSearchResult, SavedBirthProfile } from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
@@ -49,7 +51,9 @@ const initialDashboardForm: DashboardFormState = {
 
 const houseSystems = [
   ["koch", "Koch"],
-  ["placidus", "Placidus"]
+  ["placidus", "Placidus"],
+  ["whole-sign", "Цілознакова"], ["equal", "Рівнодомна"], ["campanus", "Кампанус"],
+  ["regiomontanus", "Регіомонтан"], ["porphyry", "Порфирій"]
 ] as const;
 
 const formatSavedProfileCreatedAt = (createdAt: string): string =>
@@ -74,6 +78,40 @@ export function AstroDashboard() {
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [calculationStatus, setCalculationStatus] = useState<"idle" | "loading" | "error">("idle");
   const [calculationError, setCalculationError] = useState<string | null>(null);
+  const [calculationProfiles, setCalculationProfiles] = useState<CalculationProfile[]>([]);
+  const [calculationProfileId, setCalculationProfileId] = useState("legacy");
+  const [profilesStatus, setProfilesStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [profilesError, setProfilesError] = useState<string | null>(null);
+  const [profilesReload, setProfilesReload] = useState(0);
+  const profileSettingsTouched = useRef(false);
+  const profileSelection = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!authToken || !authUser) return;
+    let active = true;
+    setProfilesStatus("loading"); setProfilesError(null);
+    void listCalculationProfiles(authToken).then((response) => {
+      if (!active) return;
+      setCalculationProfiles(response.profiles);
+      const initialSelection = profileSelection.current === null;
+      const selectedId = profileSelection.current ?? response.defaultProfileId ?? "legacy";
+      const profile = response.profiles.find((item) => item.id === selectedId);
+      if (selectedId !== "legacy" && (!profile || profile.schemaVersion !== 1)) {
+        throw new Error("Вибраний профіль недоступний або має непідтримувану версію. Вибери інший профіль.");
+      }
+      profileSelection.current = selectedId;
+      setCalculationProfileId(profile?.id ?? "legacy");
+      if (initialSelection && profile && !profileSettingsTouched.current) {
+        setForm((current) => ({ ...current, houseSystem: profile.config.houseSystem, zodiac: profile.config.zodiac }));
+      }
+      setProfilesStatus("ready");
+    }).catch((requestError: unknown) => {
+      if (!active) return;
+      setProfilesStatus("error");
+      setProfilesError(requestError instanceof Error ? requestError.message : "Не вдалося завантажити профілі розрахунку.");
+    });
+    return () => { active = false; };
+  }, [authToken, authUser, profilesReload]);
 
   const refreshSavedProfiles = async (tokenOverride: string | null = authToken): Promise<void> => {
     setSavedProfilesStatus("loading");
@@ -119,6 +157,7 @@ export function AstroDashboard() {
     field: Field,
     value: DashboardFormState[Field]
   ): void => {
+    if (field === "houseSystem" || field === "zodiac") profileSettingsTouched.current = true;
     setForm((current) => ({
       ...current,
       [field]: value
@@ -167,6 +206,11 @@ export function AstroDashboard() {
 
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    if (profilesStatus !== "ready") return;
+    const profile = calculationProfiles.find((item) => item.id === calculationProfileId);
+    if (calculationProfileId !== "legacy" && (!profile || profile.schemaVersion !== 1)) {
+      setCalculationStatus("error"); setCalculationError("Вибери доступний профіль розрахунку."); return;
+    }
     setCalculationStatus("loading");
     setCalculationError(null);
 
@@ -183,7 +227,12 @@ export function AstroDashboard() {
           latitude: Number(form.latitude),
           longitude: Number(form.longitude),
           houseSystem: form.houseSystem,
-          zodiac: form.zodiac
+          zodiac: form.zodiac,
+          calculationRules: profile?.config.calculationRules ?? legacyCalculationRules(),
+          calculationProfile: profile && form.houseSystem === profile.config.houseSystem && form.zodiac === profile.config.zodiac
+            ? profileReference(profile) : undefined,
+          pointOrbs: profile?.config.pointOrbs,
+          visiblePointKeys: profile?.config.visiblePointKeys
         },
         authToken
       );
@@ -250,6 +299,41 @@ export function AstroDashboard() {
             </CardHeader>
             <CardContent>
               <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12" onSubmit={submit}>
+                <div className="grid min-w-0 gap-2 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:col-span-12">
+                  <DashboardField label="Профіль розрахунку">
+                    <Select value={calculationProfileId} disabled={profilesStatus === "loading" || calculationStatus === "loading"} onValueChange={(id) => {
+                      const profile = calculationProfiles.find((item) => item.id === id);
+                      if (id !== "legacy" && (!profile || profile.schemaVersion !== 1)) {
+                        setProfilesError("Ця версія профілю не підтримується."); setProfilesStatus("error"); return;
+                      }
+                      setCalculationProfileId(id);
+                      profileSelection.current = id;
+                      setProfilesError(null); setProfilesStatus("ready");
+                      setForm((current) => ({ ...current,
+                        houseSystem: profile?.config.houseSystem ?? initialDashboardForm.houseSystem,
+                        zodiac: profile?.config.zodiac ?? initialDashboardForm.zodiac
+                      }));
+                      profileSettingsTouched.current = true;
+                    }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="legacy">Базові налаштування Astroprocessor</SelectItem>
+                        {calculationProfiles.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name} · v{profile.revision}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </DashboardField>
+                  <div className="flex items-end">
+                    <Button type="button" size="icon" variant="secondary" disabled={profilesStatus === "loading" || calculationStatus === "loading"}
+                      title="Оновити профілі" aria-label="Оновити профілі" onClick={() => setProfilesReload((value) => value + 1)}><RefreshCw className={profilesStatus === "loading" ? "animate-spin" : undefined} /></Button>
+                  </div>
+                </div>
+                {profilesError ? <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive sm:col-span-2 lg:col-span-12">
+                  <span>{profilesError}</span>
+                  <Button type="button" variant="secondary" onClick={() => {
+                    profileSelection.current = "legacy";
+                    setCalculationProfileId("legacy"); setProfilesError(null); setProfilesStatus("ready");
+                  }}>Продовжити з базовими правилами</Button>
+                </div> : null}
                 <DashboardField className="sm:col-span-2 lg:col-span-3" label="Назва карти">
                   <Input value={form.displayName} onChange={(event) => updateForm("displayName", event.target.value)} />
                 </DashboardField>
@@ -337,7 +421,7 @@ export function AstroDashboard() {
                   </Select>
                 </DashboardField>
                 <div className="flex items-end sm:col-span-2 lg:col-span-1">
-                  <Button className="w-full" disabled={calculationStatus === "loading"} type="submit">
+                  <Button className="w-full" disabled={calculationStatus === "loading" || profilesStatus !== "ready"} type="submit">
                     {calculationStatus === "loading" ? <RefreshCw className="animate-spin" /> : null}
                     {calculationStatus === "loading" ? "Розраховую" : "Розрахувати"}
                   </Button>

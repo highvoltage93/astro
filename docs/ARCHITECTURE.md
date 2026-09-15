@@ -522,6 +522,14 @@ Recommended internal AI context:
 7. Safety and tone policy
 ```
 
+## Implemented Calculation Profiles
+
+`packages/astrology-core/src/calculation-rules.ts` defines versioned, request-scoped rulership presets. Natal and derivative charts retain their rule snapshot and expose sign-ruler definitions for UI tooltips. The default rules reproduce the existing Astroprocessor behavior; presets do not change astronomical coordinates by themselves.
+
+`apps/api/src/calculation-profiles` provides owner-scoped profile CRUD, optimistic revision checks, and a default-profile pointer on `User`. Calculation inputs contain the rule snapshot, not a live database lookup. Saved natal and forecast records have no foreign key to mutable profiles. Deleting a profile resets a user's default pointer but leaves historical results untouched.
+
+The settings drawer edits profile drafts and applies a new calculation atomically on success. The dashboard loads only the user's default for new charts. Stored results always restore their own settings. Detailed contracts: [Персональні профілі розрахунку v1](CALCULATION_PROFILES_UK.md).
+
 ## Implemented Forecast Archive
 
 `apps/api/src/saved-forecasts` owns the authenticated forecast archive. It validates captured calculation inputs, delegates to the existing astrology-core calculators, and persists the result and natal interpretation as JSON snapshots in the independent Prisma `SavedForecast` model. Reads never invoke the calculation engine.

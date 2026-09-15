@@ -1,5 +1,6 @@
 import type { HouseSystem } from "@astroprocessor/astrology-core";
 import { z } from "zod";
+import { calculationProfileReferenceSchema, calculationRulesSchema } from "../calculation-profiles/schemas";
 
 const houseSystemValues = [
   "placidus",
@@ -22,7 +23,10 @@ export const natalPreviewSchema = z.object({
   longitude: z.number().min(-180).max(180),
   houseSystem: z.enum(houseSystemValues).optional(),
   zodiac: z.enum(["tropical", "sidereal"]).optional(),
-  pointOrbs: pointOrbsSchema
+  pointOrbs: pointOrbsSchema,
+  calculationRules: calculationRulesSchema.optional(),
+  calculationProfile: calculationProfileReferenceSchema.optional(),
+  visiblePointKeys: z.record(z.boolean()).optional()
 });
 
 export const transitPreviewSchema = z.object({

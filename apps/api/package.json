@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test:archive": "tsx --test tests/saved-forecasts.test.ts",
+    "test:profiles": "tsx --test tests/calculation-profiles.test.ts",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "db:push": "prisma db push --schema prisma/schema.prisma"
   },
