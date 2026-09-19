@@ -10,6 +10,7 @@ import { registerPlaceRoutes } from "./places/routes";
 import { prisma } from "./prisma/client";
 import { registerSavedForecastRoutes } from "./saved-forecasts/routes";
 import { registerCalculationProfileRoutes } from "./calculation-profiles/routes";
+import { registerConsultationRoutes } from "./consultations/routes";
 
 const app = Fastify({
   logger: {
@@ -30,6 +31,7 @@ const start = async (): Promise<void> => {
   await registerChartRoutes(app);
   await registerSavedForecastRoutes(app);
   await registerCalculationProfileRoutes(app);
+  await registerConsultationRoutes(app);
   await registerInterpretationRoutes(app);
 
   app.addHook("onClose", async () => {

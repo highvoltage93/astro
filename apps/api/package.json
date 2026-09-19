@@ -11,10 +11,12 @@
     "lint": "tsc -p tsconfig.json --noEmit",
     "test:archive": "tsx --test tests/saved-forecasts.test.ts",
     "test:profiles": "tsx --test tests/calculation-profiles.test.ts",
+    "test:consultations": "tsx --test tests/consultations.test.ts",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "db:push": "prisma db push --schema prisma/schema.prisma"
   },
   "dependencies": {
+    "@astroprocessor/consultation-format": "workspace:*",
     "@astroprocessor/astrology-core": "workspace:*",
     "@fastify/cors": "9.0.1",
     "@prisma/client": "5.18.0",

@@ -37,6 +37,8 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ForecastSaveControl, SavedForecastsDrawer } from "@/components/forecast-archive";
 import { CalculationProfilesEditor } from "@/components/calculation-profiles-editor";
+import { ConsultationPanel } from "@/components/consultations";
+import { planetLabelsUk, signLabelsUk, aspectLabels } from "@/lib/astrology-labels";
 import { legacyCalculationRules, rulershipModelLabels } from "@/lib/calculation-profiles";
 import type { CalculationProfileConfig, CalculationProfileReference, CalculationRules } from "@/lib/calculation-profiles";
 import type { ForecastArchiveDraft, ForecastSubject, SavedForecast } from "@/lib/forecast-archive";
@@ -291,27 +293,6 @@ const planetLabels: Record<string, string> = {
   lilith: "Lilith"
 };
 
-const planetLabelsUk: Record<string, string> = {
-  sun: "Сонце",
-  moon: "Місяць",
-  mercury: "Меркурій",
-  venus: "Венера",
-  mars: "Марс",
-  jupiter: "Юпітер",
-  saturn: "Сатурн",
-  uranus: "Уран",
-  neptune: "Нептун",
-  pluto: "Плутон",
-  "north-node": "Північний вузол",
-  "south-node": "Південний вузол",
-  chiron: "Хірон",
-  lilith: "Ліліт",
-  asc: "Асцендент",
-  desc: "Десцендент",
-  ic: "Надир",
-  mc: "Середина неба"
-};
-
 const pointLabelUk = (pointKey: string, fallback?: string): string =>
   planetLabelsUk[pointKey] ?? fallback ?? pointKey;
 
@@ -402,15 +383,6 @@ const signPolarities: Record<string, "masculine" | "feminine"> = {
   pisces: "feminine"
 };
 
-const aspectLabels: Record<string, string> = {
-  conjunction: "З'єднання",
-  opposition: "Опозиція",
-  trine: "Трин",
-  square: "Квадрат",
-  sextile: "Секстиль",
-  quincunx: "Квінконс"
-};
-
 const aspectGlyphs: Record<string, string> = {
   conjunction: "☌",
   opposition: "☍",
@@ -427,21 +399,6 @@ const aspectConfigurationLabels: Record<AspectConfiguration["type"], string> = {
   yod: "Йод",
   bisextile: "Бісекстиль",
   stellium: "Стеліум"
-};
-
-const signLabelsUk: Record<string, string> = {
-  aries: "Овен",
-  taurus: "Телець",
-  gemini: "Близнюки",
-  cancer: "Рак",
-  leo: "Лев",
-  virgo: "Діва",
-  libra: "Терези",
-  scorpio: "Скорпіон",
-  sagittarius: "Стрілець",
-  capricorn: "Козеріг",
-  aquarius: "Водолій",
-  pisces: "Риби"
 };
 
 const dignityLabelsUk: Record<string, string> = {
@@ -759,6 +716,8 @@ export function AstroWorkbench() {
   const [orbApplyStatus, setOrbApplyStatus] = useState<"idle" | "loading" | "error">("idle");
   const [orbApplyError, setOrbApplyError] = useState<string | null>(null);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTab>("interpretation");
+  const [rightPanel, setRightPanel] = useState<"tables" | "consultation">("tables");
+  const [consultationOpened, setConsultationOpened] = useState(false);
   const [chart, setChart] = useState<ChartResult | null>(null);
   const [interpretation, setInterpretation] = useState<NatalInterpretationPreview | null>(null);
   const [transitDateTime, setTransitDateTime] = useState("");
@@ -1920,7 +1879,18 @@ export function AstroWorkbench() {
             </div>
           </div>
 
-          <ProfessionalDataCard aspects={visibleAspects} chart={chart} placements={visiblePlacements} />
+          <div className="flex min-h-0 min-w-0 flex-col gap-3 xl:h-full">
+            <div role="tablist" aria-label="Робочі матеріали" className="flex shrink-0 gap-2">
+              <Button role="tab" aria-selected={rightPanel === "tables"} variant={rightPanel === "tables" ? "secondary" : "ghost"} onClick={() => setRightPanel("tables")}><Activity />Таблиці</Button>
+              <Button role="tab" aria-selected={rightPanel === "consultation"} variant={rightPanel === "consultation" ? "secondary" : "ghost"} onClick={() => { setRightPanel("consultation"); setConsultationOpened(true); }}><BookOpenText />Консультація</Button>
+            </div>
+            <div hidden={rightPanel !== "tables"} className="min-h-0 flex-1">
+              <ProfessionalDataCard aspects={visibleAspects} chart={chart} placements={visiblePlacements} />
+            </div>
+            {consultationOpened && authToken && authUser ? <div hidden={rightPanel !== "consultation"} className="min-h-0 flex-1 overflow-y-auto border-t bg-background/90 p-3 sm:p-5">
+              <ConsultationPanel key={savedProfileId ?? "unsaved"} token={authToken} userId={authUser.id} sourceProfileId={isCurrentProfileOwned ? savedProfileId : null} sourceName={form.displayName} />
+            </div> : null}
+          </div>
         </section>
       </div>
     </main>

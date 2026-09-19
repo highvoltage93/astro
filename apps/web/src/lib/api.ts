@@ -78,12 +78,15 @@ export const getSavedForecast = async (id: string, token: string): Promise<{ for
 
 export const listSavedForecasts = async (
   token: string,
-  options: { query?: string; kind?: ForecastArchiveKind; cursor?: string } = {}
+  options: { query?: string; kind?: ForecastArchiveKind; cursor?: string; createdFrom?: string; createdBefore?: string; sort?: "newest" | "oldest" } = {}
 ): Promise<{ forecasts: SavedForecastSummary[]; nextCursor: string | null }> => {
   const params = new URLSearchParams({ limit: "10" });
   if (options.query) params.set("query", options.query);
   if (options.kind) params.set("kind", options.kind);
   if (options.cursor) params.set("cursor", options.cursor);
+  if (options.createdFrom) params.set("createdFrom", options.createdFrom);
+  if (options.createdBefore) params.set("createdBefore", options.createdBefore);
+  if (options.sort) params.set("sort", options.sort);
   return readArchiveResponse(await fetch(`${API_URL}/saved-forecasts?${params}`, { headers: authHeaders(token) }));
 };
 

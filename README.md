@@ -58,6 +58,14 @@ The web app stores the token in localStorage. API preview endpoints remain avail
 
 The main astrology workspace is guarded on the web side. Unauthenticated users are redirected to `/login`; after login or registration they can open the calculation workspace at `/`.
 
+## Consultations
+
+Saved natal charts can have private consultation documents with section-based rich-text editing, separate astrologer notes, autosave, revision conflicts, and tab-local draft recovery. Open **Консультація** in the workspace's right panel or use **Мої консультації** on the dashboard. Formatting uses Tiptap; existing plain-text documents remain supported. **Друк / PDF** opens a client-only document preview with section selection and browser printing / Save as PDF; private notes are excluded by a separate owner-only API response.
+
+After updating, run `docker compose restart api` to generate the Prisma client and add the `consultations` table through the existing development startup flow. See [Консультації: перший етап](docs/CONSULTATIONS_UK.md) for storage, recovery, limits, and test scenarios.
+
+When upgrading from the plain-text editor, install the new container dependencies with `docker compose up -d --build --force-recreate --renew-anon-volumes api web`. The named PostgreSQL data volume is preserved.
+
 ## Calculation Profiles
 
 Personal calculation profiles combine rulership rules, house system, zodiac, point orbs, and point visibility. The chart settings drawer includes the unchanged Astroprocessor rulership preset plus traditional and modern primary-ruler presets. Profiles can be saved, revised, deleted, and selected as the user's default for new dashboard calculations.

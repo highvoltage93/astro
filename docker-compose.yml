@@ -40,6 +40,7 @@ services:
       - /app/node_modules
       - /app/apps/api/node_modules
       - /app/packages/astrology-core/node_modules
+      - /app/packages/consultation-format/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +70,7 @@ services:
       - /app/apps/web/node_modules
       - /app/apps/web/.next
       - /app/packages/astrology-core/node_modules
+      - /app/packages/consultation-format/node_modules
     depends_on:
       - api
     command: pnpm --filter @astroprocessor/web dev

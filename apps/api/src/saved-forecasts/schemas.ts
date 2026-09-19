@@ -37,5 +37,11 @@ export const listForecastsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
   cursor: z.string().min(1).optional(),
   query: z.string().trim().max(120).default(""),
-  kind: z.enum(["forecast", "transit", "synastry"]).optional()
+  kind: z.enum(["forecast", "transit", "synastry"]).optional(),
+  createdFrom: z.string().datetime({ offset: true }).optional(),
+  createdBefore: z.string().datetime({ offset: true }).optional(),
+  sort: z.enum(["newest", "oldest"]).default("newest")
+}).refine((value) => !value.createdFrom || !value.createdBefore ||
+  Date.parse(value.createdFrom) < Date.parse(value.createdBefore), {
+  message: "Початок періоду має передувати його завершенню.", path: ["createdBefore"]
 });

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SavedForecastsCard, SavedForecastsDrawer } from "@/components/forecast-archive";
+import { ConsultationsCard } from "@/components/consultations";
 import { getCurrentUser, listBirthProfiles, listCalculationProfiles, saveBirthProfile, searchPlaces } from "@/lib/api";
 import { legacyCalculationRules, profileReference } from "@/lib/calculation-profiles";
 import type { CalculationProfile } from "@/lib/calculation-profiles";
@@ -443,6 +444,7 @@ export function AstroDashboard() {
             onRefresh={refreshSavedProfiles}
           />
           {authToken ? <SavedForecastsCard token={authToken} /> : null}
+          {authToken ? <ConsultationsCard token={authToken} /> : null}
         </section>
       </div>
     </main>

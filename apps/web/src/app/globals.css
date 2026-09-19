@@ -136,6 +136,59 @@
   }
 }
 
+.consultation-prose {
+  font-size: 16px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+
+.consultation-prose p { margin: 0.5rem 0; }
+.consultation-prose h2 { font-size: 18px; font-weight: 600; margin: 1rem 0 0.5rem; }
+.consultation-prose h3 { font-size: 16px; font-weight: 600; margin: 0.75rem 0 0.5rem; }
+.consultation-prose ul, .consultation-prose ol { padding-left: 1.5rem; margin: 0.5rem 0; }
+.consultation-prose ul { list-style-type: disc; }
+.consultation-prose ol { list-style-type: decimal; }
+.consultation-prose ol[type="a"] { list-style-type: lower-alpha; }
+.consultation-prose ol[type="A"] { list-style-type: upper-alpha; }
+.consultation-prose ol[type="i"] { list-style-type: lower-roman; }
+.consultation-prose ol[type="I"] { list-style-type: upper-roman; }
+.consultation-prose li p { margin: 0; }
+.consultation-prose blockquote { border-left: 3px solid hsl(var(--primary) / 0.45); padding-left: 1rem; margin: 0.75rem 0; }
+.consultation-prose > :first-child { margin-top: 0; }
+.consultation-prose > :last-child { margin-bottom: 0; }
+
+.consultation-print-document .consultation-prose blockquote {
+  border-color: #a1a1aa;
+}
+
+@media print {
+  @page consultation { size: A4; margin: 18mm 16mm; }
+  html:has(.consultation-print-page), body:has(.consultation-print-page) {
+    background: white !important;
+    color: black !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .consultation-print-controls { display: none !important; }
+  .consultation-print-page { padding: 0 !important; min-height: 0 !important; background: white !important; }
+  .consultation-print-document { page: consultation; max-width: none !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+  .consultation-print-document h1, .consultation-print-document h2, .consultation-print-document h3 {
+    break-after: avoid-page;
+    page-break-after: avoid;
+  }
+  .consultation-print-document p, .consultation-print-document li { orphans: 3; widows: 3; }
+  .consultation-print-document header, .consultation-print-document footer { break-inside: avoid-page; }
+  .consultation-print-document .consultation-prose { font-size: 11pt; line-height: 1.6; }
+  .consultation-print-document .consultation-prose h2 { font-size: 14pt; }
+  .consultation-print-document .consultation-prose h3 { font-size: 12pt; }
+}
+
+@media (min-width: 640px) {
+  .consultation-prose { font-size: 14px; }
+}
+
 @media (max-width: 767px) {
   input,
   select,

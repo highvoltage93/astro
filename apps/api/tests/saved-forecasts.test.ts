@@ -4,8 +4,8 @@ import { test, type TestContext } from "node:test";
 import Fastify from "fastify";
 import type { SavedForecast } from "@prisma/client";
 import { registerSavedForecastRoutes, type SavedForecastDependencies } from "../src/saved-forecasts/routes";
-import { savedForecastInputSchema } from "../src/saved-forecasts/schemas";
-import { resolveForecastDateTime, toForecastDateTimeInput } from "../../web/src/lib/forecast-archive";
+import { listForecastsSchema, savedForecastInputSchema } from "../src/saved-forecasts/schemas";
+import { archiveFilterOptions, defaultArchiveFilters, resolveForecastDateTime, toForecastDateTimeInput } from "../../web/src/lib/forecast-archive";
 
 const natal = {
   birthDate: "1995-04-12", birthTime: "14:30:27", birthTimeKnown: true,
@@ -163,6 +163,67 @@ test("invalid cursors and excessive page sizes do not query forecast bodies", as
   const app = await createApp(t, { store: { findFirst: async () => null } });
   assert.equal((await app.inject({ method: "GET", url: "/saved-forecasts?cursor=missing", headers })).statusCode, 400);
   assert.equal((await app.inject({ method: "GET", url: "/saved-forecasts?limit=500", headers })).statusCode, 400);
+});
+
+test("oldest-first pagination combines date bounds, owner scope and a stable ID tie-breaker", async (t) => {
+  const anchor = new Date("2026-09-10T12:00:00Z");
+  const from = "2026-09-01T00:00:00Z";
+  const before = "2026-10-01T00:00:00Z";
+  const app = await createApp(t, { store: {
+    findFirst: async (args: { where: unknown }) => {
+      assert.deepEqual(args.where, { id: "cursor", ownerUserId: "owner" });
+      return { id: "cursor", createdAt: anchor };
+    },
+    findMany: async (args: { where: unknown; orderBy: unknown; take: number }) => {
+      assert.deepEqual(args.where, {
+        ownerUserId: "owner", kind: "synastry",
+        createdAt: { gte: new Date(from), lt: new Date(before) },
+        AND: [{ OR: [{ createdAt: { gt: anchor } }, { createdAt: anchor, id: { gt: "cursor" } }] }]
+      });
+      assert.deepEqual(args.orderBy, [{ createdAt: "asc" }, { id: "asc" }]);
+      assert.equal(args.take, 3);
+      return [{ id: "d" }, { id: "e" }, { id: "f" }];
+    }
+  } });
+  const params = new URLSearchParams({ limit: "2", cursor: "cursor", kind: "synastry", sort: "oldest", createdFrom: from, createdBefore: before });
+  const response = await app.inject({ method: "GET", url: `/saved-forecasts?${params}`, headers });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { forecasts: [{ id: "d" }, { id: "e" }], nextCursor: "e" });
+});
+
+test("invalid date filters are rejected before accessing storage", async (t) => {
+  const app = await createApp(t);
+  for (const params of [
+    { createdFrom: "not-a-date" },
+    { createdFrom: "2026-09-10T00:00:00Z", createdBefore: "2026-09-01T00:00:00Z" },
+    { createdFrom: "2026-09-01T00:00:00Z", createdBefore: "2026-09-01T00:00:00Z" },
+    { sort: "unknown" }
+  ]) {
+    const query = new URLSearchParams(Object.entries(params));
+    assert.equal((await app.inject({ method: "GET", url: `/saved-forecasts?${query}`, headers })).statusCode, 400);
+  }
+  assert.equal(listForecastsSchema.parse({}).sort, "newest");
+  assert.equal(listForecastsSchema.safeParse({ createdBefore: "2026-09-01T00:00:00Z" }).success, true);
+});
+
+test("archive calendar bounds include the final local day across DST", (t) => {
+  const previousTimezone = process.env.TZ;
+  t.after(() => { if (previousTimezone === undefined) delete process.env.TZ; else process.env.TZ = previousTimezone; });
+  process.env.TZ = "America/New_York";
+  for (const [date, from, before] of [
+    ["2024-03-10", "2024-03-10T05:00:00.000Z", "2024-03-11T04:00:00.000Z"],
+    ["2024-11-03", "2024-11-03T04:00:00.000Z", "2024-11-04T05:00:00.000Z"]
+  ]) {
+    const options = archiveFilterOptions({ ...defaultArchiveFilters, from: date!, through: date! });
+    assert.equal(options.createdFrom, from);
+    assert.equal(options.createdBefore, before);
+  }
+  assert.throws(() => archiveFilterOptions({ ...defaultArchiveFilters, from: "2026-02-30" }));
+  assert.throws(() => archiveFilterOptions({ ...defaultArchiveFilters, from: "2026-09-10", through: "2026-09-01" }));
+  const reset = archiveFilterOptions(defaultArchiveFilters);
+  assert.equal(reset.createdFrom, undefined);
+  assert.equal(reset.createdBefore, undefined);
+  assert.equal(reset.kind, undefined);
 });
 
 test("archive requires an explicit solar year and a partner for synastry", () => {

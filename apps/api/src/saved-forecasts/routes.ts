@@ -54,7 +54,8 @@ export const registerSavedForecastRoutes = async (
     if (!user) return reply.code(401).send({ message: "Потрібно увійти в обліковий запис." });
     const parsed = listForecastsSchema.safeParse(request.query);
     if (!parsed.success) return reply.code(400).send({ message: "Некоректні параметри пошуку." });
-    const { limit, cursor, query, kind } = parsed.data;
+    const { limit, cursor, query, kind, createdFrom, createdBefore, sort } = parsed.data;
+    const direction = sort === "oldest" ? "asc" : "desc";
     const anchor = cursor ? await store.findFirst({
       where: { id: cursor, ownerUserId: user.id }, select: { id: true, createdAt: true }
     }) : null;
@@ -64,19 +65,23 @@ export const registerSavedForecastRoutes = async (
       where: {
         ownerUserId: user.id,
         ...(kind ? { kind } : {}),
+        ...(createdFrom || createdBefore ? { createdAt: {
+          ...(createdFrom ? { gte: new Date(createdFrom) } : {}),
+          ...(createdBefore ? { lt: new Date(createdBefore) } : {})
+        } } : {}),
         AND: [
           ...(query ? [{ OR: [
             { title: { contains: query, mode: "insensitive" as const } },
             { notes: { contains: query, mode: "insensitive" as const } }
           ] }] : []),
           ...(anchor ? [{ OR: [
-            { createdAt: { lt: anchor.createdAt } },
-            { createdAt: anchor.createdAt, id: { lt: anchor.id } }
+            { createdAt: sort === "oldest" ? { gt: anchor.createdAt } : { lt: anchor.createdAt } },
+            { createdAt: anchor.createdAt, id: sort === "oldest" ? { gt: anchor.id } : { lt: anchor.id } }
           ] }] : [])
         ]
       },
       select: summarySelect,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ createdAt: direction }, { id: direction }],
       take: limit + 1
     });
     const forecasts = records.slice(0, limit);

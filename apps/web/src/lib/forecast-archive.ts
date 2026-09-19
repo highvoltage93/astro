@@ -40,6 +40,41 @@ export const forecastArchivePath = (id: string): string => `/workspace?forecastI
 
 export const FORECAST_ARCHIVE_UPDATED_EVENT = "astroprocessor:forecast-archive-updated";
 
+export type ForecastArchiveFilters = {
+  query: string;
+  kind: ForecastArchiveKind | "all";
+  from: string;
+  through: string;
+  sort: "newest" | "oldest";
+};
+
+export const defaultArchiveFilters: ForecastArchiveFilters = {
+  query: "", kind: "all", from: "", through: "", sort: "newest"
+};
+
+export const archiveFilterOptions = (filters: ForecastArchiveFilters) => {
+  const midnight = (value: string): Date => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Некоректна дата створення.");
+    const date = new Date(`${value}T00:00:00`);
+    const [year, month, day] = value.split("-").map(Number);
+    if (!Number.isFinite(date.getTime()) || date.getFullYear() !== year || date.getMonth() + 1 !== month || date.getDate() !== day) {
+      throw new Error("Некоректна дата створення.");
+    }
+    return date;
+  };
+  if (filters.from && filters.through && filters.from > filters.through) {
+    throw new Error("Дата «До» не може бути раніше дати «Від».");
+  }
+  const start = filters.from ? midnight(filters.from) : undefined;
+  const end = filters.through ? midnight(filters.through) : undefined;
+  // Advance a local calendar day, not 24 hours: DST days can be shorter or longer.
+  if (end) end.setDate(end.getDate() + 1);
+  return {
+    query: filters.query.trim(), kind: filters.kind === "all" ? undefined : filters.kind,
+    createdFrom: start?.toISOString(), createdBefore: end?.toISOString(), sort: filters.sort
+  };
+};
+
 export const toForecastDateTimeInput = (timestamp: string): string => {
   const date = new Date(timestamp);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, -1);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Check, ChevronDown, FolderOpen, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { Archive, Check, ChevronDown, FolderOpen, RefreshCw, RotateCcw, Save, Search, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -10,8 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { deleteSavedForecast, listSavedForecasts, saveForecast } from "@/lib/api";
-import { createForecastRequestId, FORECAST_ARCHIVE_UPDATED_EVENT, forecastArchivePath, forecastKindLabels } from "@/lib/forecast-archive";
-import type { ForecastArchiveDraft, ForecastArchiveKind, SavedForecastSummary, SaveForecastPayload } from "@/lib/forecast-archive";
+import { archiveFilterOptions, defaultArchiveFilters, createForecastRequestId, FORECAST_ARCHIVE_UPDATED_EVENT, forecastArchivePath, forecastKindLabels } from "@/lib/forecast-archive";
+import type { ForecastArchiveDraft, ForecastArchiveFilters, SavedForecastSummary, SaveForecastPayload } from "@/lib/forecast-archive";
 
 const formatCreatedAt = (value: string): string => new Intl.DateTimeFormat("uk-UA", {
   dateStyle: "medium", timeStyle: "short"
@@ -93,8 +93,9 @@ export function ForecastSaveControl({ draft, token, disabled }: {
 }
 
 export function SavedForecastsList({ token }: { token: string }) {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<{ query: string; kind: ForecastArchiveKind | "all" }>({ query: "", kind: "all" });
+  const [draft, setDraft] = useState<ForecastArchiveFilters>(defaultArchiveFilters);
+  const [filter, setFilter] = useState<ForecastArchiveFilters>(defaultArchiveFilters);
+  const [filterError, setFilterError] = useState<string | null>(null);
   const [records, setRecords] = useState<SavedForecastSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,7 +115,7 @@ export function SavedForecastsList({ token }: { token: string }) {
     setError(null);
     setRecords([]);
     setNextCursor(null);
-    void listSavedForecasts(token, { query: filter.query, kind: filter.kind === "all" ? undefined : filter.kind })
+    void Promise.resolve().then(() => listSavedForecasts(token, archiveFilterOptions(filter)))
       .then((response) => {
         if (generation.current !== version) return;
         setRecords(response.forecasts); setNextCursor(response.nextCursor);
@@ -129,7 +130,7 @@ export function SavedForecastsList({ token }: { token: string }) {
     const version = generation.current;
     setLoading(true); setError(null);
     try {
-      const response = await listSavedForecasts(token, { query: filter.query, kind: filter.kind === "all" ? undefined : filter.kind, cursor: nextCursor });
+      const response = await listSavedForecasts(token, { ...archiveFilterOptions(filter), cursor: nextCursor });
       if (generation.current !== version) return;
       setRecords((current) => [...current, ...response.forecasts.filter((record) => !current.some((item) => item.id === record.id))]);
       setNextCursor(response.nextCursor);
@@ -151,19 +152,58 @@ export function SavedForecastsList({ token }: { token: string }) {
 
   return (
     <div className="min-w-0 space-y-3">
-      <form className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_220px_auto]" onSubmit={(event) => {
-        event.preventDefault(); setFilter((current) => ({ ...current, query: query.trim() }));
+      <form className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2" onSubmit={(event) => {
+        event.preventDefault();
+        try {
+          archiveFilterOptions(draft);
+          setFilterError(null); setFilter({ ...draft, query: draft.query.trim() });
+        } catch (requestError) {
+          setFilterError(requestError instanceof Error ? requestError.message : "Перевір дати.");
+        }
       }}>
-        <Input aria-label="Пошук збережених прогнозів" placeholder="Назва або нотатки" maxLength={120} value={query} onChange={(event) => setQuery(event.target.value)} />
-        <Select value={filter.kind} onValueChange={(kind) => setFilter((current) => ({ ...current, kind: kind as typeof filter.kind }))}>
-          <SelectTrigger aria-label="Метод прогнозу"><SelectValue /></SelectTrigger>
+        <label className="min-w-0 space-y-1 text-sm font-medium sm:col-span-2">
+          <span>Пошук</span>
+          <Input placeholder="Назва або нотатки" maxLength={120} value={draft.query} onChange={(event) => setDraft((current) => ({ ...current, query: event.target.value }))} />
+        </label>
+        <label className="min-w-0 space-y-1 text-sm font-medium">
+          <span>Метод прогнозу</span>
+        <Select value={draft.kind} onValueChange={(kind) => setDraft((current) => ({ ...current, kind: kind as ForecastArchiveFilters["kind"] }))}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Усі методи</SelectItem>
             {Object.entries(forecastKindLabels).map(([kind, label]) => <SelectItem key={kind} value={kind}>{label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button type="submit" variant="secondary"><Search />Знайти</Button>
+        </label>
+        <label className="min-w-0 space-y-1 text-sm font-medium">
+          <span>Порядок</span>
+          <Select value={draft.sort} onValueChange={(sort) => setDraft((current) => ({ ...current, sort: sort as ForecastArchiveFilters["sort"] }))}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="newest">Спочатку нові</SelectItem><SelectItem value="oldest">Спочатку давні</SelectItem></SelectContent>
+          </Select>
+        </label>
+        <label className="min-w-0 space-y-1 text-sm font-medium">
+          <span>Створено від</span>
+          <Input type="date" max={draft.through || undefined} value={draft.from} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} />
+        </label>
+        <label className="min-w-0 space-y-1 text-sm font-medium">
+          <span>Створено до включно</span>
+          <Input type="date" min={draft.from || undefined} value={draft.through} onChange={(event) => setDraft((current) => ({ ...current, through: event.target.value }))} />
+        </label>
+        {filterError ? <p role="alert" className="text-sm text-destructive sm:col-span-2">{filterError}</p> : null}
+        <div className="flex flex-wrap gap-2 sm:col-span-2">
+          <Button type="submit" variant="secondary"><Search />Знайти</Button>
+          <Button type="button" variant="ghost" size="icon" title="Скинути фільтри" aria-label="Скинути фільтри" onClick={() => {
+            setDraft({ ...defaultArchiveFilters }); setFilter({ ...defaultArchiveFilters }); setFilterError(null);
+          }}><RotateCcw /></Button>
+        </div>
       </form>
+      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground" aria-live="polite">
+        <span>{filter.sort === "newest" ? "Спочатку нові" : "Спочатку давні"}</span>
+        {filter.kind !== "all" ? <Badge variant="secondary">{forecastKindLabels[filter.kind]}</Badge> : null}
+        {filter.query ? <span className="break-all">Пошук: {filter.query}</span> : null}
+        {filter.from || filter.through ? <span>Створено: {filter.from || "…"} — {filter.through || "…"}</span> : null}
+      </div>
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
       {loading ? <p role="status" className="text-sm text-muted-foreground">Завантажую прогнози…</p> : null}
       {!loading && !error && !records.length ? <p className="py-4 text-sm text-muted-foreground">Збережених прогнозів не знайдено.</p> : null}
@@ -190,14 +230,13 @@ export function SavedForecastsList({ token }: { token: string }) {
 }
 
 export function SavedForecastsCard({ token }: { token: string }) {
-  const [revision, setRevision] = useState(0);
   return (
     <Card className="min-w-0">
       <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
         <CardTitle className="flex items-center gap-2"><Archive className="h-4 w-4 text-primary" />Збережені прогнози</CardTitle>
-        <Button size="icon" variant="secondary" title="Оновити архів" aria-label="Оновити архів" onClick={() => setRevision(revision + 1)}><RefreshCw /></Button>
+        <Button size="icon" variant="secondary" title="Оновити архів" aria-label="Оновити архів" onClick={() => window.dispatchEvent(new Event(FORECAST_ARCHIVE_UPDATED_EVENT))}><RefreshCw /></Button>
       </CardHeader>
-      <CardContent><SavedForecastsList token={token} key={revision} /></CardContent>
+      <CardContent><SavedForecastsList token={token} /></CardContent>
     </Card>
   );
 }
