@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, BookOpen, Download, Eye, FileText, History, Lock, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +26,8 @@ const textareaClass = "w-full min-h-40 resize-y rounded-md border bg-background 
 export function ConsultationEditor({ record, token, userId }: { record: Consultation; token: string; userId: string }) {
   const [draft, setDraft] = useState<ConsultationDraft>(() => consultationDraft(record));
   const [saved, setSaved] = useState(() => JSON.stringify(consultationDraft(record)));
+  const savedDraft = useMemo(() => JSON.parse(saved) as ConsultationDraft, [saved]);
+  const [savedRevision, setSavedRevision] = useState(record.revision);
   const [phase, setPhase] = useState<"idle" | "saving" | "error" | "conflict">("idle");
   const [error, setError] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
       const remaining = unchanged ? acknowledged : latest.current;
       persist(JSON.stringify(remaining) === JSON.stringify(acknowledged) ? null : { draft: remaining, revision: baseRevision.current, pending: null });
       if (unchanged) setDraft(acknowledged);
-      setSaved(JSON.stringify(acknowledged)); setSavedAt(response.consultation.updatedAt); setPhase("idle");
+      setSaved(JSON.stringify(acknowledged)); setSavedRevision(response.consultation.revision); setSavedAt(response.consultation.updatedAt); setPhase("idle");
     } catch (failure) {
       if (!alive.current) return;
       setError(failure instanceof Error ? failure.message : "Помилка збереження.");
@@ -220,7 +222,7 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
         } catch (failure) { setContentError(failure instanceof Error ? failure.message : "Не вдалося вставити шаблон."); return false; }
       }} />
     </div> : null}
-    {view === "history" ? <ConsultationHistory key={record.id} token={token} consultationId={record.id} currentRevision={baseRevision.current}
+    {view === "history" ? <ConsultationHistory key={record.id} token={token} consultationId={record.id} currentRevision={savedRevision} currentSavedDraft={savedDraft}
       disabled={!initialized || unsaved || phase !== "idle"} onRestore={(version, includePrivateNotes) => {
         if (!initialized || recovery || inFlight.current || pending.current || phase !== "idle" || JSON.stringify(latest.current) !== saved) {
           setContentError("Спершу збережи поточні зміни та виріши конфлікти версій."); return false;

@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { History, RefreshCw } from "lucide-react";
+import { Columns2, Eye, History, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConsultationRichPreview } from "@/components/consultation-rich-preview";
-import { getConsultationVersion, listConsultationHistory, type ConsultationVersion, type ConsultationVersionSummary } from "@/lib/consultations";
+import { getConsultationVersion, listConsultationHistory, type ConsultationDraft, type ConsultationVersion, type ConsultationVersionSummary } from "@/lib/consultations";
+import { ConsultationComparison } from "@/components/consultation-comparison";
 
-export function ConsultationHistory({ token, consultationId, currentRevision, disabled, onRestore }: {
-  token: string; consultationId: string; currentRevision: number; disabled: boolean;
+export function ConsultationHistory({ token, consultationId, currentRevision, currentSavedDraft, disabled, onRestore }: {
+  token: string; consultationId: string; currentRevision: number; currentSavedDraft: ConsultationDraft; disabled: boolean;
   onRestore: (version: ConsultationVersion, includePrivateNotes: boolean) => boolean;
 }) {
   const [before, setBefore] = useState<number | undefined>();
@@ -22,6 +23,7 @@ export function ConsultationHistory({ token, consultationId, currentRevision, di
   const [refresh, setRefresh] = useState(0);
   const [detailRefresh, setDetailRefresh] = useState(0);
   const [includePrivateNotes, setIncludePrivateNotes] = useState(false);
+  const [mode, setMode] = useState<"preview" | "compare">("preview");
   useEffect(() => {
     let active = true;
     setLoading(true); setListError(null);
@@ -69,6 +71,10 @@ export function ConsultationHistory({ token, consultationId, currentRevision, di
       <Button variant="outline" onClick={() => setDetailRefresh((value) => value + 1)}><RefreshCw />Повторити</Button></div> : null}
     {version ? <div className="min-w-0 space-y-4 border-t pt-4">
       <h3 className="break-words text-base font-semibold">Версія {version.revision}: {version.title}</h3>
+      <div className="flex flex-wrap gap-1 border-b pb-2" role="tablist" aria-label="Перегляд версії">
+        <Button role="tab" aria-selected={mode === "preview"} variant={mode === "preview" ? "secondary" : "ghost"} onClick={() => setMode("preview")}><Eye />Текст версії</Button>
+        <Button role="tab" aria-selected={mode === "compare"} variant={mode === "compare" ? "secondary" : "ghost"} onClick={() => setMode("compare")}><Columns2 />Порівняння</Button>
+      </div>
       <div className="space-y-3">
         <label className="flex items-start gap-2 text-sm"><Checkbox checked={includePrivateNotes} onCheckedChange={(value) => setIncludePrivateNotes(value === true)} />Також відновити приватні нотатки</label>
         <Button disabled={disabled || version.revision === currentRevision || page.currentRevision !== currentRevision} onClick={() => {
@@ -76,6 +82,7 @@ export function ConsultationHistory({ token, consultationId, currentRevision, di
           onRestore(version, includePrivateNotes);
         }}><History />Відновити як нову редакцію</Button>
       </div>
+      {mode === "compare" ? <ConsultationComparison key={`${version.revision}:${currentRevision}`} previous={version} current={currentSavedDraft} currentRevision={currentRevision} /> : <>
       <article className="min-w-0 space-y-5">
         {version.content.sections.map((section) => <section key={section.id} className="space-y-2">
           <h4 className="break-words text-sm font-semibold">{section.title}</h4><ConsultationRichPreview body={section.body} />
@@ -84,6 +91,7 @@ export function ConsultationHistory({ token, consultationId, currentRevision, di
       <details className="border-t pt-3"><summary className="cursor-pointer text-sm font-medium">Приватні нотатки цієї версії</summary>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{version.privateNotes || "Нотаток немає."}</p>
       </details>
+      </>}
     </div> : null}
   </div>;
 }

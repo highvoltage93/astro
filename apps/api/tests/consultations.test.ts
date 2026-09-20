@@ -9,8 +9,9 @@ import { consultationFacts, appendConsultationFacts } from "../../web/src/lib/co
 import type { ChartResult } from "../../web/src/lib/chart-types";
 import { appendForecastFacts, consultationForecastFacts, importedForecastEvents } from "../../web/src/lib/consultation-forecast-facts";
 import type { SavedForecast } from "../../web/src/lib/forecast-archive";
-import { upgradeContent } from "@astroprocessor/consultation-format";
+import { plainTextToRich, upgradeContent } from "@astroprocessor/consultation-format";
 import { restoreConsultationDraft, type ConsultationDraft } from "../../web/src/lib/consultations";
+import { compareConsultationDrafts } from "../../web/src/lib/consultation-comparison";
 
 const transitFixture = () => ({
   id: "cmf8exampleforecast00000001", kind: "transit", title: "Test forecast",
@@ -413,4 +414,76 @@ test("restoration creates a detached draft and keeps current private notes unles
   previous.content.sections[0]!.body = "Changed later";
   assert.equal(restored.content.sections[0]!.body, "Old text");
   assert.equal(current.status, "READY");
+});
+
+test("comparison treats legacy plain text and equivalent rich text as unchanged", () => {
+  const sectionId = randomUUID();
+  const before: ConsultationDraft = { title: "Document", status: "DRAFT", privateNotes: "", content: {
+    version: 1, sections: [{ id: sectionId, title: "Section", body: "First\n\nSecond" }]
+  } };
+  const after: ConsultationDraft = { ...before, content: { version: 2, sections: [{ ...before.content.sections[0]!, body: plainTextToRich("First\n\nSecond") }] } };
+  const original = JSON.stringify(before);
+  assert.deepEqual(compareConsultationDrafts(before, after).counts, { added: 0, removed: 0, changed: 0, unchanged: 1 });
+  assert.equal(JSON.stringify(before), original);
+});
+
+test("comparison separates formatting-only changes from edited text", () => {
+  const sectionId = randomUUID();
+  const before: ConsultationDraft = { title: "Document", status: "DRAFT", privateNotes: "", content: {
+    version: 1, sections: [{ id: sectionId, title: "Section", body: "Text" }]
+  } };
+  const formatted = plainTextToRich("Text");
+  formatted.content[0]!.content![0]!.marks = [{ type: "bold" }];
+  const after: ConsultationDraft = { ...before, content: { version: 2, sections: [{ ...before.content.sections[0]!, body: formatted }] } };
+  const formatting = compareConsultationDrafts(before, after).sections[0]!;
+  assert.equal(formatting.kind, "changed");
+  assert.equal(formatting.textChanged, false);
+  assert.equal(formatting.formattingOnly, true);
+  formatted.content[0]!.content![0]!.text = "Different text";
+  assert.equal(compareConsultationDrafts(before, after).sections[0]!.textChanged, true);
+});
+
+test("comparison detects section additions and deletions without false movement", () => {
+  const first = { id: randomUUID(), title: "Same title", body: "First" };
+  const second = { id: randomUUID(), title: "Same title", body: "Second" };
+  const added = { id: randomUUID(), title: "Added", body: "New" };
+  const before: ConsultationDraft = { title: "Document", status: "DRAFT", privateNotes: "", content: { version: 1, sections: [first, second] } };
+  const after: ConsultationDraft = { ...before, content: { version: 1, sections: [added, second] } };
+  const result = compareConsultationDrafts(before, after);
+  assert.deepEqual(result.counts, { added: 1, removed: 1, changed: 0, unchanged: 1 });
+  assert.equal(result.sections.find((item) => item.id === second.id)!.moved, false);
+  const swapped = compareConsultationDrafts(before, { ...before, content: { version: 1, sections: [second, first] } });
+  assert.equal(swapped.sections.every((item) => item.moved), true);
+});
+
+test("comparison detects renaming, metadata and notes independently of body text", () => {
+  const before: ConsultationDraft = { title: "Old", status: "DRAFT", privateNotes: "Private before", content: {
+    version: 2, sections: [{ id: randomUUID(), title: "Old section", body: "Same text" }]
+  } };
+  const after: ConsultationDraft = { ...before, title: "New", status: "READY", privateNotes: "Private after", content: { version: 2, sections: [{
+    ...before.content.sections[0]!, title: "Renamed", forecastSources: [{ forecastId: "cmf8exampleforecast00000001", eventId: "event:0", generatedAt: "2026-09-20T00:00:00Z", timezone: "UTC" }]
+  }] } };
+  const result = compareConsultationDrafts(before, after);
+  assert.equal(result.titleChanged, true);
+  assert.equal(result.statusChanged, true);
+  assert.equal(result.notesChanged, true);
+  assert.equal(result.sections[0]!.titleChanged, true);
+  assert.equal(result.sections[0]!.sourcesChanged, true);
+  assert.equal(result.sections[0]!.textChanged, false);
+});
+
+test("comparison ignores JSON key order, mark order and explicit default list attributes", () => {
+  const sectionId = randomUUID();
+  const before: ConsultationDraft = { title: "Document", status: "DRAFT", privateNotes: "", content: { version: 2, sections: [{
+    id: sectionId, title: "Section", body: { type: "doc", content: [{ type: "orderedList", content: [{ type: "listItem", content: [{
+      type: "paragraph", content: [{ type: "text", text: "Text", marks: [{ type: "bold" }, { type: "italic" }] }]
+    }] }] }] }
+  }] } };
+  const after = structuredClone(before);
+  const body = after.content.sections[0]!.body;
+  assert.notEqual(typeof body, "string");
+  if (typeof body === "string") return;
+  body.content[0]!.attrs = { type: "1", start: 1 };
+  body.content[0]!.content![0]!.content![0]!.content![0] = { marks: [{ type: "italic" }, { type: "bold" }], text: "Text", type: "text" };
+  assert.equal(compareConsultationDrafts(before, after).sections[0]!.kind, "unchanged");
 });
