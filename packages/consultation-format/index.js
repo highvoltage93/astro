@@ -48,7 +48,10 @@ const boundedTree = z.unknown().superRefine((value, context) => {
   }
 });
 const richDocumentSchema = boundedTree.pipe(z.object({ type: z.literal("doc"), content: z.array(block).min(1) }).strict());
-const section = { id: z.string().uuid(), title: z.string().max(200) };
+const section = { id: z.string().uuid(), title: z.string().max(200), forecastSources: z.array(z.object({
+  forecastId: z.string().min(1).max(120), eventId: z.string().min(1).max(500),
+  generatedAt: z.string().max(100), timezone: z.literal("UTC")
+}).strict()).max(500).optional() };
 const consultationContentSchema = z.discriminatedUnion("version", [
   z.object({ version: z.literal(1), sections: z.array(z.object({ ...section, body: z.string().max(MAX_TEXT) }).strict()).min(1).max(30) }).strict(),
   z.object({ version: z.literal(2), sections: z.array(z.object({ ...section, body: z.union([z.string().max(MAX_TEXT), richDocumentSchema]) }).strict()).min(1).max(30) }).strict()

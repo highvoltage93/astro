@@ -31,11 +31,11 @@ export function consultationFacts(chart: ChartResult): ConsultationFact[] {
   return [...placements, ...aspects];
 }
 
-export function appendConsultationFacts(content: ConsultationContent, target: string, lines: string[], newId: string): ConsultationContent {
+export function appendConsultationFacts(content: ConsultationContent, target: string, lines: string[], newId: string, title = "Дані натальної карти"): ConsultationContent {
   if (!lines.length) throw new Error("Вибери дані для вставлення.");
   const body = plainTextToRich(lines.join("\n"));
   const sections = content.sections.map((section) => ({ ...section }));
-  if (target === "new") sections.push({ id: newId, title: "Дані натальної карти", body });
+  if (target === "new") sections.push({ id: newId, title, body });
   else {
     const index = sections.findIndex((section) => section.id === target);
     const section = sections[index];

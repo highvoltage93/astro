@@ -49,6 +49,7 @@ model User {
   birthProfiles  BirthProfile[]
   savedForecasts SavedForecast[]
   consultations Consultation[]
+  consultationTemplates ConsultationTemplate[]
   calculationProfiles CalculationProfile[] @relation("OwnedCalculationProfiles")
   defaultCalculationProfileId String?
   defaultCalculationProfile CalculationProfile? @relation("DefaultCalculationProfile", fields: [defaultCalculationProfileId], references: [id], onDelete: SetNull)
@@ -143,6 +144,22 @@ model Consultation {
   @@index([ownerUserId, createdAt, id])
   @@index([ownerUserId, sourceProfileId])
   @@map("consultations")
+}
+
+model ConsultationTemplate {
+  id             String   @id
+  ownerUserId    String
+  owner          User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  title          String
+  category       String   @default("general")
+  bodyJson       Json
+  revision       Int      @default(1)
+  lastMutationId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([ownerUserId, createdAt, id])
+  @@map("consultation_templates")
 }
 
 model SavedForecast {

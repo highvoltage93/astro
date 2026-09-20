@@ -62,6 +62,10 @@ The main astrology workspace is guarded on the web side. Unauthenticated users a
 
 Saved natal charts can have private consultation documents with section-based rich-text editing, separate astrologer notes, autosave, revision conflicts, and tab-local draft recovery. Open **Консультація** in the workspace's right panel or use **Мої консультації** on the dashboard. Formatting uses Tiptap; existing plain-text documents remain supported. **Друк / PDF** opens a client-only document preview with section selection and browser printing / Save as PDF; private notes are excluded by a separate owner-only API response.
 
+The editor's **Прогнози** tab inserts selected events from saved transits and forecast snapshots, including solar/lunar returns, into existing or new sections. Event dates use explicit UTC, with source references and persistent duplicate protection. Calculations are not rerun. Restart the API after updating the shared consultation schema; no database migration or new dependency is needed for forecast insertion.
+
+**Бібліотека** provides private, reusable rich-text templates with categories and title search. Create one from scratch or from a consultation section, save it, then insert an independent copy into any section. Template updates use optimistic revisions; local unsaved drafts can recover within the browser tab. Run `docker compose restart api` to generate Prisma Client and add the `consultation_templates` table through the development startup flow. Template tests are available via `corepack pnpm --filter @astroprocessor/api test:templates`.
+
 After updating, run `docker compose restart api` to generate the Prisma client and add the `consultations` table through the existing development startup flow. See [Консультації: перший етап](docs/CONSULTATIONS_UK.md) for storage, recovery, limits, and test scenarios.
 
 When upgrading from the plain-text editor, install the new container dependencies with `docker compose up -d --build --force-recreate --renew-anon-volumes api web`. The named PostgreSQL data volume is preserved.

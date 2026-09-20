@@ -7,6 +7,72 @@ import { registerConsultationRoutes, type ConsultationDependencies } from "../sr
 import { consultationDraftSchema } from "../src/consultations/schemas";
 import { consultationFacts, appendConsultationFacts } from "../../web/src/lib/consultation-facts";
 import type { ChartResult } from "../../web/src/lib/chart-types";
+import { appendForecastFacts, consultationForecastFacts, importedForecastEvents } from "../../web/src/lib/consultation-forecast-facts";
+import type { SavedForecast } from "../../web/src/lib/forecast-archive";
+import { upgradeContent } from "@astroprocessor/consultation-format";
+
+const transitFixture = () => ({
+  id: "cmf8exampleforecast00000001", kind: "transit", title: "Test forecast",
+  input: { context: { subject: { displayName: "Test" } }, parameters: {
+    transitDateTime: "2026-10-25T03:30:00+03:00", natal: { timezone: "Europe/Kyiv", houseSystem: "koch", zodiac: "tropical" }
+  } },
+  result: { generatedAt: "2026-09-19T10:00:00.000Z", transitToNatalAspects: [
+    { bodyA: "saturn", bodyB: "sun", type: "trine", exactAngle: 120, orb: 0.1234,
+      exactAt: "2026-10-25T03:30:00+02:00", activeFrom: null, activeUntil: null },
+    { bodyA: "jupiter", bodyB: "moon", type: "square", exactAngle: 90, orb: 1,
+      exactAt: null, activeFrom: null, activeUntil: null }
+  ] }
+}) as unknown as SavedForecast;
+
+test("forecast facts retain instants across DST and distinguish missing exact dates", () => {
+  const forecast = transitFixture();
+  const before = JSON.stringify(forecast);
+  const facts = consultationForecastFacts(forecast);
+  assert.match(facts[0]!.text, /2026-10-25 00:30:00.000 UTC/);
+  assert.match(facts[0]!.text, /2026-10-25 01:30:00.000 UTC/);
+  assert.match(facts[0]!.text, /кут аспекту 120°; орбіс 0.1234°/);
+  assert.match(facts[1]!.text, /Точну дату не визначено/);
+  assert.equal(JSON.stringify(forecast), before);
+});
+
+test("forecast insertion preserves text and provenance through serialization and edits", () => {
+  const forecast = transitFixture();
+  const ids = consultationForecastFacts(forecast).map((fact) => fact.id);
+  const sectionId = randomUUID();
+  const original = { version: 1 as const, sections: [{ id: sectionId, title: "Notes", body: "Existing text" }] };
+  const inserted = appendForecastFacts(original, sectionId, forecast, [ids[0]!], randomUUID());
+  const restored = upgradeContent(JSON.parse(JSON.stringify(inserted)));
+  assert.match(JSON.stringify(restored), /Existing text/);
+  assert.equal(importedForecastEvents(restored, forecast.id).has(ids[0]!), true);
+  assert.throws(() => appendForecastFacts(restored, "new", forecast, [ids[0]!], randomUUID()));
+  const mixed = appendForecastFacts(restored, sectionId, forecast, ids, randomUUID());
+  assert.equal(mixed.sections[0]!.forecastSources!.length, 2);
+  const natalAdded = appendConsultationFacts(mixed, sectionId, ["Natal fact"], randomUUID());
+  assert.equal(importedForecastEvents(natalAdded, forecast.id).size, 2);
+  assert.equal(original.sections[0]!.body, "Existing text");
+  assert.throws(() => appendForecastFacts(original, "deleted", forecast, ids, randomUUID()));
+  const newSection = appendForecastFacts(original, "new", forecast, ids, randomUUID());
+  assert.equal(newSection.sections[1]!.title, "Прогнозні події");
+  assert.equal(newSection.sections[1]!.forecastSources![0]!.timezone, "UTC");
+});
+
+test("forecast picker includes returns and preserves estimated timeline dates", () => {
+  const forecast = {
+    id: randomUUID(), kind: "forecast", result: {
+      solarReturn: { kind: "solar", exactAt: "2026-07-01T00:00:00Z",
+        chart: { bodies: [], angles: [], aspects: [] }, returnToNatalAspects: [] },
+      lunarReturn: null, timelineEvents: [
+        { id: "return", source: "solar-return", exactAt: "2026-07-01T00:00:00Z" },
+        { id: "progression", source: "secondary-progression", exactAt: "2026-08-01T00:00:00Z",
+          bodyA: "sun", bodyB: "moon", aspectType: "trine", exactAngle: 120, orb: 0 }
+      ]
+    }
+  } as unknown as SavedForecast;
+  const facts = consultationForecastFacts(forecast);
+  assert.equal(facts.length, 2);
+  assert.match(facts[0]!.text, /Соляр: повернення/);
+  assert.match(facts[1]!.text, /Вторинна прогресія. Розрахункова дата/);
+});
 
 test("facts use stored values and exclude angles from planetary aspects", () => {
   const chart = {
@@ -201,7 +267,11 @@ test("client document omits private notes and full chart data", async (t) => {
   const app = await createApp(t, { consultation: { findFirst: async (args: { where: unknown; select: Record<string, unknown> }) => {
     assert.deepEqual(args.where, { id, ownerUserId: "owner" });
     assert.equal(args.select.privateNotes, undefined);
-    return { ...record, sourceSnapshotJson: source };
+    return { ...record, sourceSnapshotJson: source, contentJson: {
+      ...draft.content, sections: draft.content.sections.map((section) => ({ ...section, forecastSources: [{
+        forecastId: randomUUID(), eventId: "transit:0", generatedAt: "2026-09-19T10:00:00Z", timezone: "UTC"
+      }] }))
+    } };
   } } });
   const response = await app.inject({ method: "GET", url: `/consultations/${id}/client-document?revision=2`, headers });
   assert.equal(response.statusCode, 200);

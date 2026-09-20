@@ -13,9 +13,10 @@ const sourceSchema = z.object({
 export function clientDocument(record: Pick<Consultation,
   "id" | "title" | "status" | "revision" | "updatedAt" | "contentJson" | "sourceSnapshotJson">) {
   const source = sourceSchema.parse(record.sourceSnapshotJson);
+  const content = consultationContentSchema.parse(record.contentJson);
   return {
     id: record.id, title: record.title, status: record.status, revision: record.revision,
-    updatedAt: record.updatedAt, content: consultationContentSchema.parse(record.contentJson),
+    updatedAt: record.updatedAt, content: { ...content, sections: content.sections.map(({ id, title, body }) => ({ id, title, body })) },
     source: {
       displayName: source.displayName, birthplaceName: source.birthplaceName, birthDate: source.birthDate,
       birthTime: source.birthTimeKnown ? source.birthTime : null, birthTimeKnown: source.birthTimeKnown,

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Download, Eye, FileText, Lock, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, Download, Eye, FileText, Lock, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,11 @@ import { consultationContentSchema, plainTextToRich, upgradeContent } from "@ast
 import type { RichDocument } from "@astroprocessor/consultation-format";
 import { ConsultationFactsPicker } from "@/components/consultation-facts-picker";
 import { appendConsultationFacts } from "@/lib/consultation-facts";
+import { ConsultationForecastPicker } from "@/components/consultation-forecast-picker";
+import { appendForecastFacts } from "@/lib/consultation-forecast-facts";
+import { createForecastRequestId } from "@/lib/forecast-archive";
+import { ConsultationTemplateLibrary } from "@/components/consultation-template-library";
+import { appendTextTemplate } from "@/lib/consultation-templates";
 import { consultationDraft, ConsultationError, isConsultationDraft, updateConsultation } from "@/lib/consultations";
 import type { Consultation, ConsultationDraft, ConsultationMutation } from "@/lib/consultations";
 
@@ -26,7 +31,8 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
   const [contentError, setContentError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   const [initialized, setInitialized] = useState(false);
-  const [view, setView] = useState<"text" | "notes" | "preview" | "source">("text");
+  const [view, setView] = useState<"text" | "notes" | "preview" | "source" | "forecast" | "templates">("text");
+  const [templatesOpened, setTemplatesOpened] = useState(false);
   const [savedAt, setSavedAt] = useState(record.updatedAt);
   const baseRevision = useRef(record.revision);
   const pending = useRef<ConsultationMutation | null>(null);
@@ -183,8 +189,8 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
       }}><RefreshCw />Завантажити серверну версію</Button> : <Button variant="outline" disabled={phase === "saving"} onClick={() => void save()}><RefreshCw />Повторити збереження</Button>}
     </div> : null}
     <div className="flex flex-wrap gap-1 border-b pb-2" role="tablist" aria-label="Вміст консультації">
-      {([ ["text", "Текст", FileText], ["source", "Дані карти", Plus], ["notes", "Приватні нотатки", Lock], ["preview", "Перегляд", Eye] ] as const).map(([value, label, Icon]) =>
-        <Button key={value} role="tab" aria-selected={view === value} variant={view === value ? "secondary" : "ghost"} onClick={() => setView(value)}><Icon />{label}</Button>)}
+      {([ ["text", "Текст", FileText], ["source", "Дані карти", Plus], ["forecast", "Прогнози", FileText], ["templates", "Бібліотека", BookOpen], ["notes", "Приватні нотатки", Lock], ["preview", "Перегляд", Eye] ] as const).map(([value, label, Icon]) =>
+        <Button key={value} role="tab" aria-selected={view === value} variant={view === value ? "secondary" : "ghost"} onClick={() => { setView(value); if (value === "templates") setTemplatesOpened(true); }}><Icon />{label}</Button>)}
     </div>
     <div hidden={view !== "source"}>
       <ConsultationFactsPicker chart={record.source.chart} sections={draft.content.sections} disabled={!initialized || !!recovery || phase === "conflict"} onInsert={(target, lines) => {
@@ -196,6 +202,23 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
         } catch (failure) { setContentError(failure instanceof Error ? failure.message : "Не вдалося вставити дані."); return false; }
       }} />
     </div>
+    {view === "forecast" ? <ConsultationForecastPicker token={token} content={draft.content} disabled={!initialized || !!recovery || phase === "conflict"} onInsert={(target, forecast, ids) => {
+      try {
+        const content = appendForecastFacts(latest.current.content, target, forecast, ids, createForecastRequestId());
+        edit({ ...latest.current, status: "DRAFT", content });
+        setContentError(null);
+        return true;
+      } catch (failure) { setContentError(failure instanceof Error ? failure.message : "Не вдалося вставити прогноз."); return false; }
+    }} /> : null}
+    {templatesOpened ? <div hidden={view !== "templates"}>
+      <ConsultationTemplateLibrary key={userId} token={token} userId={userId} content={draft.content} disabled={!initialized || !!recovery || phase === "conflict"} onInsert={(target, template) => {
+        try {
+          const content = appendTextTemplate(latest.current.content, target, template, createForecastRequestId());
+          edit({ ...latest.current, status: "DRAFT", content });
+          return true;
+        } catch (failure) { setContentError(failure instanceof Error ? failure.message : "Не вдалося вставити шаблон."); return false; }
+      }} />
+    </div> : null}
     <fieldset disabled={!initialized || !!recovery} className="min-w-0 space-y-4">
       <div hidden={view !== "text"} className="space-y-4">
         {draft.content.sections.map((section, index) => <div className="min-w-0 space-y-2 border-b pb-4" key={section.id}>

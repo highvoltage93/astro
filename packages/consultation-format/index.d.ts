@@ -11,7 +11,9 @@ export type RichNode = {
 export type RichDocument = RichNode & { type: "doc"; content: RichNode[] };
 export type ConsultationContent = {
   version: 1 | 2;
-  sections: Array<{ id: string; title: string; body: string | RichDocument }>;
+  sections: Array<{ id: string; title: string; body: string | RichDocument;
+    forecastSources?: Array<{ forecastId: string; eventId: string; generatedAt: string; timezone: "UTC" }>;
+  }>;
 };
 export const richDocumentSchema: ZodType<RichDocument>;
 export const consultationContentSchema: ZodType<ConsultationContent>;

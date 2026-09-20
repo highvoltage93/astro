@@ -12,6 +12,7 @@
     "test:archive": "tsx --test tests/saved-forecasts.test.ts",
     "test:profiles": "tsx --test tests/calculation-profiles.test.ts",
     "test:consultations": "tsx --test tests/consultations.test.ts",
+    "test:templates": "tsx --test tests/consultation-templates.test.ts",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "db:push": "prisma db push --schema prisma/schema.prisma"
   },
