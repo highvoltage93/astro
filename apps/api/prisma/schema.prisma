@@ -140,10 +140,25 @@ model Consultation {
   lastMutationId      String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  history             ConsultationRevision[]
 
   @@index([ownerUserId, createdAt, id])
   @@index([ownerUserId, sourceProfileId])
   @@map("consultations")
+}
+
+model ConsultationRevision {
+  consultationId String
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  revision       Int
+  title          String
+  status         String
+  contentJson    Json
+  privateNotes   String
+  savedAt        DateTime
+
+  @@id([consultationId, revision])
+  @@map("consultation_revisions")
 }
 
 model ConsultationTemplate {

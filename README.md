@@ -66,6 +66,8 @@ The editor's **Прогнози** tab inserts selected events from saved transit
 
 **Бібліотека** provides private, reusable rich-text templates with categories and title search. Create one from scratch or from a consultation section, save it, then insert an independent copy into any section. Template updates use optimistic revisions; local unsaved drafts can recover within the browser tab. Run `docker compose restart api` to generate Prisma Client and add the `consultation_templates` table through the development startup flow. Template tests are available via `corepack pnpm --filter @astroprocessor/api test:templates`.
 
+**Історія** lists owner-only saved consultation revisions and restores selected text as a new draft revision, optionally including private notes. Document and history writes share a database transaction. Existing consultations begin their history with the next successful save; earlier overwritten revisions cannot be recovered. Restart the API to generate Prisma Client and add `consultation_revisions`. History currently retains every successful save, so database storage grows with autosave activity.
+
 After updating, run `docker compose restart api` to generate the Prisma client and add the `consultations` table through the existing development startup flow. See [Консультації: перший етап](docs/CONSULTATIONS_UK.md) for storage, recovery, limits, and test scenarios.
 
 When upgrading from the plain-text editor, install the new container dependencies with `docker compose up -d --build --force-recreate --renew-anon-volumes api web`. The named PostgreSQL data volume is preserved.

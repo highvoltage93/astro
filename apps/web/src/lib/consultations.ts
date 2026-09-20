@@ -13,6 +13,8 @@ export type Consultation = ConsultationSummary & ConsultationDraft & {
     birthTimeKnown: boolean; timezone: string; calculatedAt: string; chart: ChartResult };
 };
 export type ConsultationMutation = ConsultationDraft & { revision: number; mutationId: string };
+export type ConsultationVersionSummary = { revision: number; title: string; status: "DRAFT" | "READY"; savedAt: string };
+export type ConsultationVersion = ConsultationVersionSummary & ConsultationDraft;
 export type ConsultationClientDocument = Pick<Consultation, "id" | "title" | "status" | "revision" | "updatedAt" | "content"> & {
   source: { displayName: string; birthplaceName: string; birthDate: string; birthTime: string | null;
     birthTimeKnown: boolean; timezone: string; calculatedAt: string; houseSystem: string; zodiac: string };
@@ -56,6 +58,18 @@ export const createConsultation = (token: string, input: ConsultationDraft & { i
   request<{ consultation: Consultation }>(token, "", "POST", input);
 export const updateConsultation = (token: string, id: string, input: ConsultationMutation) =>
   request<{ consultation: Consultation }>(token, `/${encodeURIComponent(id)}`, "PUT", input);
+
+export const listConsultationHistory = (token: string, id: string, before?: number) =>
+  request<{ versions: ConsultationVersionSummary[]; nextBefore: number | null; currentRevision: number }>(token,
+    `/${encodeURIComponent(id)}/history${before ? `?before=${before}` : ""}`);
+export const getConsultationVersion = (token: string, id: string, revision: number) =>
+  request<{ version: ConsultationVersion }>(token, `/${encodeURIComponent(id)}/history/${revision}`);
+
+export function restoreConsultationDraft(current: ConsultationDraft, version: ConsultationDraft, includePrivateNotes: boolean): ConsultationDraft {
+  if (!isConsultationDraft(version)) throw new Error("Формат версії не підтримується.");
+  return { title: version.title, status: "DRAFT", content: structuredClone(version.content),
+    privateNotes: includePrivateNotes ? version.privateNotes : current.privateNotes };
+}
 
 export function isConsultationDraft(value: unknown): value is ConsultationDraft {
   if (!value || typeof value !== "object") return false;

@@ -10,6 +10,7 @@ import type { ChartResult } from "../../web/src/lib/chart-types";
 import { appendForecastFacts, consultationForecastFacts, importedForecastEvents } from "../../web/src/lib/consultation-forecast-facts";
 import type { SavedForecast } from "../../web/src/lib/forecast-archive";
 import { upgradeContent } from "@astroprocessor/consultation-format";
+import { restoreConsultationDraft, type ConsultationDraft } from "../../web/src/lib/consultations";
 
 const transitFixture = () => ({
   id: "cmf8exampleforecast00000001", kind: "transit", title: "Test forecast",
@@ -124,9 +125,10 @@ const record = {
 const missing = () => new Prisma.PrismaClientKnownRequestError("Not found", { code: "P2025", clientVersion: "5.18.0" });
 const createApp = async (t: TestContext, database: unknown = {}) => {
   const app = Fastify();
+  const txDatabase = { consultationRevision: { upsert: async () => ({}) }, ...(database as object) };
   await registerConsultationRoutes(app, {
     authenticate: async (request) => request.headers.authorization === headers.authorization ? { id: "owner" } : null,
-    database: database as ConsultationDependencies["database"]
+    database: { $transaction: async (action: (tx: unknown) => Promise<unknown>) => action(txDatabase), ...txDatabase } as unknown as ConsultationDependencies["database"]
   });
   t.after(() => app.close());
   return app;
@@ -138,6 +140,8 @@ test("all consultation endpoints authenticate before storage access", async (t) 
     { method: "GET" as const, url: "/consultations" },
     { method: "GET" as const, url: `/consultations/${id}` },
     { method: "GET" as const, url: `/consultations/${id}/client-document` },
+    { method: "GET" as const, url: `/consultations/${id}/history` },
+    { method: "GET" as const, url: `/consultations/${id}/history/1` },
     { method: "POST" as const, url: "/consultations", payload: {} },
     { method: "PUT" as const, url: `/consultations/${id}`, payload: {} }
   ]) assert.equal((await app.inject(request)).statusCode, 401);
@@ -200,7 +204,7 @@ test("creation retries return the same document even if its source was deleted",
 });
 
 test("editing atomically compares revisions and leaves the source snapshot unchanged", async (t) => {
-  const app = await createApp(t, { consultation: { update: async (args: { where: unknown; data: Record<string, unknown> }) => {
+  const app = await createApp(t, { consultation: { findFirst: async () => ({ ...record, revision: 1 }), update: async (args: { where: unknown; data: Record<string, unknown> }) => {
     assert.deepEqual(args.where, { id, ownerUserId: "owner", revision: 1 });
     assert.deepEqual(args.data.revision, { increment: 1 });
     assert.equal(args.data.sourceSnapshotJson, undefined);
@@ -246,7 +250,7 @@ test("rich-text saves preserve formatting and still require the expected revisio
   const content = { version: 2, sections: [{ id: randomUUID(), title: "Forecast", body: {
     type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Important", marks: [{ type: "bold" }] }] }]
   } }] };
-  const app = await createApp(t, { consultation: { update: async (args: { where: unknown; data: Record<string, unknown> }) => {
+  const app = await createApp(t, { consultation: { findFirst: async () => record, update: async (args: { where: unknown; data: Record<string, unknown> }) => {
     assert.deepEqual(args.where, { id, ownerUserId: "owner", revision: 2 });
     assert.deepEqual(args.data.contentJson, content);
     assert.equal(args.data.sourceSnapshotJson, undefined);
@@ -298,4 +302,115 @@ test("print access remains owner-only and malformed revisions are rejected", asy
   } } });
   assert.equal((await app.inject({ method: "GET", url: `/consultations/${id}/client-document`, headers })).statusCode, 404);
   assert.equal((await app.inject({ method: "GET", url: `/consultations/${id}/client-document?revision=zero`, headers })).statusCode, 400);
+});
+
+test("saving a legacy consultation snapshots both previous and new revisions inside the transaction", async (t) => {
+  let active = false;
+  const captured: Array<{ revision: number; title: string; savedAt: Date }> = [];
+  const previous = { ...record, revision: 7, title: "Previous", updatedAt: new Date("2026-09-19T10:00:00Z") };
+  const updated = { ...record, revision: 8, title: "Updated", updatedAt: new Date("2026-09-20T10:00:00Z") };
+  const transaction = {
+    consultation: {
+      findFirst: async () => { assert.equal(active, true); return previous; },
+      update: async (args: { where: unknown }) => { assert.equal(active, true); assert.deepEqual(args.where, { id, ownerUserId: "owner", revision: 7 }); return updated; }
+    },
+    consultationRevision: { upsert: async (args: { where: unknown; update: unknown; create: typeof captured[number] }) => {
+      assert.equal(active, true);
+      assert.deepEqual(args.update, {});
+      assert.deepEqual(args.where, { consultationId_revision: { consultationId: id, revision: args.create.revision } });
+      captured.push(args.create);
+      return args.create;
+    } }
+  };
+  const app = await createApp(t, { $transaction: async (action: (tx: unknown) => Promise<unknown>) => {
+    active = true;
+    try { return await action(transaction); } finally { active = false; }
+  } });
+  const result = await app.inject({ method: "PUT", url: `/consultations/${id}`, headers, payload: { ...draft, title: "Updated", revision: 7, mutationId } });
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(captured.map((item) => item.revision), [7, 8]);
+  assert.equal(captured[0]!.title, "Previous");
+  assert.equal(captured[0]!.savedAt.toISOString(), previous.updatedAt.toISOString());
+});
+
+test("snapshot failure rejects the transaction before its document write can commit", async (t) => {
+  let committedRevision = 2;
+  let attemptedSnapshots = 0;
+  const app = await createApp(t, { $transaction: async (action: (tx: unknown) => Promise<unknown>) => {
+    let stagedRevision = committedRevision;
+    const result = await action({
+      consultation: { findFirst: async () => record, update: async () => { stagedRevision++; return { ...record, revision: stagedRevision }; } },
+      consultationRevision: { upsert: async () => { if (++attemptedSnapshots === 2) throw new Error("Storage unavailable"); return {}; } }
+    });
+    committedRevision = stagedRevision;
+    return result;
+  } });
+  const result = await app.inject({ method: "PUT", url: `/consultations/${id}`, headers, payload: { ...draft, revision: 2, mutationId } });
+  assert.equal(result.statusCode, 500);
+  assert.equal(attemptedSnapshots, 2);
+  assert.equal(committedRevision, 2);
+});
+
+test("history lists only metadata, uses revision pagination and scopes the owner twice", async (t) => {
+  const app = await createApp(t, {
+    consultation: { findFirst: async (args: { where: unknown }) => { assert.deepEqual(args.where, { id, ownerUserId: "owner" }); return { revision: 9 }; } },
+    consultationRevision: { findMany: async (args: { where: unknown; select: Record<string, unknown>; orderBy: unknown; take: number }) => {
+      assert.deepEqual(args.where, { consultationId: id, consultation: { ownerUserId: "owner" }, revision: { lt: 9 } });
+      assert.equal(args.select.contentJson, undefined);
+      assert.equal(args.select.privateNotes, undefined);
+      assert.deepEqual(args.orderBy, { revision: "desc" });
+      assert.equal(args.take, 3);
+      return [8, 7, 6].map((revision) => ({ revision, title: "Version", status: "DRAFT", savedAt: new Date() }));
+    } }
+  });
+  const result = await app.inject({ method: "GET", url: `/consultations/${id}/history?before=9&limit=2`, headers });
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.headers["cache-control"], "private, no-store");
+  assert.deepEqual(result.json().versions.map((item: { revision: number }) => item.revision), [8, 7]);
+  assert.equal(result.json().nextBefore, 7);
+  assert.equal(result.json().currentRevision, 9);
+});
+
+test("foreign and absent history never returns document or private notes", async (t) => {
+  const app = await createApp(t, {
+    consultation: { findFirst: async () => null },
+    consultationRevision: { findFirst: async (args: { where: unknown }) => {
+      assert.deepEqual(args.where, { consultationId: id, revision: 2, consultation: { ownerUserId: "owner" } }); return null;
+    } }
+  });
+  assert.equal((await app.inject({ method: "GET", url: `/consultations/${id}/history`, headers })).statusCode, 404);
+  const response = await app.inject({ method: "GET", url: `/consultations/${id}/history/2`, headers });
+  assert.equal(response.statusCode, 404);
+  assert.equal("version" in response.json(), false);
+  assert.equal((await app.inject({ method: "GET", url: `/consultations/${id}/history/zero`, headers })).statusCode, 400);
+});
+
+test("history detail returns validated rich or legacy content but no birth snapshot", async (t) => {
+  const app = await createApp(t, { consultationRevision: { findFirst: async () => ({
+    ...record, savedAt: record.updatedAt
+  }) } });
+  const result = await app.inject({ method: "GET", url: `/consultations/${id}/history/2`, headers });
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(result.json().version.content, draft.content);
+  assert.equal(result.json().version.privateNotes, draft.privateNotes);
+  assert.equal("sourceSnapshotJson" in result.json().version, false);
+  assert.equal("ownerUserId" in result.json().version, false);
+});
+
+test("restoration creates a detached draft and keeps current private notes unless explicitly selected", () => {
+  const current = { ...draft, status: "READY" } as ConsultationDraft;
+  const previous = { ...current, title: "Previous title", privateNotes: "Older private notes", content: {
+    version: 2, sections: [{ id: randomUUID(), title: "Old section", body: "Old text", forecastSources: [{
+      forecastId: "cmf8exampleforecast00000001", eventId: "transit:0", generatedAt: "2026-09-19T00:00:00Z", timezone: "UTC"
+    }] }]
+  } } as ConsultationDraft;
+  const restored = restoreConsultationDraft(current, previous, false);
+  assert.equal(restored.status, "DRAFT");
+  assert.equal(restored.title, previous.title);
+  assert.equal(restored.privateNotes, current.privateNotes);
+  assert.equal(restored.content.sections[0]!.forecastSources![0]!.forecastId, "cmf8exampleforecast00000001");
+  assert.equal(restoreConsultationDraft(current, previous, true).privateNotes, previous.privateNotes);
+  previous.content.sections[0]!.body = "Changed later";
+  assert.equal(restored.content.sections[0]!.body, "Old text");
+  assert.equal(current.status, "READY");
 });

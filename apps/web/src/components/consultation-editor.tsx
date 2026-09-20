@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, BookOpen, Download, Eye, FileText, Lock, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, BookOpen, Download, Eye, FileText, History, Lock, Plus, Printer, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,8 @@ import { appendForecastFacts } from "@/lib/consultation-forecast-facts";
 import { createForecastRequestId } from "@/lib/forecast-archive";
 import { ConsultationTemplateLibrary } from "@/components/consultation-template-library";
 import { appendTextTemplate } from "@/lib/consultation-templates";
-import { consultationDraft, ConsultationError, isConsultationDraft, updateConsultation } from "@/lib/consultations";
+import { consultationDraft, ConsultationError, isConsultationDraft, restoreConsultationDraft, updateConsultation } from "@/lib/consultations";
+import { ConsultationHistory } from "@/components/consultation-history";
 import type { Consultation, ConsultationDraft, ConsultationMutation } from "@/lib/consultations";
 
 type Recovery = { draft: ConsultationDraft; revision: number; pending: ConsultationMutation | null };
@@ -31,7 +32,7 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
   const [contentError, setContentError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<Recovery | null>(null);
   const [initialized, setInitialized] = useState(false);
-  const [view, setView] = useState<"text" | "notes" | "preview" | "source" | "forecast" | "templates">("text");
+  const [view, setView] = useState<"text" | "notes" | "preview" | "source" | "forecast" | "templates" | "history">("text");
   const [templatesOpened, setTemplatesOpened] = useState(false);
   const [savedAt, setSavedAt] = useState(record.updatedAt);
   const baseRevision = useRef(record.revision);
@@ -189,7 +190,7 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
       }}><RefreshCw />Завантажити серверну версію</Button> : <Button variant="outline" disabled={phase === "saving"} onClick={() => void save()}><RefreshCw />Повторити збереження</Button>}
     </div> : null}
     <div className="flex flex-wrap gap-1 border-b pb-2" role="tablist" aria-label="Вміст консультації">
-      {([ ["text", "Текст", FileText], ["source", "Дані карти", Plus], ["forecast", "Прогнози", FileText], ["templates", "Бібліотека", BookOpen], ["notes", "Приватні нотатки", Lock], ["preview", "Перегляд", Eye] ] as const).map(([value, label, Icon]) =>
+      {([ ["text", "Текст", FileText], ["source", "Дані карти", Plus], ["forecast", "Прогнози", FileText], ["templates", "Бібліотека", BookOpen], ["history", "Історія", History], ["notes", "Приватні нотатки", Lock], ["preview", "Перегляд", Eye] ] as const).map(([value, label, Icon]) =>
         <Button key={value} role="tab" aria-selected={view === value} variant={view === value ? "secondary" : "ghost"} onClick={() => { setView(value); if (value === "templates") setTemplatesOpened(true); }}><Icon />{label}</Button>)}
     </div>
     <div hidden={view !== "source"}>
@@ -219,6 +220,19 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
         } catch (failure) { setContentError(failure instanceof Error ? failure.message : "Не вдалося вставити шаблон."); return false; }
       }} />
     </div> : null}
+    {view === "history" ? <ConsultationHistory key={record.id} token={token} consultationId={record.id} currentRevision={baseRevision.current}
+      disabled={!initialized || unsaved || phase !== "idle"} onRestore={(version, includePrivateNotes) => {
+        if (!initialized || recovery || inFlight.current || pending.current || phase !== "idle" || JSON.stringify(latest.current) !== saved) {
+          setContentError("Спершу збережи поточні зміни та виріши конфлікти версій."); return false;
+        }
+        try {
+          edit(restoreConsultationDraft(latest.current, version, includePrivateNotes));
+          setView("text");
+          // Restoration records a new revision even when the selected text matches the current text.
+          void saveRef.current();
+          return true;
+        } catch (failure) { setContentError(failure instanceof Error ? failure.message : "Не вдалося відновити версію."); return false; }
+      }} /> : null}
     <fieldset disabled={!initialized || !!recovery} className="min-w-0 space-y-4">
       <div hidden={view !== "text"} className="space-y-4">
         {draft.content.sections.map((section, index) => <div className="min-w-0 space-y-2 border-b pb-4" key={section.id}>

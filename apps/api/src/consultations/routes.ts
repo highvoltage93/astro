@@ -5,10 +5,11 @@ import { getOptionalAuthUser } from "../auth/service";
 import { prisma } from "../prisma/client";
 import { createConsultationSchema, listConsultationsSchema, updateConsultationSchema } from "./schemas";
 import { clientDocument } from "./client-document";
+import { registerConsultationHistoryRoutes, saveConsultationRevision } from "./history";
 
 export type ConsultationDependencies = {
   authenticate: (request: FastifyRequest) => Promise<{ id: string } | null>;
-  database: Pick<typeof prisma, "consultation" | "birthProfile">;
+  database: Pick<typeof prisma, "consultation" | "birthProfile" | "consultationRevision" | "$transaction">;
 };
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const idSchema = z.object({ id: z.string().uuid() });
@@ -26,6 +27,7 @@ const view = (record: Consultation) => ({
 export async function registerConsultationRoutes(app: FastifyInstance, {
   authenticate, database: db
 }: ConsultationDependencies = { authenticate: getOptionalAuthUser, database: prisma }): Promise<void> {
+  await registerConsultationHistoryRoutes(app, { authenticate, database: db });
   app.get("/consultations", async (request, reply) => {
     reply.header("Cache-Control", "private, no-store");
     const user = await authenticate(request);
@@ -95,16 +97,20 @@ export async function registerConsultationRoutes(app: FastifyInstance, {
     });
     const calculation = profile?.calculations[0];
     if (!profile || !calculation) return reply.code(404).send({ message: "Спершу збережи власну натальну карту." });
-    const record = await db.consultation.upsert({
-      where: { id }, update: {}, create: {
-        id, ownerUserId: user.id, sourceProfileId, sourceCalculationId: calculation.id, ...fields,
-        contentJson: json(content), sourceSnapshotJson: json({
-          displayName: profile.displayName, birthplaceName: profile.birthplaceName,
-          birthDate: profile.birthDate.toISOString().slice(0, 10), birthTime: profile.birthTime,
-          birthTimeKnown: profile.birthTimeKnown, timezone: profile.timezone,
-          calculatedAt: calculation.calculatedAt, chart: calculation.resultJson
-        })
-      }
+    const record = await db.$transaction(async (tx) => {
+      const created = await tx.consultation.upsert({
+        where: { id }, update: {}, create: {
+          id, ownerUserId: user.id, sourceProfileId, sourceCalculationId: calculation.id, ...fields,
+          contentJson: json(content), sourceSnapshotJson: json({
+            displayName: profile.displayName, birthplaceName: profile.birthplaceName,
+            birthDate: profile.birthDate.toISOString().slice(0, 10), birthTime: profile.birthTime,
+            birthTimeKnown: profile.birthTimeKnown, timezone: profile.timezone,
+            calculatedAt: calculation.calculatedAt, chart: calculation.resultJson
+          })
+        }
+      });
+      if (created.ownerUserId === user.id && created.sourceProfileId === sourceProfileId) await saveConsultationRevision(tx, created);
+      return created;
     });
     if (record.ownerUserId !== user.id || record.sourceProfileId !== sourceProfileId) return reply.code(409).send({ message: "Ідентифікатор уже використано." });
     return reply.code(201).send({ consultation: view(record) });
@@ -119,9 +125,16 @@ export async function registerConsultationRoutes(app: FastifyInstance, {
     if (!params.success || !parsed.success) return reply.code(400).send({ message: "Перевір назву та розмір документа." });
     const { revision, mutationId, content, ...fields } = parsed.data;
     try {
-      const record = await db.consultation.update({
-        where: { id: params.data.id, ownerUserId: user.id, revision },
-        data: { ...fields, contentJson: json(content), lastMutationId: mutationId, revision: { increment: 1 } }
+      const record = await db.$transaction(async (tx) => {
+        const previous = await tx.consultation.findFirst({ where: { id: params.data.id, ownerUserId: user.id } });
+        const updated = await tx.consultation.update({
+          where: { id: params.data.id, ownerUserId: user.id, revision },
+          data: { ...fields, contentJson: json(content), lastMutationId: mutationId, revision: { increment: 1 } }
+        });
+        // The conditional update locks this revision before either snapshot is committed.
+        if (previous) await saveConsultationRevision(tx, previous);
+        await saveConsultationRevision(tx, updated);
+        return updated;
       });
       return { consultation: view(record) };
     } catch (error) {
