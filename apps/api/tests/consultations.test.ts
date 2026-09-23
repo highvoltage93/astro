@@ -12,6 +12,8 @@ import type { SavedForecast } from "../../web/src/lib/forecast-archive";
 import { plainTextToRich, upgradeContent } from "@astroprocessor/consultation-format";
 import { restoreConsultationDraft, type ConsultationDraft } from "../../web/src/lib/consultations";
 import { compareConsultationDrafts } from "../../web/src/lib/consultation-comparison";
+import { projectPrintAssets } from "../src/consultations/print-assets";
+import { printAspects, printDegree, printEvents, printPoints, type PrintChart, type PrintAssets } from "../../web/src/lib/consultation-print-assets";
 
 const transitFixture = () => ({
   id: "cmf8exampleforecast00000001", kind: "transit", title: "Test forecast",
@@ -143,6 +145,8 @@ test("all consultation endpoints authenticate before storage access", async (t) 
     { method: "GET" as const, url: `/consultations/${id}/client-document` },
     { method: "GET" as const, url: `/consultations/${id}/history` },
     { method: "GET" as const, url: `/consultations/${id}/history/1` },
+    { method: "GET" as const, url: `/consultations/${id}/print-assets?revision=2` },
+    { method: "GET" as const, url: `/consultations/${id}/print-forecasts` },
     { method: "POST" as const, url: "/consultations", payload: {} },
     { method: "PUT" as const, url: `/consultations/${id}`, payload: {} }
   ]) assert.equal((await app.inject(request)).statusCode, 401);
@@ -486,4 +490,93 @@ test("comparison ignores JSON key order, mark order and explicit default list at
   body.content[0]!.attrs = { type: "1", start: 1 };
   body.content[0]!.content![0]!.content![0]!.content![0] = { marks: [{ type: "italic" }, { type: "bold" }], text: "Text", type: "text" };
   assert.equal(compareConsultationDrafts(before, after).sections[0]!.kind, "unchanged");
+});
+
+const printChartFixture = () => ({
+  settings: { houseSystem: "koch", zodiac: "tropical", privateNotes: "SECRET" },
+  subject: { utcDateTime: "1990-01-01T10:00:00Z", birthTimeKnown: true, latitude: 50.45, longitude: 30.52 },
+  bodies: [
+    { key: "moon", label: "Moon", kind: "planet", longitude: 21, sign: "aries", signDegree: 21, house: 2, speed: 12, privateNotes: "SECRET" },
+    { key: "sun", label: "Sun", kind: "planet", longitude: 12.5, sign: "aries", signDegree: 12.5, house: 1, speed: 1 }
+  ], angles: [], houses: [],
+  aspects: [{ bodyA: "sun", bodyB: "moon", type: "conjunction", exactAngle: 0, orb: 8.5, privateNotes: "SECRET" },
+    { bodyA: "sun", bodyB: "asc", type: "square", exactAngle: 90, orb: 1 }],
+  interpretation: "SECRET", privateNotes: "SECRET"
+});
+
+test("print projection strips nested secrets and preserves stored positions without recalculation", () => {
+  const chart = printChartFixture();
+  const forecast = { id: "cmf8exampleforecast00000001", title: "Solar", inputJson: { notes: "SECRET", context: { subject: { displayName: "Client", privateNotes: "SECRET" } } }, resultJson: {
+    natal: chart, generatedAt: "2026-09-20T10:00:00Z", privateNotes: "SECRET",
+    solarReturn: { exactAt: "2026-01-01T10:30:00Z", chart, interpretation: "SECRET" },
+    timelineEvents: [{ id: "one", source: "transit", exactAt: "2026-10-01T12:00:00+03:00", bodyA: "sun", bodyB: "moon", privateNotes: "SECRET" }]
+  } };
+  const before = JSON.stringify(forecast);
+  const result = projectPrintAssets({ chart, privateNotes: "SECRET" }, forecast);
+  assert.equal(result.forecast!.compatibility, "match");
+  assert.equal(JSON.stringify(result).includes("SECRET"), false);
+  assert.equal(result.natal!.bodies[1]!.longitude, 12.5);
+  assert.equal(result.forecast!.solarReturn!.exactAt, "2026-01-01T10:30:00Z");
+  assert.equal(JSON.stringify(forecast), before);
+  const changed = structuredClone(chart);
+  changed.subject.utcDateTime = "1990-01-02T10:00:00Z";
+  assert.equal(projectPrintAssets({ chart: changed }, forecast).forecast!.compatibility, "different");
+  assert.equal(projectPrintAssets({ chart: { settings: chart.settings } }).natal, null);
+});
+
+test("print assets require the expected consultation revision before reading any archive", async (t) => {
+  const app = await createApp(t, { consultation: { findFirst: async (args: { where: unknown; select: Record<string, unknown> }) => {
+    assert.deepEqual(args.where, { id, ownerUserId: "owner" });
+    assert.equal(args.select.privateNotes, undefined);
+    return { revision: 3, sourceSnapshotJson: { chart: printChartFixture() } };
+  } } });
+  assert.equal((await app.inject({ method: "GET", url: `/consultations/${id}/print-assets?revision=2&forecastId=other`, headers })).statusCode, 409);
+});
+
+test("print assets reject foreign forecasts and select no archive notes", async (t) => {
+  const app = await createApp(t, {
+    consultation: { findFirst: async () => ({ revision: 2, sourceSnapshotJson: { chart: printChartFixture() } }) },
+    savedForecast: { findFirst: async (args: { where: unknown; select: Record<string, unknown> }) => {
+      assert.deepEqual(args.where, { id: "foreign", ownerUserId: "owner", kind: "forecast" });
+      assert.equal(args.select.notes, undefined);
+      assert.equal(args.select.interpretationJson, undefined);
+      return null;
+    } }
+  });
+  assert.equal((await app.inject({ method: "GET", url: `/consultations/${id}/print-assets?revision=2&forecastId=foreign`, headers })).statusCode, 404);
+});
+
+test("print archive returns metadata only and requires the consultation owner", async (t) => {
+  const app = await createApp(t, {
+    consultation: { findFirst: async (args: { where: unknown }) => { assert.deepEqual(args.where, { id, ownerUserId: "owner" }); return { id }; } },
+    savedForecast: { findMany: async (args: { where: unknown; select: unknown }) => {
+      assert.deepEqual(args.where, { ownerUserId: "owner", kind: "forecast" });
+      assert.deepEqual(args.select, { id: true, title: true, createdAt: true });
+      return [];
+    } }
+  });
+  const result = await app.inject({ method: "GET", url: `/consultations/${id}/print-forecasts`, headers });
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.headers["cache-control"], "private, no-store");
+});
+
+test("print tables retain precision, order planets and omit cusp aspects without mutating snapshots", () => {
+  const chart: PrintChart = printChartFixture();
+  const before = JSON.stringify(chart);
+  assert.equal(printPoints(chart)[0]!.key, "sun");
+  assert.equal(printAspects(chart).length, 1);
+  assert.equal(printDegree(12.5), "12°30′00″");
+  assert.equal(printDegree(29.99999999999), "29°59′59″");
+  assert.equal(JSON.stringify(chart), before);
+  const forecast: NonNullable<PrintAssets["forecast"]> = {
+    id: "one", title: "Solar", subjectName: "Client", generatedAt: "2026-09-20T10:00:00Z", compatibility: "match",
+    solarReturn: { exactAt: "2026-10-01T09:00:00Z", chart }, events: [
+      { id: "same", source: "transit", exactAt: "2026-10-02T09:00:00Z" },
+      { id: "same", source: "solar-return", exactAt: "2026-10-01T12:00:00+03:00" }
+    ]
+  };
+  const events = printEvents(forecast);
+  assert.equal(events.length, 2);
+  assert.equal(events[0]!.source, "solar-return");
+  assert.equal(new Set(events.map((event) => event.id)).size, 2);
 });

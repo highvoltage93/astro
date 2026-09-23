@@ -6,10 +6,11 @@ import { prisma } from "../prisma/client";
 import { createConsultationSchema, listConsultationsSchema, updateConsultationSchema } from "./schemas";
 import { clientDocument } from "./client-document";
 import { registerConsultationHistoryRoutes, saveConsultationRevision } from "./history";
+import { registerConsultationPrintAssets } from "./print-assets";
 
 export type ConsultationDependencies = {
   authenticate: (request: FastifyRequest) => Promise<{ id: string } | null>;
-  database: Pick<typeof prisma, "consultation" | "birthProfile" | "consultationRevision" | "$transaction">;
+  database: Pick<typeof prisma, "consultation" | "birthProfile" | "consultationRevision" | "$transaction" | "savedForecast">;
 };
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const idSchema = z.object({ id: z.string().uuid() });
@@ -28,6 +29,7 @@ export async function registerConsultationRoutes(app: FastifyInstance, {
   authenticate, database: db
 }: ConsultationDependencies = { authenticate: getOptionalAuthUser, database: prisma }): Promise<void> {
   await registerConsultationHistoryRoutes(app, { authenticate, database: db });
+  await registerConsultationPrintAssets(app, { authenticate, database: db });
   app.get("/consultations", async (request, reply) => {
     reply.header("Cache-Control", "private, no-store");
     const user = await authenticate(request);

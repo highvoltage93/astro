@@ -70,6 +70,8 @@ The editor's **Прогнози** tab inserts selected events from saved transit
 
 History also supports a section-level comparison against the editor's last acknowledged saved revision: additions, removals, text/formatting changes, reordered sections and forecast source changes. Expand a section to view both formatted versions; private notes remain separate. Unsaved edits do not replace the comparison baseline. Word-level highlighting and merging are not included.
 
+Client printing supports optional natal/solar-return SVG wheels, placement and planetary-aspect tables, and individually selected forecast dates in UTC. Pick a saved forecast for solar/date attachments; mismatched natal snapshots require explicit confirmation. Dedicated owner-only print projections exclude private notes and internal interpretations. The standard text-only export is unchanged; attachments are off by default. No recalculation, new dependency or database migration is needed for print attachments.
+
 After updating, run `docker compose restart api` to generate the Prisma client and add the `consultations` table through the existing development startup flow. See [Консультації: перший етап](docs/CONSULTATIONS_UK.md) for storage, recovery, limits, and test scenarios.
 
 When upgrading from the plain-text editor, install the new container dependencies with `docker compose up -d --build --force-recreate --renew-anon-volumes api web`. The named PostgreSQL data volume is preserved.

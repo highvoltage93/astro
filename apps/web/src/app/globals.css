@@ -159,6 +159,18 @@
 .consultation-prose > :first-child { margin-top: 0; }
 .consultation-prose > :last-child { margin-bottom: 0; }
 
+.consultation-print-document {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 4%;
+  --border: 240 6% 80%;
+}
+.consultation-print-chart { break-inside: avoid; }
+.consultation-print-chart svg { display: block; width: 100%; height: auto; }
+.consultation-print-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.75rem; }
+.consultation-print-table th, .consultation-print-table td { padding: 6px; border: 1px solid #d4d4d8; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.consultation-print-table th { background: #f4f4f5; font-weight: 600; }
+.consultation-print-table thead { display: table-header-group; }
+.consultation-print-table tr { break-inside: avoid; }
 .consultation-print-document .consultation-prose blockquote {
   border-color: #a1a1aa;
 }
@@ -172,6 +184,11 @@
     overflow: visible !important;
   }
   .consultation-print-controls { display: none !important; }
+  .consultation-print-page[data-print-ready="false"] .consultation-print-document { display: none !important; }
+  .consultation-print-warning { display: block !important; color: black; }
+  .consultation-print-chart { break-inside: avoid-page; }
+  .consultation-print-chart svg { max-height: 170mm; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .consultation-print-table { font-size: 9pt; }
   .consultation-print-page { padding: 0 !important; min-height: 0 !important; background: white !important; }
   .consultation-print-document { page: consultation; max-width: none !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
   .consultation-print-document h1, .consultation-print-document h2, .consultation-print-document h3 {

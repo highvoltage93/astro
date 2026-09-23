@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -547,7 +547,9 @@ const formatHouseList = (houses: number[] | undefined): string => {
   return houses.join(", ");
 };
 
-const getRuledHouseNumbers = (chart: ChartResult | null | undefined, pointKey: string): number[] => {
+type WheelChart = Pick<ChartResult, "bodies" | "angles" | "houses" | "aspects" | "houseRulers" | "planetRulerships" | "signRulerships">;
+
+const getRuledHouseNumbers = (chart: WheelChart | null | undefined, pointKey: string): number[] => {
   const rulership = chart?.planetRulerships?.find((item) => item.pointKey === pointKey);
 
   if (rulership) {
@@ -579,7 +581,7 @@ const motionLabelForPoint = (point: ChartPoint | undefined): string => {
 
 const isRetrogradePoint = (point: ChartPoint): boolean => (point.speed ?? 0) < -0.0001;
 
-const formatPointTooltip = (point: ChartPoint, chart?: ChartResult | null): string => {
+const formatPointTooltip = (point: ChartPoint, chart?: WheelChart | null): string => {
   const house = point.house ? `${point.house} дім` : "дім n/a";
   const speed = point.speed === undefined ? "" : `\nШвидкість: ${point.speed.toFixed(4)}°/день`;
   const ruledHouses = formatHouseList(getRuledHouseNumbers(chart, point.key));
@@ -589,7 +591,7 @@ const formatPointTooltip = (point: ChartPoint, chart?: ChartResult | null): stri
   )}\nАбсолютна довгота: ${point.longitude.toFixed(4)}°\n${house}\nПравить домами: ${ruledHouses}${speed}`;
 };
 
-const formatSignTooltip = (sign: (typeof zodiacSigns)[number], chart?: ChartResult | null): string => {
+const formatSignTooltip = (sign: (typeof zodiacSigns)[number], chart?: WheelChart | null): string => {
   const pointsByKey = new Map(chart?.bodies.map((point) => [point.key, point]) ?? []);
   const rulers = chart?.signRulerships ? chart.signRulerships[sign.key] ?? [] : signRulers[sign.key] ?? [];
   const directRulers = rulers.filter((ruler) => ruler.rulerType === "direct");
@@ -5737,13 +5739,18 @@ function assignChartMarkerRadii(points: ChartPoint[], radii: number[], minimumSe
   return result;
 }
 
-function ChartWheel({
+export function ChartWheel({
   chart,
-  visiblePointKeys
+  visiblePointKeys,
+  printMode = false,
+  label = "Колесо натальної карти"
 }: {
-  chart: ChartResult | null;
+  chart: WheelChart | null;
   visiblePointKeys: VisiblePointSettings;
+  printMode?: boolean;
+  label?: string;
 }) {
+  const markerId = `angle-arrowhead-${useId().replace(/:/g, "")}`;
   const [hoveredPointKey, setHoveredPointKey] = useState<string | null>(null);
   const [selectedPointKey, setSelectedPointKey] = useState<string | null>(null);
   const center = 300;
@@ -5773,7 +5780,7 @@ function ChartWheel({
   const pointMarkers = chart?.bodies.filter((point) => isPointVisible(visiblePointKeys, point.key)) ?? [];
   const pointMarkerRadii = assignChartMarkerRadii(pointMarkers, pointRadii);
   const pointsByKey = new Map(points.map((chartPoint) => [chartPoint.key, chartPoint]));
-  const activePointKey = hoveredPointKey ?? selectedPointKey;
+  const activePointKey = printMode ? null : hoveredPointKey ?? selectedPointKey;
   const activePoint = activePointKey ? pointsByKey.get(activePointKey) ?? null : null;
   const highlightedHouses = new Set(activePointKey ? getRuledHouseNumbers(chart, activePointKey) : []);
   const angleMarkers = [
@@ -5818,14 +5825,14 @@ function ChartWheel({
   return (
     <div className="mx-auto w-full max-w-[780px] px-1 sm:px-3">
       <svg
-        className="aspect-square w-full overflow-visible"
+        className={cn("aspect-square w-full overflow-visible", printMode && "pointer-events-none")}
         viewBox="-55 -55 710 710"
         role="img"
-        aria-label="Колесо натальної карти"
+        aria-label={label}
         onClick={() => setSelectedPointKey(null)}
       >
         <defs>
-          <marker id="angle-arrowhead" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
+          <marker id={markerId} markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
             <path d="M 0 0 L 8 4 L 0 8 z" fill="context-stroke" />
           </marker>
         </defs>
@@ -5840,7 +5847,7 @@ function ChartWheel({
 
           return (
             <g className="cursor-help" key={signMeta?.key ?? index}>
-              {signMeta ? <title>{formatSignTooltip(signMeta, chart)}</title> : null}
+              {signMeta && !printMode ? <title>{formatSignTooltip(signMeta, chart)}</title> : null}
               <path
                 d={annularSectorPath(index * 30, (index + 1) * 30)}
                 fill={signMeta?.color}
@@ -5911,7 +5918,7 @@ function ChartWheel({
 
         {chart?.aspects
           .filter((aspect) => isPointVisible(visiblePointKeys, aspect.bodyA) && isPointVisible(visiblePointKeys, aspect.bodyB))
-          .slice(0, 24)
+          .slice(0, printMode ? undefined : 24)
           .map((aspect) => {
             const pointA = pointsByKey.get(aspect.bodyA);
             const pointB = pointsByKey.get(aspect.bodyB);
@@ -5962,8 +5969,8 @@ function ChartWheel({
             <g
               className="cursor-pointer outline-none"
               key={`angle-${anglePoint.key}`}
-              role="button"
-              tabIndex={0}
+              role={printMode ? undefined : "button"}
+              tabIndex={printMode ? undefined : 0}
               onBlur={() => setHoveredPointKey(null)}
               onClick={(event) => {
                 event.stopPropagation();
@@ -5979,13 +5986,13 @@ function ChartWheel({
                 }
               }}
             >
-              {fullAnglePoint ? <title>{formatPointTooltip(fullAnglePoint, chart)}</title> : null}
+              {fullAnglePoint && !printMode ? <title>{formatPointTooltip(fullAnglePoint, chart)}</title> : null}
               <line
                 x1={tail.x}
                 y1={tail.y}
                 x2={head.x}
                 y2={head.y}
-                markerEnd="url(#angle-arrowhead)"
+                markerEnd={`url(#${markerId})`}
                 className={cn(isActive ? "stroke-[3]" : "stroke-[2]", getAngleStrokeClass(anglePoint.key))}
               />
               <text
@@ -6011,8 +6018,8 @@ function ChartWheel({
             <g
               className="cursor-pointer outline-none"
               key={chartPoint.key}
-              role="button"
-              tabIndex={0}
+              role={printMode ? undefined : "button"}
+              tabIndex={printMode ? undefined : 0}
               onBlur={() => setHoveredPointKey(null)}
               onClick={(event) => {
                 event.stopPropagation();
@@ -6028,7 +6035,7 @@ function ChartWheel({
                 }
               }}
             >
-              <title>{formatPointTooltip(chartPoint, chart)}</title>
+              {!printMode ? <title>{formatPointTooltip(chartPoint, chart)}</title> : null}
               <text
                 x={position.x}
                 y={position.y}
@@ -6063,7 +6070,7 @@ function ChartWheel({
         ) : null}
       </svg>
 
-      {chart ? (
+      {chart && !printMode ? (
         <div className="mt-3 grid min-h-16 gap-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
             {activePoint ? (
