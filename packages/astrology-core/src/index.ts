@@ -6,3 +6,4 @@ export * from "./interpretations";
 export * from "./preview";
 export * from "./swiss-ephemeris";
 export * from "./types";
+export * from "./event-search";

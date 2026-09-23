@@ -7,8 +7,10 @@ import {
 import type { FastifyInstance } from "fastify";
 import { env } from "../config/env";
 import { forecastPreviewSchema, natalPreviewSchema, synastryPreviewSchema, transitPreviewSchema } from "./schemas";
+import { registerEventSearchRoutes } from "./event-search";
 
 export const registerChartRoutes = async (app: FastifyInstance): Promise<void> => {
+  await registerEventSearchRoutes(app);
   app.post("/charts/natal/preview", async (request, reply) => {
     const parsed = natalPreviewSchema.safeParse(request.body);
 

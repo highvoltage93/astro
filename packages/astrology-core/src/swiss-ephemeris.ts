@@ -1619,6 +1619,22 @@ type LongitudeSample = {
 
 const toUtcIso = (utc: DateTime): string => utc.toISO({ suppressMilliseconds: false }) ?? utc.toString();
 
+// A synchronous session keeps Swiss Ephemeris settings aligned with the natal calculation.
+export const createEventSearchSession = (input: NatalCalculationInput) => {
+  const natal = calculateNatalChart(input);
+  const warnings = [...natal.warnings];
+  const flags = constants.SEFLG_SWIEPH | constants.SEFLG_SPEED | (natal.settings.zodiac === "sidereal" ? constants.SEFLG_SIDEREAL : 0);
+  return {
+    natal, warnings,
+    julianUt: (milliseconds: number) => buildJulianDate(DateTime.fromMillis(milliseconds, { zone: "utc" })).jdUt,
+    position: (milliseconds: number, pointKey: string) => {
+      const position = calculatePointPositionAt({ flags, pointKey, utc: DateTime.fromMillis(milliseconds, { zone: "utc" }), warnings });
+      if (!position || !Number.isFinite(position.longitude) || !Number.isFinite(position.speed)) throw new Error(`Позиція ${pointKey} недоступна для пошуку подій.`);
+      return { longitude: position.longitude, speed: position.speed! };
+    }
+  };
+};
+
 const clampForecastDays = (days: number | undefined): number => {
   const normalizedDays = Number.isFinite(days) ? Math.trunc(days ?? FORECAST_DEFAULT_DAYS) : FORECAST_DEFAULT_DAYS;
 

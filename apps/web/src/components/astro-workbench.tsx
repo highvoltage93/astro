@@ -1,5 +1,7 @@
 "use client";
 
+import { EventSearch } from "@/components/event-search";
+
 import {
   BookOpenText,
   Archive,
@@ -110,7 +112,7 @@ type FormState = {
 
 type PointOrbSettings = Record<string, number>;
 type VisiblePointSettings = Record<string, boolean>;
-type WorkspaceTab = "interpretation" | "forecast" | "transits" | "synastry";
+type WorkspaceTab = "interpretation" | "forecast" | "transits" | "synastry" | "events";
 type ProfessionalDataTab =
   | "signature"
   | "placements"
@@ -125,6 +127,7 @@ const workspaceTabs: Array<{ key: WorkspaceTab; label: string }> = [
   { key: "interpretation", label: "Базова трактовка" },
   { key: "forecast", label: "Прогностичний модуль" },
   { key: "transits", label: "Транзити" },
+  { key: "events", label: "Пошук подій" },
   { key: "synastry", label: "Синастрія" }
 ];
 
@@ -1792,6 +1795,9 @@ export function AstroWorkbench() {
               <WorkspaceTabList activeTab={activeWorkspaceTab} onChange={setActiveWorkspaceTab} />
 
               <div className="space-y-3" role="tabpanel">
+                <div hidden={activeWorkspaceTab !== "events"}>
+                  <EventSearch natal={buildNatalPayload()} token={authToken} disabled={status !== "ready" || orbApplyStatus === "loading"} />
+                </div>
                 {saveControls.map((control) => control.draft && control.preview && authToken ? (
                   <div key={control.draft.requestId} hidden={activeWorkspaceTab !== control.tab}>
                     <ForecastSaveControl draft={control.draft} token={authToken} disabled={control.status !== "ready" || orbApplyStatus === "loading"} />

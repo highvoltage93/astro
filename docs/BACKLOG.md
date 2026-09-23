@@ -1,5 +1,12 @@
 # Astroprocessor Backlog
 
+## Professional Event Search v1
+
+- Implemented: authenticated event search, sign ingresses, stations, lunations, global eclipse maxima, natal aspect filters, private JSON export.
+- Added but not executed: core numerical/integration scenarios and API authorization/validation scenarios.
+- Pending: independent reference fixtures, UI/runtime verification, saved event searches, consultation insertion, local eclipse visibility, and compound electional criteria.
+- Rules and limitations: [EVENT_SEARCH_UK.md](EVENT_SEARCH_UK.md).
+
 ## Prioritization
 
 - P0: required for MVP or technical correctness.
