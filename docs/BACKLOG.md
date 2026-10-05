@@ -1,5 +1,12 @@
 # Astroprocessor Backlog
 
+## Railway Production Preparation
+
+- Added: separate production images, Railway API/web/backup configuration, initial Prisma migration, production environment guards, encrypted off-site backup job.
+- Pending provider setup: Neon PITR, Railway services and domains, secrets, private S3 bucket retention, independent backup monitoring.
+- Required before public launch: actual production builds, runtime verification, dependency upgrades, abuse protection, and a successful isolated database restore drill.
+- Deployment guide: [DEPLOY_RAILWAY_UK.md](DEPLOY_RAILWAY_UK.md).
+
 ## Professional Event Search v1
 
 - Implemented: authenticated event search, sign ingresses, stations, lunations, global eclipse maxima, natal aspect filters, private JSON export.

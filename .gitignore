@@ -5,6 +5,9 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+*.dump
+*.dump.age
+*.agekey
 
 .env
 .env.local
@@ -15,3 +18,4 @@ coverage/
 
 ephemeris/*.se1
 ephemeris/**/*.se1
+ephemeris/*.part

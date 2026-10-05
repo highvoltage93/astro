@@ -120,7 +120,11 @@ Smoke-test the calculation adapter:
 SWISSEPH_EPHE_PATH="$PWD/ephemeris" corepack pnpm smoke:natal
 ```
 
-## Current Scope
+## Railway Deployment
+
+Production Dockerfiles and Railway service configurations are prepared separately from local Docker Compose. See [Railway + Neon deployment and encrypted off-site backups (Ukrainian)](docs/DEPLOY_RAILWAY_UK.md). Initial deployment, credentials, PITR, storage retention, and restore verification require setup in your own accounts. Production builds have not yet been verified.
+
+## Feature Scope
 
 Professional event search v1: sign ingresses, stations, lunations, global eclipse maxima, and natal aspect filters. Calculation rules, limitations, and deployment notes: [Ukrainian documentation](docs/EVENT_SEARCH_UK.md). New verification scenarios are included but have not been run in this implementation session.
 

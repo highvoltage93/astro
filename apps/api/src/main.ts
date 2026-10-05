@@ -19,6 +19,20 @@ const app = Fastify({
   }
 });
 
+let shuttingDown = false;
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    const deadline = setTimeout(() => process.exit(1), 10000);
+    deadline.unref();
+    void app.close().then(() => process.exit(0)).catch((error: unknown) => {
+      app.log.error(error);
+      process.exit(1);
+    });
+  });
+}
+
 const start = async (): Promise<void> => {
   await app.register(cors, {
     origin: env.corsOrigin,

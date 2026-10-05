@@ -1,0 +1,27 @@
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/astrology-core/package.json packages/astrology-core/package.json
+COPY packages/consultation-format/package.json packages/consultation-format/package.json
+RUN pnpm install --frozen-lockfile --filter @astroprocessor/api...
+COPY apps/api apps/api
+COPY packages/astrology-core packages/astrology-core
+COPY packages/consultation-format packages/consultation-format
+RUN pnpm --filter @astroprocessor/astrology-core ephemeris:download
+RUN pnpm --filter @astroprocessor/astrology-core build
+RUN pnpm --filter @astroprocessor/api prisma:generate
+RUN pnpm --filter @astroprocessor/api build
+
+FROM node:22-bookworm-slim AS runtime
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates libstdc++6 && rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production PORT=4000 SWISSEPH_EPHE_PATH=/app/ephemeris
+# Preserve pnpm workspace links and the Prisma CLI for the pre-deploy migration.
+COPY --from=build --chown=node:node /app /app
+USER node
+EXPOSE 4000
+CMD ["node", "apps/api/dist/main.js"]
