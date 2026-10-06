@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Astroprocessor backup at 02:15 UTC
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+Unit=astro-backup.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,24 @@
+{
+    email {$ACME_EMAIL}
+    admin off
+}
+
+{$SITE_HOST} {
+    encode zstd gzip
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+    route {
+        # Private beta by default. This is an IP allowlist, not application authentication.
+        @blocked not remote_ip {$ALLOWED_CLIENT_IPS}
+        respond @blocked "Private beta" 403
+        handle_path /api/* {
+            reverse_proxy api:4000
+        }
+        handle {
+            reverse_proxy web:3000
+        }
+    }
+}

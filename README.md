@@ -122,6 +122,8 @@ SWISSEPH_EPHE_PATH="$PWD/ephemeris" corepack pnpm smoke:natal
 
 ## Railway Deployment
 
+For the self-hosted Ubuntu VPS option, use [VPS deployment, HTTPS, releases and backups (Ukrainian)](docs/DEPLOY_VPS_UK.md). It includes a private-beta IP allowlist, manual GHCR image publishing, and a systemd backup timer. No server has been provisioned by these files alone.
+
 Production Dockerfiles and Railway service configurations are prepared separately from local Docker Compose. See [Railway + Neon deployment and encrypted off-site backups (Ukrainian)](docs/DEPLOY_RAILWAY_UK.md). Initial deployment, credentials, PITR, storage retention, and restore verification require setup in your own accounts. Production builds have not yet been verified.
 
 ## Feature Scope

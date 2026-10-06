@@ -8,6 +8,11 @@ coverage/
 *.dump
 *.dump.age
 *.agekey
+deploy/vps/.env*
+!deploy/vps/.env.example
+!deploy/vps/.env.backup.example
+deploy/vps/.deployed-tag
+deploy/vps/.previous-tag
 
 .env
 .env.local

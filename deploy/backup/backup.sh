@@ -11,7 +11,8 @@ done
 [[ "$BACKUP_HEALTHCHECK_URL" == https://* ]] || { echo 'Healthcheck URL must use HTTPS' >&2; exit 1; }
 [[ "$BACKUP_PREFIX" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo 'Use a simple environment prefix, e.g. astro-production' >&2; exit 1; }
 [[ "$BACKUP_AGE_RECIPIENT" == age1* ]] || { echo 'An age public recipient is required, not a private identity' >&2; exit 1; }
-export PGDATABASE="$BACKUP_DATABASE_URL" PGSSLMODE=require PGCONNECT_TIMEOUT=30
+ssl_mode=$(python3 /opt/backup/database-ssl.py)
+export PGDATABASE="$BACKUP_DATABASE_URL" PGSSLMODE="$ssl_mode" PGCONNECT_TIMEOUT=30
 export AWS_PAGER="" AWS_RETRY_MODE=standard AWS_MAX_ATTEMPTS=5
 workspace=$(mktemp -d)
 finish() {

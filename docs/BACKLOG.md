@@ -1,5 +1,11 @@
 # Astroprocessor Backlog
 
+## VPS Production Preparation
+
+- Added: Compose for Ubuntu VPS, same-origin Caddy HTTPS routing, private-beta IP allowlist, separate database roles, manual GHCR publishing and deployment scripts, systemd off-site backups.
+- Pending: server address/SSH access, DNS, external storage and monitoring credentials, first builds, real deployment and isolated restore drill.
+- Runbook: [DEPLOY_VPS_UK.md](DEPLOY_VPS_UK.md).
+
 ## Railway Production Preparation
 
 - Added: separate production images, Railway API/web/backup configuration, initial Prisma migration, production environment guards, encrypted off-site backup job.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Astroprocessor encrypted off-site database backup
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/astro/deploy/vps
+ExecStart=/bin/bash /opt/astro/deploy/vps/run-backup.sh
+TimeoutStartSec=50min
+UMask=0077

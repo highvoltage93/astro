@@ -1,0 +1,133 @@
+name: astroprocessor-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: astroprocessor
+      POSTGRES_USER: astro_owner
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Set APP_DB_PASSWORD}
+      BACKUP_DB_PASSWORD: ${BACKUP_DB_PASSWORD:?Set BACKUP_DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+    networks: [database]
+    mem_limit: 640m
+    shm_size: 128m
+    command: [postgres, -c, max_connections=40, -c, shared_buffers=128MB, -c, work_mem=4MB]
+    logging: *logging
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    stop_grace_period: 60s
+
+  api:
+    image: ${IMAGE_PREFIX:?Set IMAGE_PREFIX}-api:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      NODE_OPTIONS: --max-old-space-size=1024
+      DATABASE_URL: postgresql://astro_app:${APP_DB_PASSWORD}@postgres:5432/astroprocessor?sslmode=disable&connection_limit=5&pool_timeout=20
+      ALLOW_PRIVATE_DATABASE: "true"
+      CORS_ORIGIN: https://${SITE_HOST:?Set SITE_HOST}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      SWISSEPH_EPHE_PATH: /app/ephemeris
+    networks: [database, edge]
+    depends_on:
+      postgres: {condition: service_healthy}
+    mem_limit: 1536m
+    init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4000/health/db',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 6s
+      retries: 5
+      start_period: 30s
+    stop_grace_period: 30s
+
+  web:
+    image: ${IMAGE_PREFIX}-web:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      NODE_OPTIONS: --max-old-space-size=384
+    networks: [edge]
+    mem_limit: 640m
+    init: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/login',{signal:AbortSignal.timeout(5000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 6s
+      retries: 5
+      start_period: 30s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_HOST: ${SITE_HOST}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+      ALLOWED_CLIENT_IPS: ${ALLOWED_CLIENT_IPS:-127.0.0.1/32 ::1/128}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    mem_limit: 128m
+    logging: *logging
+    depends_on:
+      api: {condition: service_healthy}
+      web: {condition: service_healthy}
+
+  migrate:
+    image: ${IMAGE_PREFIX}-api:${IMAGE_TAG}
+    profiles: [ops]
+    environment:
+      MIGRATION_DATABASE_URL: postgresql://astro_owner:${POSTGRES_PASSWORD}@postgres:5432/astroprocessor?sslmode=disable
+      ALLOW_PRIVATE_DATABASE: "true"
+    command: [node, apps/api/scripts/migrate-deploy.mjs]
+    networks: [database]
+    mem_limit: 512m
+    logging: *logging
+
+  backup:
+    image: ${IMAGE_PREFIX}-backup:${IMAGE_TAG}
+    profiles: [ops]
+    env_file: .env.backup
+    environment:
+      BACKUP_DATABASE_URL: postgresql://astro_backup:${BACKUP_DB_PASSWORD}@postgres:5432/astroprocessor?sslmode=disable
+      ALLOW_PRIVATE_DATABASE: "true"
+    networks: [database, backup-egress]
+    mem_limit: 384m
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+
+networks:
+  database: {internal: true}
+  edge: {}
+  backup-egress: {}
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
