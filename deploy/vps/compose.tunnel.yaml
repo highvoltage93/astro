@@ -1,0 +1,29 @@
+# Use via test-tunnel.sh; never publish the gateway's HTTP port.
+services:
+  api:
+    environment:
+      CORS_ORIGIN: ${TUNNEL_ORIGIN:-https://localhost}
+
+  test-gateway:
+    image: caddy:2-alpine
+    restart: "no"
+    command: [caddy, run, --config, /etc/caddy/Caddyfile]
+    volumes:
+      - ./Caddyfile.tunnel:/etc/caddy/Caddyfile:ro
+    networks: [edge]
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+  test-tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: "no"
+    command: [tunnel, --no-autoupdate, --url, "http://test-gateway:8080"]
+    networks: [edge]
+    mem_limit: 192m
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
