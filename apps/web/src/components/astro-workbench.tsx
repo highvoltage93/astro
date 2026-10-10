@@ -57,6 +57,7 @@ import {
   requestSynastryPreview,
   requestTransitPreview,
   saveBirthProfile,
+  updateBirthProfileCalculation,
   searchPlaces,
   shareBirthProfile
 } from "@/lib/api";
@@ -1168,6 +1169,7 @@ export function AstroWorkbench() {
     settingsRequestInFlight.current = true;
     setOrbApplyStatus("loading");
     setOrbApplyError(null);
+    const profileIdToUpdate = isCurrentProfileOwned ? savedProfileId : null;
 
     try {
       const nextForm = { ...form, houseSystem: config.houseSystem, zodiac: config.zodiac };
@@ -1178,7 +1180,9 @@ export function AstroWorkbench() {
         visiblePointKeys: config.visiblePointKeys
       };
       const [chartResult, interpretationResult] = await Promise.allSettled([
-        requestNatalPreview(payload),
+        profileIdToUpdate
+          ? updateBirthProfileCalculation(profileIdToUpdate, { ...config, calculationProfile: reference }, authToken)
+          : requestNatalPreview(payload),
         requestNatalInterpretation(payload)
       ]);
 
@@ -1217,10 +1221,10 @@ export function AstroWorkbench() {
       setSynastryPreview(null);
       setSynastryError(null);
       setSynastryStatus("idle");
-      setSaveStatus("idle");
+      setSaveStatus(profileIdToUpdate ? "saved" : "idle");
       setSaveError(null);
-      setSavedProfileId(null);
-      setIsCurrentProfileOwned(false);
+      setSavedProfileId(profileIdToUpdate);
+      setIsCurrentProfileOwned(Boolean(profileIdToUpdate));
       setShareStatus("idle");
       setError(null);
       setStatus("ready");

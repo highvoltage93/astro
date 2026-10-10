@@ -224,6 +224,22 @@ export const saveBirthProfile = async (
   return response.json() as Promise<SaveBirthProfileResult>;
 };
 
+export const updateBirthProfileCalculation = async (
+  id: string,
+  payload: CalculationProfileConfig & { calculationProfile?: NatalPreviewPayload["calculationProfile"] },
+  token?: string | null
+): Promise<ChartResult> => {
+  const response = await fetch(`${API_URL}/birth-profiles/${encodeURIComponent(id)}/calculation`, {
+    method: "PUT",
+    headers: jsonHeaders(token),
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error(`Не вдалося зберегти налаштування карти (${response.status}). Спробуйте ще раз.`);
+  }
+  return response.json() as Promise<ChartResult>;
+};
+
 export const listBirthProfiles = async (token?: string | null): Promise<ListBirthProfilesResponse> => {
   const response = await fetch(`${API_URL}/birth-profiles?limit=10`, {
     headers: authHeaders(token)

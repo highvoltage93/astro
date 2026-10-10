@@ -45,6 +45,15 @@ const birthProfileParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+const calculationSettingsSchema = createBirthProfileSchema.pick({
+  houseSystem: true,
+  zodiac: true,
+  pointOrbs: true,
+  calculationRules: true,
+  calculationProfile: true,
+  visiblePointKeys: true
+}).required({ houseSystem: true, zodiac: true, pointOrbs: true });
+
 const toDateOnly = (date: string): Date => new Date(`${date}T00:00:00.000Z`);
 
 const formatDateOnly = (date: Date): string => date.toISOString().slice(0, 10);
@@ -55,7 +64,77 @@ const hashInput = (input: unknown): string =>
 const toJson = (input: unknown): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(input)) as Prisma.InputJsonValue;
 
-export const registerBirthProfileRoutes = async (app: FastifyInstance): Promise<void> => {
+export type BirthProfileDependencies = {
+  database: typeof prisma;
+  authenticate: typeof getOptionalAuthUser;
+  calculate: typeof calculateNatalChart;
+};
+
+export const registerBirthProfileRoutes = async (
+  app: FastifyInstance,
+  dependencies: Partial<BirthProfileDependencies> = {}
+): Promise<void> => {
+  const database = dependencies.database ?? prisma;
+  const authenticate = dependencies.authenticate ?? getOptionalAuthUser;
+  const calculate = dependencies.calculate ?? calculateNatalChart;
+
+  app.put("/birth-profiles/:id/calculation", async (request, reply) => {
+    const user = await authenticate(request);
+    if (!user) return reply.code(401).send({ message: "Authentication is required" });
+    const params = birthProfileParamsSchema.safeParse(request.params);
+    const settings = calculationSettingsSchema.safeParse(request.body);
+    if (!params.success || !settings.success) {
+      return reply.code(400).send({ message: "Invalid calculation settings" });
+    }
+
+    const profile = await database.birthProfile.findFirst({
+      where: { id: params.data.id, ownerUserId: user.id }
+    });
+    if (!profile) return reply.code(404).send({ message: "Birth profile was not found" });
+
+    // Birth data comes from the owned record, never from a settings request.
+    const input = {
+      birthDate: formatDateOnly(profile.birthDate),
+      birthTime: profile.birthTime ?? "12:00:00",
+      birthTimeKnown: profile.birthTimeKnown,
+      timezone: profile.timezone,
+      latitude: profile.latitude,
+      longitude: profile.longitude,
+      ...settings.data
+    };
+    let chart: ChartResult;
+    try {
+      chart = calculate({ ...input, ephemerisPath: env.swissEphEphePath });
+    } catch (error) {
+      return reply.code(422).send({
+        message: error instanceof Error ? error.message : "Unable to calculate natal chart"
+      });
+    }
+
+    // Append a calculation snapshot atomically, keeping the profile ID and visibility.
+    await database.birthProfile.update({
+      where: { id: profile.id, ownerUserId: user.id },
+      data: {
+        calculations: {
+          create: {
+            chartType: "NATAL",
+            zodiacType: chart.settings.zodiac,
+            ayanamsa: chart.settings.ayanamsa,
+            houseSystem: chart.settings.houseSystem,
+            calculationEngineVersion: `${chart.engine.name}@${chart.engine.version}`,
+            inputHash: hashInput(input),
+            settingsJson: toJson(chart.settings),
+            resultJson: toJson(chart),
+            warningsJson: toJson(chart.warnings)
+          }
+        }
+      },
+      select: { id: true }
+    });
+    reply.header("Cache-Control", "private, no-store");
+    return chart;
+  });
+
   app.get("/birth-profiles", async (request, reply) => {
     const authUser = await getOptionalAuthUser(request);
     const parsed = listBirthProfilesSchema.safeParse(request.query);
