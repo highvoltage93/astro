@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ChevronDown, FolderOpen, LogOut, MapPin, RefreshCw, Search } from "lucide-react";
+import { Archive, ChevronDown, FolderOpen, LockKeyhole, LogOut, MapPin, RefreshCw, Search, UnlockKeyhole } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -21,6 +21,7 @@ import type { CalculationProfile } from "@/lib/calculation-profiles";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import type { AuthUser, NatalPreviewPayload, PlaceSearchResult, SavedBirthProfile } from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
+import { birthTimezoneOffsetHours, fixedTimezoneFromHours } from "@/lib/birth-timezone";
 
 type DashboardFormState = {
   displayName: string;
@@ -66,6 +67,11 @@ const formatSavedProfileCreatedAt = (createdAt: string): string =>
 export function AstroDashboard() {
   const router = useRouter();
   const [form, setForm] = useState<DashboardFormState>(initialDashboardForm);
+  // Keep the location's IANA zone separate so unlocking restores automatic DST rules.
+  const [lockedTimezoneHours, setLockedTimezoneHours] = useState<string | null>(null);
+  const automaticTimezoneHours = birthTimezoneOffsetHours(form.birthDate, form.birthTime, form.birthTimeKnown, form.timezone);
+  const fixedTimezone = lockedTimezoneHours === null ? null : fixedTimezoneFromHours(lockedTimezoneHours);
+  const timezoneInvalid = lockedTimezoneHours === null ? automaticTimezoneHours === null : fixedTimezone === null;
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -77,6 +83,10 @@ export function AstroDashboard() {
   const [placeResults, setPlaceResults] = useState<PlaceSearchResult[]>([]);
   const [placeSearchStatus, setPlaceSearchStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [placeError, setPlaceError] = useState<string | null>(null);
+  const [placeQuery, setPlaceQuery] = useState<string | null>(null);
+  const [placeSearchAttempt, setPlaceSearchAttempt] = useState(0);
+  const placeRequest = useRef<AbortController | null>(null);
+  const placeField = useRef<HTMLDivElement | null>(null);
   const [calculationStatus, setCalculationStatus] = useState<"idle" | "loading" | "error">("idle");
   const [calculationError, setCalculationError] = useState<string | null>(null);
   const [calculationProfiles, setCalculationProfiles] = useState<CalculationProfile[]>([]);
@@ -86,6 +96,41 @@ export function AstroDashboard() {
   const [profilesReload, setProfilesReload] = useState(0);
   const profileSettingsTouched = useRef(false);
   const profileSelection = useRef<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    placeRequest.current = controller;
+    const query = placeQuery?.trim() ?? "";
+    if (query.length < 2) {
+      setPlaceResults([]);
+      setPlaceError(null);
+      setPlaceSearchStatus("idle");
+      return () => controller.abort();
+    }
+    setPlaceSearchStatus("loading");
+    setPlaceError(null);
+    const timeout = window.setTimeout(() => {
+      void searchPlaces(query, controller.signal).then((response) => {
+        if (controller.signal.aborted) return;
+        setPlaceResults(response.results);
+        setPlaceSearchStatus("ready");
+      }).catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setPlaceResults([]);
+        setPlaceError(error instanceof Error ? error.message : "Не вдалося знайти місто.");
+        setPlaceSearchStatus("error");
+      });
+    }, 350);
+    return () => { window.clearTimeout(timeout); controller.abort(); };
+  }, [placeQuery, placeSearchAttempt]);
+
+  const closePlaceSuggestions = (): void => {
+    placeRequest.current?.abort();
+    setPlaceQuery(null);
+    setPlaceResults([]);
+    setPlaceError(null);
+    setPlaceSearchStatus("idle");
+  };
 
   useEffect(() => {
     if (!authToken || !authUser) return;
@@ -165,33 +210,29 @@ export function AstroDashboard() {
     }));
 
     if (field === "birthplaceName") {
+      placeRequest.current?.abort();
+      setPlaceQuery(String(value));
       setPlaceResults([]);
       setPlaceError(null);
       setPlaceSearchStatus("idle");
     }
   };
 
-  const searchBirthplace = async (): Promise<void> => {
+  const searchBirthplace = (): void => {
     if (form.birthplaceName.trim().length < 2) {
       setPlaceError("Введи щонайменше 2 символи для пошуку міста.");
       setPlaceSearchStatus("error");
       return;
     }
 
-    setPlaceSearchStatus("loading");
-    setPlaceError(null);
-
-    try {
-      const response = await searchPlaces(form.birthplaceName);
-      setPlaceResults(response.results);
-      setPlaceSearchStatus("ready");
-    } catch (requestError) {
-      setPlaceSearchStatus("error");
-      setPlaceError(requestError instanceof Error ? requestError.message : "Unknown place search error");
-    }
+    placeRequest.current?.abort();
+    setPlaceResults([]);
+    setPlaceQuery(form.birthplaceName);
+    setPlaceSearchAttempt((attempt) => attempt + 1);
   };
 
   const selectBirthplace = (place: PlaceSearchResult): void => {
+    closePlaceSuggestions();
     setForm((current) => ({
       ...current,
       birthplaceName: place.displayName,
@@ -216,6 +257,9 @@ export function AstroDashboard() {
     setCalculationError(null);
 
     try {
+      if (timezoneInvalid) {
+        throw new Error("Перевір часовий пояс: зсув від −12 до +14 годин із точністю до хвилини.");
+      }
       const result = await saveBirthProfile(
         {
           displayName: form.displayName,
@@ -224,7 +268,7 @@ export function AstroDashboard() {
           birthDate: form.birthDate,
           birthTime: form.birthTime,
           birthTimeKnown: form.birthTimeKnown,
-          timezone: form.timezone,
+          timezone: fixedTimezone ?? form.timezone,
           latitude: Number(form.latitude),
           longitude: Number(form.longitude),
           houseSystem: form.houseSystem,
@@ -351,10 +395,32 @@ export function AstroDashboard() {
                   />
                 </DashboardField>
                 <DashboardField className="sm:col-span-2 lg:col-span-3" label="Місце">
+                  <div className="relative" ref={placeField}
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closePlaceSuggestions();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        closePlaceSuggestions();
+                        placeField.current?.querySelector("input")?.focus();
+                      }
+                    }}>
                   <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                     <Input
+                      aria-label="Місто народження"
+                      autoComplete="off"
                       value={form.birthplaceName}
                       onChange={(event) => updateForm("birthplaceName", event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "ArrowDown" && placeResults.length) {
+                          event.preventDefault();
+                          placeField.current?.querySelector<HTMLButtonElement>("[data-place-suggestions] button")?.focus();
+                        } else if (event.key === "Enter") {
+                          event.preventDefault();
+                          searchBirthplace();
+                        }
+                      }}
                     />
                     <Button
                       variant="secondary"
@@ -366,6 +432,22 @@ export function AstroDashboard() {
                       {placeSearchStatus === "loading" ? "Шукаю" : "Пошук"}
                     </Button>
                   </div>
+                  {placeSearchStatus !== "idle" ? (
+                    <div data-place-suggestions className="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-md border bg-popover p-1 shadow-lg"
+                      onKeyDown={(event) => {
+                        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+                        const options = Array.from(event.currentTarget.querySelectorAll("button"));
+                        const index = options.indexOf(document.activeElement as HTMLButtonElement);
+                        if (index < 0) return;
+                        event.preventDefault();
+                        const next = index + (event.key === "ArrowDown" ? 1 : -1);
+                        if (next < 0) placeField.current?.querySelector("input")?.focus();
+                        else options[Math.min(next, options.length - 1)]?.focus();
+                      }}>
+                      <DashboardPlaceSearchPanel error={placeError} results={placeResults} status={placeSearchStatus} onSelect={selectBirthplace} />
+                    </div>
+                  ) : null}
+                  </div>
                 </DashboardField>
                 <label className="flex min-h-10 items-center gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm sm:col-span-2 lg:col-span-2 lg:self-end">
                   <Checkbox
@@ -375,23 +457,35 @@ export function AstroDashboard() {
                   <span>Час відомий</span>
                 </label>
 
-                <div className="sm:col-span-2 lg:col-span-12">
-                  <DashboardPlaceSearchPanel
-                    error={placeError}
-                    results={placeResults}
-                    status={placeSearchStatus}
-                    onSelect={selectBirthplace}
-                  />
-                </div>
-
                 <DashboardField className="lg:col-span-2" label="Широта">
                   <Input value={form.latitude} onChange={(event) => updateForm("latitude", event.target.value)} />
                 </DashboardField>
                 <DashboardField className="lg:col-span-2" label="Довгота">
                   <Input value={form.longitude} onChange={(event) => updateForm("longitude", event.target.value)} />
                 </DashboardField>
-                <DashboardField className="sm:col-span-2 lg:col-span-3" label="Часовий пояс">
-                  <Input value={form.timezone} onChange={(event) => updateForm("timezone", event.target.value)} />
+                <DashboardField className="sm:col-span-2 lg:col-span-3" label="Часовий пояс · години від UTC">
+                  <div className="flex min-w-0 gap-2">
+                    <Input
+                      aria-label="Зсув від UTC у годинах"
+                      aria-invalid={timezoneInvalid}
+                      inputMode="decimal"
+                      value={lockedTimezoneHours ?? (automaticTimezoneHours === null ? "" : String(automaticTimezoneHours))}
+                      onChange={(event) => setLockedTimezoneHours(event.target.value)}
+                    />
+                    <Button
+                      className="shrink-0"
+                      size="icon"
+                      variant={lockedTimezoneHours === null ? "secondary" : "default"}
+                      type="button"
+                      aria-pressed={lockedTimezoneHours !== null}
+                      aria-label={lockedTimezoneHours === null ? "Зафіксувати часовий пояс" : "Автоматичний часовий пояс за місцем і датою"}
+                      title={lockedTimezoneHours === null ? "Зафіксувати часовий пояс" : "Автоматичний часовий пояс за місцем і датою"}
+                      disabled={lockedTimezoneHours === null && automaticTimezoneHours === null}
+                      onClick={() => setLockedTimezoneHours(lockedTimezoneHours === null ? String(automaticTimezoneHours) : null)}
+                    >
+                      {lockedTimezoneHours === null ? <UnlockKeyhole /> : <LockKeyhole />}
+                    </Button>
+                  </div>
                 </DashboardField>
                 <DashboardField className="lg:col-span-2" label="Система домів">
                   <Select value={form.houseSystem} onValueChange={(value) => updateForm("houseSystem", value)}>
@@ -555,7 +649,10 @@ function DashboardPlaceSearchPanel({
   status: "idle" | "loading" | "ready" | "error";
   onSelect: (place: PlaceSearchResult) => void;
 }) {
-  if (status === "idle" || status === "loading") {
+  if (status === "loading") {
+    return <p role="status" className="px-3 py-2 text-sm text-muted-foreground">Шукаю міста...</p>;
+  }
+  if (status === "idle") {
     return null;
   }
 
@@ -576,7 +673,7 @@ function DashboardPlaceSearchPanel({
   }
 
   return (
-    <div className="grid gap-2 rounded-lg border bg-background p-2 md:grid-cols-2">
+    <div className="grid gap-1">
       {results.map((place) => (
         <button
           className="grid gap-1 rounded-md px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

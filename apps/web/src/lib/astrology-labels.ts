@@ -2,7 +2,7 @@ export const planetLabelsUk: Record<string, string> = {
   sun: "Сонце", moon: "Місяць", mercury: "Меркурій", venus: "Венера", mars: "Марс",
   jupiter: "Юпітер", saturn: "Сатурн", uranus: "Уран", neptune: "Нептун", pluto: "Плутон",
   "north-node": "Північний вузол", "south-node": "Південний вузол", chiron: "Хірон", lilith: "Ліліт",
-  asc: "Асцендент", desc: "Десцендент", ic: "Надир", mc: "Середина неба"
+  asc: "Асцендент", desc: "Десцендент", ic: "Ісцендент", mc: "Месцендент"
 };
 export const signLabelsUk: Record<string, string> = {
   aries: "Овен", taurus: "Телець", gemini: "Близнюки", cancer: "Рак", leo: "Лев", virgo: "Діва",

@@ -296,13 +296,13 @@ export const deleteBirthProfile = async (
   return response.json() as Promise<DeleteBirthProfileResponse>;
 };
 
-export const searchPlaces = async (query: string): Promise<PlaceSearchResponse> => {
+export const searchPlaces = async (query: string, signal?: AbortSignal): Promise<PlaceSearchResponse> => {
   const params = new URLSearchParams({
     query,
     language: "uk",
     count: "8"
   });
-  const response = await fetch(`${API_URL}/places/search?${params.toString()}`);
+  const response = await fetch(`${API_URL}/places/search?${params.toString()}`, { signal });
 
   if (!response.ok) {
     throw new Error(`API responded with ${response.status}`);

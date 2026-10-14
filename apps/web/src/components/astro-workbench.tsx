@@ -1,6 +1,7 @@
 "use client";
 
 import { EventSearch } from "@/components/event-search";
+import { ReturnPlaceSearch } from "@/components/return-place-search";
 
 import {
   BookOpenText,
@@ -42,6 +43,7 @@ import { CalculationProfilesEditor } from "@/components/calculation-profiles-edi
 import { ConsultationPanel } from "@/components/consultations";
 import { planetLabelsUk, signLabelsUk, aspectLabels } from "@/lib/astrology-labels";
 import { legacyCalculationRules, rulershipModelLabels } from "@/lib/calculation-profiles";
+import { calculateSignatureFields } from "@/lib/signature-fields";
 import type { CalculationProfileConfig, CalculationProfileReference, CalculationRules } from "@/lib/calculation-profiles";
 import type { ForecastArchiveDraft, ForecastSubject, SavedForecast } from "@/lib/forecast-archive";
 import { createForecastRequestId, forecastKindLabels, resolveForecastDateTime, toForecastDateTimeInput } from "@/lib/forecast-archive";
@@ -198,20 +200,20 @@ const planetGlyphs: Record<string, string> = {
 };
 
 const defaultPointOrbs: PointOrbSettings = {
-  sun: 8,
-  moon: 8,
-  mercury: 6,
-  venus: 6,
-  mars: 6,
-  jupiter: 6,
-  saturn: 6,
-  uranus: 5,
-  neptune: 5,
-  pluto: 5,
-  "north-node": 3,
-  "south-node": 3,
+  sun: 8.5,
+  moon: 8.5,
+  mercury: 8.5,
+  venus: 8.5,
+  mars: 8.5,
+  jupiter: 8.5,
+  saturn: 9,
+  uranus: 8.5,
+  neptune: 8.5,
+  pluto: 6.5,
+  "north-node": 5,
+  "south-node": 5,
   chiron: 3,
-  lilith: 3,
+  lilith: 5,
   asc: 5,
   mc: 5
 };
@@ -457,7 +459,7 @@ const transitStrengthLabelsUk: Record<string, string> = {
 
 const forecastTimelineSourceLabelsUk: Record<ForecastTimelineSource, string> = {
   transit: "Транзит",
-  "secondary-progression": "Прогресія",
+  "secondary-progression": "Повільні прогресії",
   "solar-arc": "Солярна дуга",
   "solar-return": "Соляр",
   "lunar-return": "Лунар"
@@ -526,6 +528,11 @@ const formatDateTimeCompact = (dateTime: string | null): string => {
     minute: "2-digit"
   }).format(new Date(dateTime));
 };
+
+const formatReturnMoment = (value: string): string => `${new Intl.DateTimeFormat("uk-UA", {
+  year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZone: "UTC"
+}).format(new Date(value))} UTC`;
 
 const formatActiveWindow = ({
   activeFrom,
@@ -733,6 +740,7 @@ export function AstroWorkbench() {
   const [forecastDays, setForecastDays] = useState("90");
   const [solarReturnLatitude, setSolarReturnLatitude] = useState(initialForm.latitude);
   const [solarReturnLongitude, setSolarReturnLongitude] = useState(initialForm.longitude);
+  const [solarReturnPlaceName, setSolarReturnPlaceName] = useState(initialForm.birthplaceName);
   const [forecastPreview, setForecastPreview] = useState<ForecastPreviewResult | null>(null);
   const [synastryPreview, setSynastryPreview] = useState<SynastryPreviewResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -764,7 +772,7 @@ export function AstroWorkbench() {
 
   const previewInputs = {
     transits: [form, pointOrbs, calculationRules, transitDateTime],
-    forecast: [form, pointOrbs, calculationRules, forecastFromDateTime, forecastTargetYear, forecastDays, solarReturnLatitude, solarReturnLongitude],
+    forecast: [form, pointOrbs, calculationRules, forecastFromDateTime, forecastTargetYear, forecastDays, solarReturnLatitude, solarReturnLongitude, solarReturnPlaceName],
     synastry: [form, partnerForm, pointOrbs, calculationRules]
   };
   const latestPreviewInputs = useRef(previewInputs);
@@ -1077,6 +1085,7 @@ export function AstroWorkbench() {
       });
       setSolarReturnLatitude(String(detailedProfile.latitude));
       setSolarReturnLongitude(String(detailedProfile.longitude));
+      setSolarReturnPlaceName(detailedProfile.birthplaceName);
       setPointOrbs(calculation?.result.settings.pointOrbs ?? defaultPointOrbs);
       setCalculationRules(calculation?.result.settings.calculationRules ?? legacyCalculationRules());
       setCalculationProfile(calculation?.result.settings.calculationProfile);
@@ -1123,7 +1132,7 @@ export function AstroWorkbench() {
     await loadSavedProfileById(profile.id);
   };
 
-  const calculateNatalChartFromPayload = async (payload: NatalPreviewPayload): Promise<void> => {
+  const calculateNatalChartFromPayload = async (payload: NatalPreviewPayload, placeName = form.birthplaceName): Promise<void> => {
     setStatus("loading");
     setError(null);
     setInterpretationError(null);
@@ -1146,6 +1155,7 @@ export function AstroWorkbench() {
       setChart(chartResult.value);
       setSolarReturnLatitude(String(payload.latitude));
       setSolarReturnLongitude(String(payload.longitude));
+      setSolarReturnPlaceName(placeName);
 
       if (interpretationResult.status === "fulfilled") {
         setInterpretation(interpretationResult.value);
@@ -1298,7 +1308,7 @@ export function AstroWorkbench() {
       setPlaceError(null);
       setPlaceSearchStatus("idle");
       setActiveWorkspaceTab("interpretation");
-      void calculateNatalChartFromPayload(draft.natal);
+      void calculateNatalChartFromPayload(draft.natal, draft.birthplaceName);
     } catch {
       setStatus("error");
       setError("Не вдалося відкрити розрахунок з дешборду.");
@@ -1331,6 +1341,7 @@ export function AstroWorkbench() {
         setVisiblePointKeys({ ...defaultVisiblePointKeys, ...record.input.context.visiblePointKeys });
         setSolarReturnLatitude(String(natal.latitude));
         setSolarReturnLongitude(String(natal.longitude));
+        setSolarReturnPlaceName(record.input.context.subject.birthplaceName);
         setStatus("ready");
         setLoadedForecast(record);
         setForecastDrafts({});
@@ -1341,6 +1352,11 @@ export function AstroWorkbench() {
           setForecastDays(String(parameters.days ?? 90));
           setSolarReturnLatitude(String(parameters.returnLatitude ?? natal.latitude));
           setSolarReturnLongitude(String(parameters.returnLongitude ?? natal.longitude));
+          setSolarReturnPlaceName(record.input.context.returnPlaceName ?? (
+            (parameters.returnLatitude ?? natal.latitude) === natal.latitude &&
+            (parameters.returnLongitude ?? natal.longitude) === natal.longitude
+              ? record.input.context.subject.birthplaceName : ""
+          ));
           setForecastPreview(record.result);
           setForecastStatus("ready");
           setActiveWorkspaceTab("forecast");
@@ -1586,7 +1602,7 @@ export function AstroWorkbench() {
       setForecastDrafts((current) => ({ ...current, forecast: {
         requestId: createForecastRequestId(),
         title: `Прогноз ${parsedTargetYear}: ${form.displayName}`.slice(0, 120),
-        input: { kind: "forecast", parameters, context: { subject: archiveSubject(form), visiblePointKeys } }
+        input: { kind: "forecast", parameters, context: { subject: archiveSubject(form), visiblePointKeys, returnPlaceName: solarReturnPlaceName } }
       } }));
       setForecastStatus("ready");
     } catch (requestError) {
@@ -1739,6 +1755,21 @@ export function AstroWorkbench() {
                     {chart?.settings.houseSystem ?? "koch"}
                   </CardDescription>
                   <CardTitle className="truncate">{form.displayName}</CardTitle>
+                  {chart && !loadingProfileId ? (
+                    <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground" aria-label="Натальні дані відкритої карти">
+                      <time dateTime={form.birthDate} className="whitespace-nowrap tabular-nums">
+                        {new Intl.DateTimeFormat("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(new Date(`${form.birthDate}T12:00:00Z`))}
+                      </time>
+                      <span aria-hidden="true">·</span>
+                      <span className="whitespace-nowrap tabular-nums">
+                        {form.birthTimeKnown ? (form.birthTime.length === 5 ? `${form.birthTime}:00` : form.birthTime) : "Час невідомий"}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere]">{form.birthplaceName || "Місце не вказано"}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="min-w-0 break-words [overflow-wrap:anywhere]" title="Часовий пояс народження">{form.timezone}</span>
+                    </p>
+                  ) : null}
                   <p className="break-words text-xs text-muted-foreground">
                     {calculationProfile ? `${calculationProfile.name} · v${calculationProfile.revision}` : rulershipModelLabels[calculationRules.rulershipModel]}
                   </p>
@@ -1830,6 +1861,7 @@ export function AstroWorkbench() {
                     status={forecastStatus}
                     returnLatitude={solarReturnLatitude}
                     returnLongitude={solarReturnLongitude}
+                    returnPlaceName={solarReturnPlaceName}
                     targetYear={forecastTargetYear}
                     onCalculate={calculateForecast}
                     onDaysChange={(value) => {
@@ -1840,12 +1872,10 @@ export function AstroWorkbench() {
                       setForecastFromDateTime(value);
                       clearForecastState();
                     }}
-                    onReturnLatitudeChange={(value) => {
-                      setSolarReturnLatitude(value);
-                      clearForecastState();
-                    }}
-                    onReturnLongitudeChange={(value) => {
-                      setSolarReturnLongitude(value);
+                    onReturnPlaceChange={(place) => {
+                      setSolarReturnLatitude(String(place.latitude));
+                      setSolarReturnLongitude(String(place.longitude));
+                      setSolarReturnPlaceName(place.displayName);
                       clearForecastState();
                     }}
                     onTargetYearChange={(value) => {
@@ -2666,13 +2696,13 @@ function ForecastModuleCard({
   preview,
   returnLatitude,
   returnLongitude,
+  returnPlaceName,
   status,
   targetYear,
   onCalculate,
   onDaysChange,
   onFromDateTimeChange,
-  onReturnLatitudeChange,
-  onReturnLongitudeChange,
+  onReturnPlaceChange,
   onTargetYearChange
 }: {
   days: string;
@@ -2681,18 +2711,19 @@ function ForecastModuleCard({
   preview: ForecastPreviewResult | null;
   returnLatitude: string;
   returnLongitude: string;
+  returnPlaceName: string;
   status: "idle" | "loading" | "ready" | "error";
   targetYear: string;
   onCalculate: () => Promise<void>;
   onDaysChange: (value: string) => void;
   onFromDateTimeChange: (value: string) => void;
-  onReturnLatitudeChange: (value: string) => void;
-  onReturnLongitudeChange: (value: string) => void;
+  onReturnPlaceChange: (place: PlaceSearchResult) => void;
   onTargetYearChange: (value: string) => void;
 }) {
   const [activeForecastView, setActiveForecastView] = useState<
-    "overview" | "solar-return" | "timeline" | "progression" | "solar-arc" | "transits"
+    "overview" | "solar-return" | "progression" | "transits"
   >("overview");
+  const [returnPlacePending, setReturnPlacePending] = useState(false);
   const exactTransits = preview?.exactTransits ?? [];
   const highPriorityTransits = exactTransits.filter((event) => event.strength === "high").length;
 
@@ -2736,32 +2767,22 @@ function ForecastModuleCard({
             />
           </Field>
           <div className="flex items-end">
-            <Button type="button" disabled={status === "loading"} onClick={onCalculate}>
+            <Button type="button" disabled={status === "loading" || returnPlacePending} onClick={onCalculate}>
               <Activity />
               {status === "loading" ? "Рахую" : "Порахувати"}
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-[auto_1fr_1fr] sm:items-end">
-          <div className="flex min-h-10 items-center gap-2 pr-2 text-sm font-semibold">
-            <MapPin className="h-4 w-4 text-primary" />
-            Місце соляра
-          </div>
-          <Field label="Широта">
-            <Input
-              inputMode="decimal"
-              value={returnLatitude}
-              onChange={(event) => onReturnLatitudeChange(event.target.value)}
-            />
+        <div className="space-y-2 border-t pt-3">
+          <Field label="Місце соляра">
+            <ReturnPlaceSearch key={`${returnLatitude}:${returnLongitude}:${returnPlaceName}`}
+              name={returnPlaceName} onSelect={onReturnPlaceChange} onPendingChange={setReturnPlacePending} />
           </Field>
-          <Field label="Довгота">
-            <Input
-              inputMode="decimal"
-              value={returnLongitude}
-              onChange={(event) => onReturnLongitudeChange(event.target.value)}
-            />
-          </Field>
+          {returnPlacePending ? <p role="status" className="text-xs text-muted-foreground">Вибери місто зі списку.</p> : null}
+          {!returnPlaceName && !returnPlacePending ? (
+            <p className="text-xs text-muted-foreground">Збережене місце: {returnLatitude}, {returnLongitude}</p>
+          ) : null}
         </div>
 
         {error ? (
@@ -2772,7 +2793,7 @@ function ForecastModuleCard({
 
         {!preview && status !== "loading" && !error ? (
           <p className="text-sm text-muted-foreground">
-            Модуль рахує соляр, лунар, вторинні прогресії, солярну дугу і точні дати major-транзитів.
+            Прогноз ще не розраховано.
           </p>
         ) : null}
 
@@ -2782,9 +2803,7 @@ function ForecastModuleCard({
               {[
                 ["overview", "Огляд"],
                 ["solar-return", "Соляр"],
-                ["timeline", "Календар"],
-                ["progression", "Прогресії"],
-                ["solar-arc", "Солярна дуга"],
+                ["progression", "Повільні прогресії"],
                 ["transits", "Транзити"]
               ].map(([key, label]) => (
                 <button
@@ -2800,7 +2819,7 @@ function ForecastModuleCard({
                   type="button"
                   onClick={() =>
                     setActiveForecastView(
-                      key as "overview" | "solar-return" | "timeline" | "progression" | "solar-arc" | "transits"
+                      key as "overview" | "solar-return" | "progression" | "transits"
                     )
                   }
                 >
@@ -2812,7 +2831,7 @@ function ForecastModuleCard({
             {activeForecastView === "overview" ? (
               <div className="space-y-4" role="tabpanel">
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <ForecastMetric label="Соляр" value={preview.solarReturn ? formatDateTimeCompact(preview.solarReturn.exactAt) : "n/a"} />
+                  <ForecastMetric label="Соляр" value={preview.solarReturn ? formatReturnMoment(preview.solarReturn.exactAt) : "n/a"} />
                   <ForecastMetric label="Лунар" value={preview.lunarReturn ? formatDateTimeCompact(preview.lunarReturn.exactAt) : "n/a"} />
                   <ForecastMetric label="Точних транзитів" value={`${exactTransits.length} · ${highPriorityTransits} сильних`} />
                 </div>
@@ -2832,23 +2851,7 @@ function ForecastModuleCard({
 
             {activeForecastView === "solar-return" ? (
               <div role="tabpanel">
-                <SolarReturnPanel event={preview.solarReturn} natal={preview.natal} />
-              </div>
-            ) : null}
-
-            {activeForecastView === "timeline" ? (
-              <div role="tabpanel">
-                <ForecastCalendarPanel
-                  days={Number(days)}
-                  events={preview.timelineEvents}
-                  fromDateTime={fromDateTime}
-                />
-              </div>
-            ) : null}
-
-            {activeForecastView === "solar-arc" ? (
-              <div role="tabpanel">
-                <SolarArcDirectionsPanel directions={preview.solarArcDirections} />
+                <SolarReturnPanel event={preview.solarReturn} natal={preview.natal} placeName={returnPlaceName} />
               </div>
             ) : null}
 
@@ -3459,7 +3462,7 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase text-primary">Secondary progression</p>
-          <h3 className="mt-1 text-base font-semibold">Вторинні прогресії</h3>
+          <h3 className="mt-1 text-base font-semibold">Повільні прогресії</h3>
         </div>
         <Badge variant="secondary">day-for-year · орб {progression.aspectOrbDegrees.toFixed(1)}°</Badge>
       </div>
@@ -3630,7 +3633,7 @@ function ReturnEventPanel({ event, title }: { event: ReturnEvent | null; title: 
     <div className="rounded-lg border bg-muted/20 p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{title}</h3>
-        <Badge variant={event ? "secondary" : "outline"}>{event ? formatExactAt(event.exactAt) : "не знайдено"}</Badge>
+        <Badge variant={event ? "secondary" : "outline"}>{event ? formatReturnMoment(event.exactAt) : "не знайдено"}</Badge>
       </div>
       {event ? (
         <div className="grid gap-2 text-sm">
@@ -3645,7 +3648,7 @@ function ReturnEventPanel({ event, title }: { event: ReturnEvent | null; title: 
   );
 }
 
-function SolarReturnPanel({ event, natal }: { event: ReturnEvent | null; natal: ChartResult }) {
+function SolarReturnPanel({ event, natal, placeName }: { event: ReturnEvent | null; natal: ChartResult; placeName: string }) {
   if (!event) {
     return (
       <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
@@ -3664,31 +3667,33 @@ function SolarReturnPanel({ event, natal }: { event: ReturnEvent | null; natal: 
           <p className="text-xs font-semibold uppercase text-primary">Solar return</p>
           <h3 className="mt-1 text-base font-semibold">Солярна карта</h3>
         </div>
-        <Badge variant="secondary">{formatExactAt(event.exactAt)}</Badge>
+        <Badge variant="secondary">{formatReturnMoment(event.exactAt)}</Badge>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        <ForecastMetric label="Момент UTC" value={formatDateTimeCompact(event.exactAt)} />
+      <div className="grid gap-2 sm:grid-cols-2">
+        <ForecastMetric label="Момент повернення" value={formatReturnMoment(event.exactAt)} />
         <ForecastMetric
           label="Період дії"
           value={event.validUntil ? `${formatTimelineDay(event.exactAt)} — ${formatTimelineDay(event.validUntil)}` : "n/a"}
         />
         <ForecastMetric
-          label="Координати"
-          value={`${event.chart.subject.latitude.toFixed(4)}, ${event.chart.subject.longitude.toFixed(4)}`}
+          label="Місце соляра"
+          value={placeName || `${event.chart.subject.latitude.toFixed(4)}, ${event.chart.subject.longitude.toFixed(4)}`}
         />
         <ForecastMetric label="ASC соляра" value={formatPointPosition(ascendant)} />
         <ForecastMetric label="MC соляра" value={formatPointPosition(midheaven)} />
       </div>
 
-      <SolarReturnFocusPanel event={event} />
-
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(360px,0.9fr)_minmax(520px,1.1fr)]">
+      <div className="space-y-3 border-t pt-4">
+        <h4 className="text-sm font-semibold">Соляр + натал</h4>
         <SolarReturnOverlayWheel event={event} natal={natal} />
-        <SolarReturnPlacementsTable event={event} />
       </div>
-
-      <div className="grid items-start gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+      <div className="space-y-3 border-t pt-4">
+        <h4 className="text-sm font-semibold">Карта соляра</h4>
+        <ChartWheel chart={event.chart} visiblePointKeys={defaultVisiblePointKeys} label="Окрема карта соляра" />
+      </div>
+      <SolarReturnPlacementsTable event={event} />
+      <div className="grid min-w-0 gap-4">
         <SolarReturnHousesTable event={event} />
         <SolarReturnAspectsTable event={event} natal={natal} />
       </div>
@@ -4375,16 +4380,12 @@ function SolarReturnOverlayWheel({ event, natal }: { event: ReturnEvent; natal: 
       ...event.chart.angles.filter((point) => point.key === "asc" || point.key === "mc")
     ]
   };
-  const interAspects = event.returnToNatalAspects.map((aspect) => ({
-    ...aspect,
-    bodyA: aspect.bodyB,
-    bodyB: aspect.bodyA
-  }));
+  const interAspects = event.returnToNatalAspects;
   const preview: SynastryPreviewResult = {
     chartType: "synastry",
     generatedAt: event.exactAt,
-    subjectA: natalChart,
-    subjectB: solarChart,
+    subjectA: solarChart,
+    subjectB: natalChart,
     interAspects,
     summary: {
       totalAspects: interAspects.length,
@@ -4399,10 +4400,11 @@ function SolarReturnOverlayWheel({ event, natal }: { event: ReturnEvent; natal: 
   return (
     <SynastryOverlayWheel
       ariaLabel="Накладена карта наталу та соляра"
-      description="Bi-wheel · натальні й солярні доми, міжкартні аспекти"
+      description=""
+      large
       preview={preview}
-      subjectAName="Натал"
-      subjectBName="Соляр"
+      subjectAName="Соляр"
+      subjectBName="Натал"
     />
   );
 }
@@ -4433,7 +4435,7 @@ function ProgressionOverlayWheel({ progression }: { progression: SecondaryProgre
 
   return (
     <SynastryOverlayWheel
-      ariaLabel="Накладена карта наталу і вторинної прогресії"
+      ariaLabel="Накладена карта наталу і повільних прогресій"
       description="Bi-wheel · натальні доми та прогресивні планети"
       preview={preview}
       subjectAName="Натал"
@@ -4485,12 +4487,14 @@ function SynastryOverlayWheel({
   ariaLabel = "Накладена карта синастрії",
   description = "Bi-wheel · аспекти між планетами партнерів",
   preview,
+  large = false,
   subjectAName,
   subjectBName
 }: {
   ariaLabel?: string;
   description?: string;
   preview: SynastryPreviewResult;
+  large?: boolean;
   subjectAName: string;
   subjectBName: string;
 }) {
@@ -4521,14 +4525,14 @@ function SynastryOverlayWheel({
   const subjectBPoints = new Map(preview.subjectB.bodies.map((point) => [point.key, point]));
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-3">
+    <div className={large ? "min-w-0" : "rounded-lg border bg-muted/20 p-3"}>
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
         <Badge variant="secondary">{subjectAName}</Badge>
         <Badge variant="outline">{subjectBName}</Badge>
         <span className="text-muted-foreground">{description}</span>
       </div>
       <svg
-        className="mx-auto aspect-square w-full max-w-[520px] overflow-visible"
+        className={cn("mx-auto aspect-square w-full overflow-visible", large ? "max-w-[780px]" : "max-w-[520px]")}
         viewBox="-26 -26 372 372"
         role="img"
         aria-label={ariaLabel}
@@ -4760,6 +4764,9 @@ function ProfessionalDataCard({
 
 function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
   const signature = chart?.syntheticSignature;
+  const fields = chart?.houses.length
+    ? calculateSignatureFields([...chart.angles, ...chart.bodies])
+    : null;
   const polarityRows =
     signature?.scores.polarities && signature.scores.polarities.length > 0
       ? signature.scores.polarities
@@ -4809,14 +4816,6 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
       </div>
       <div className="grid gap-3">
         <SyntheticScoreGroup
-          label="Топ знаків"
-          rows={signature.scores.signs.slice(0, 4).map((row) => ({
-            ...row,
-            label: signLabelsUk[row.key] ?? row.key
-          }))}
-          total={signature.scores.total}
-        />
-        <SyntheticScoreGroup
           label="Стихії"
           rows={signature.scores.elements.map((row) => ({
             ...row,
@@ -4842,6 +4841,18 @@ function SyntheticSignatureCard({ chart }: { chart: ChartResult | null }) {
             total={signature.scores.total}
           />
         ) : null}
+        {fields && fields.total > 0 ? (
+          <>
+            <SyntheticScoreGroup label="Нічні та денні поля" rows={fields.dayNight} total={fields.total} />
+            <SyntheticScoreGroup label="Східні та західні поля" rows={fields.eastWest} total={fields.total} />
+            <SyntheticScoreGroup label="Квадранти" rows={fields.quadrants} total={fields.total} />
+            {fields.unassigned > 0 ? (
+              <p className="text-xs text-muted-foreground">Без визначеного дому: {fields.unassigned.toFixed(1)} балів.</p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">Поля та квадранти недоступні: доми карти не визначені.</p>
+        )}
       </div>
     </div>
   );
@@ -5749,6 +5760,8 @@ function assignChartMarkerRadii(points: ChartPoint[], radii: number[], minimumSe
   return result;
 }
 
+const houseRomanNumerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+
 export function ChartWheel({
   chart,
   visiblePointKeys,
@@ -5770,7 +5783,8 @@ export function ChartWheel({
   const pointRadii = [200, 181, 162, 143];
   const outerPointRadius = pointRadii[0] ?? 200;
   const innerPointRadius = pointRadii[pointRadii.length - 1] ?? 143;
-  const houseLabelRadius = 122;
+  const cuspOuterRadius = outerRadius + 16;
+  const houseLabelRadius = outerRadius + 30;
   const aspectRadius = 100;
   const ascendant = chart?.angles.find((angle) => angle.key === "asc") ?? null;
   const midheaven = chart?.angles.find((angle) => angle.key === "mc") ?? null;
@@ -5886,14 +5900,11 @@ export function ChartWheel({
           className="fill-background stroke-border stroke-[1.2]"
         />
 
-        {chart?.houses.map((cusp, index) => {
-          const next = chart.houses[(index + 1) % chart.houses.length];
-          const start = toXY(cusp.longitude, zodiacInnerRadius);
+        {chart?.houses.map((cusp) => {
+          const start = toXY(cusp.longitude, cuspOuterRadius);
           const end = toXY(cusp.longitude, aspectRadius);
-          const houseCenterLongitude = next
-            ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
-            : cusp.longitude;
-          const label = toXY(houseCenterLongitude, houseLabelRadius);
+          // Offset the label into its house so axis arrows remain unobstructed.
+          const label = toXY(normalizeDegrees(cusp.longitude + 4), houseLabelRadius);
           const isHighlightedHouse = highlightedHouses.has(cusp.house);
 
           return (
@@ -5906,21 +5917,15 @@ export function ChartWheel({
                 y2={end.y}
                 className={cn("stroke-astro-coral", isHighlightedHouse ? "stroke-[2.4]" : "stroke-[1.1] opacity-75")}
               />
-              <circle
-                cx={label.x}
-                cy={label.y}
-                r="11"
-                className={cn(
-                  "stroke-astro-coral stroke-[1]",
-                  isHighlightedHouse ? "fill-astro-coral/20" : "fill-background"
-                )}
-              />
               <text
                 x={label.x}
                 y={label.y}
-                className="fill-astro-coral text-[10px] font-bold [dominant-baseline:middle] [text-anchor:middle]"
+                className={cn(
+                  "fill-astro-coral stroke-background [paint-order:stroke] [stroke-width:3px] font-bold [dominant-baseline:middle] [text-anchor:middle]",
+                  isHighlightedHouse ? "text-[14px]" : "text-[12px]"
+                )}
               >
-                {cusp.house}
+                {houseRomanNumerals[cusp.house - 1] ?? cusp.house}
               </text>
             </g>
           );

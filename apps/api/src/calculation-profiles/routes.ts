@@ -1,4 +1,4 @@
-import { defaultCalculationRules, type RulershipModel } from "@astroprocessor/astrology-core";
+import { DEFAULT_POINT_ORBS, defaultCalculationRules, type RulershipModel } from "@astroprocessor/astrology-core";
 import { Prisma, type CalculationProfile } from "@prisma/client";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -6,16 +6,13 @@ import { getOptionalAuthUser } from "../auth/service";
 import { prisma } from "../prisma/client";
 import { saveCalculationProfileSchema, updateCalculationProfileSchema } from "./schemas";
 
-const pointOrbs = {
-  sun: 8, moon: 8, mercury: 6, venus: 6, mars: 6, jupiter: 6, saturn: 6,
-  uranus: 5, neptune: 5, pluto: 5, "north-node": 3, "south-node": 3, chiron: 3, lilith: 3, asc: 5, mc: 5
-};
+const pointOrbs = { ...DEFAULT_POINT_ORBS };
 const builtins = ([
   ["astroprocessor", "Astroprocessor: поточні правила"],
   ["traditional", "Традиційні управителі"],
   ["modern", "Сучасні управителі"]
 ] as Array<[RulershipModel, string]>).map(([model, name]) => ({
-  id: `builtin:${model}:1`, name, revision: 1, schemaVersion: 1, builtIn: true,
+  id: `builtin:${model}:2`, name, revision: 2, schemaVersion: 1, builtIn: true,
   config: {
     calculationRules: defaultCalculationRules(model), houseSystem: "koch", zodiac: "tropical", pointOrbs,
     visiblePointKeys: Object.fromEntries([...Object.keys(pointOrbs), "desc", "ic"].map((key) => [key, true]))

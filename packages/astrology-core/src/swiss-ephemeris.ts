@@ -12,7 +12,7 @@ import {
 import { calculateAspectsBetween, calculateMajorAspects } from "./aspects";
 import { calculateAspectConfigurations } from "./aspect-configurations";
 import { resolveCalculationRules, rulershipTables, type CalculationRules } from "./calculation-rules";
-import { DEFAULT_MAJOR_ASPECT_ORBS, MAJOR_ASPECT_ANGLES, ZODIAC_SIGNS } from "./constants";
+import { DEFAULT_MAJOR_ASPECT_ORBS, DEFAULT_POINT_ORBS, MAJOR_ASPECT_ANGLES, ZODIAC_SIGNS } from "./constants";
 import type {
   Ayanamsa,
   Aspect,
@@ -1308,7 +1308,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
     houseSystem: input.houseSystem ?? "koch",
-    pointOrbs: cleanPointOrbs(input.pointOrbs),
+    pointOrbs: cleanPointOrbs(input.pointOrbs) ?? { ...DEFAULT_POINT_ORBS },
     calculationRules: resolveCalculationRules(input.calculationRules),
     calculationProfile: input.calculationProfile ? { ...input.calculationProfile } : undefined,
     visiblePointKeys: input.visiblePointKeys ? { ...input.visiblePointKeys } : undefined
@@ -1464,7 +1464,7 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
     zodiac: input.zodiac ?? "tropical",
     ayanamsa: input.zodiac === "sidereal" ? input.ayanamsa ?? "lahiri" : undefined,
     houseSystem: input.houseSystem ?? "koch",
-    pointOrbs: cleanPointOrbs(input.pointOrbs),
+    pointOrbs: cleanPointOrbs(input.pointOrbs) ?? { ...DEFAULT_POINT_ORBS },
     calculationRules: resolveCalculationRules(input.calculationRules),
     calculationProfile: input.calculationProfile ? { ...input.calculationProfile } : undefined,
     visiblePointKeys: input.visiblePointKeys ? { ...input.visiblePointKeys } : undefined
