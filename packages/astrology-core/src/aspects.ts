@@ -1,4 +1,4 @@
-import { DEFAULT_MAJOR_ASPECT_ORBS, MAJOR_ASPECT_ANGLES } from "./constants";
+import { DEFAULT_MAJOR_ASPECT_ORBS, DEFAULT_POINT_ORBS, MAJOR_ASPECT_ANGLES } from "./constants";
 import type { Aspect, AspectType, ChartPoint, PointOrbSettings } from "./types";
 
 const normalizeAngle = (angle: number): number => ((angle % 360) + 360) % 360;
@@ -8,24 +8,24 @@ const shortestDistance = (a: number, b: number): number => {
   return diff > 180 ? 360 - diff : diff;
 };
 
-const allowedOrbForPair = (
+export const allowedOrbForPair = (
   type: AspectType,
-  pointA: ChartPoint,
-  pointB: ChartPoint,
-  aspectOrbs: Partial<Record<AspectType, number>>,
+  pointA: Pick<ChartPoint, "key">,
+  pointB: Pick<ChartPoint, "key">,
+  aspectOrbs: Partial<Record<AspectType, number>> = {},
   pointOrbs: PointOrbSettings = {}
 ): number => {
   const fallbackOrb = DEFAULT_MAJOR_ASPECT_ORBS[type];
-  const aspectOrb = aspectOrbs[type] ?? fallbackOrb;
-  const pointAOrb = pointOrbs[pointA.key] ?? aspectOrb;
-  const pointBOrb = pointOrbs[pointB.key] ?? aspectOrb;
+  const pointAOrb = pointOrbs[pointA.key] ?? DEFAULT_POINT_ORBS[pointA.key] ?? fallbackOrb;
+  const pointBOrb = pointOrbs[pointB.key] ?? DEFAULT_POINT_ORBS[pointB.key] ?? fallbackOrb;
 
-  return Math.min(aspectOrb, pointAOrb, pointBOrb);
+  // Only an explicitly requested method limit (e.g. progressions) caps point orbs.
+  return Math.min(aspectOrbs[type] ?? Infinity, pointAOrb, pointBOrb);
 };
 
 export const calculateMajorAspects = (
   points: ChartPoint[],
-  aspectOrbs: Partial<Record<AspectType, number>> = DEFAULT_MAJOR_ASPECT_ORBS,
+  aspectOrbs: Partial<Record<AspectType, number>> = {},
   pointOrbs: PointOrbSettings = {}
 ): Aspect[] => {
   const aspects: Aspect[] = [];
@@ -64,7 +64,7 @@ export const calculateMajorAspects = (
 export const calculateAspectsBetween = (
   pointsA: ChartPoint[],
   pointsB: ChartPoint[],
-  aspectOrbs: Partial<Record<AspectType, number>> = DEFAULT_MAJOR_ASPECT_ORBS,
+  aspectOrbs: Partial<Record<AspectType, number>> = {},
   pointOrbs: PointOrbSettings = {}
 ): Aspect[] => {
   const aspects: Aspect[] = [];

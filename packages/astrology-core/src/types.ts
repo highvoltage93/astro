@@ -311,6 +311,14 @@ export type SecondaryProgressionResult = {
   progressed: ChartResult;
   progressedHousePlacements: ChartPoint[];
   progressedToNatalAspects: SecondaryProgressionAspect[];
+  progressedReferencePoints?: ChartPoint[];
+  natalReferencePoints?: ChartPoint[];
+  calendarYear?: number;
+  calendar?: Array<Aspect & {
+    exactAt: string;
+    progressedPointLabel: string;
+    natalPointLabel: string;
+  }>;
   warnings: CalculationWarning[];
 };
 

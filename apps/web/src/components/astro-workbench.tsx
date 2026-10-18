@@ -3452,10 +3452,19 @@ function ForecastEventDrawer({ event, onClose }: { event: ForecastTimelineEvent 
 }
 
 function SecondaryProgressionPanel({ progression }: { progression: SecondaryProgressionResult }) {
-  const progressedPoints = new Map(progression.progressed.bodies.map((point) => [point.key, point]));
+  const [view, setView] = useState<"aspects" | "calendar">("aspects");
+  const [pairFilter, setPairFilter] = useState("all");
+  const progressedPoints = new Map((progression.progressedReferencePoints ?? progression.progressed.bodies).map((point) => [point.key, point]));
   const natalPoints = new Map(
-    [...progression.natal.bodies, ...progression.natal.angles].map((point) => [point.key, point])
+    (progression.natalReferencePoints ?? [...progression.natal.bodies, ...progression.natal.angles]).map((point) => [point.key, point])
   );
+  const matchesPair = (aspect: { bodyA: string; bodyB: string }) => pairFilter === "all" ||
+    `${aspect.bodyA.startsWith("house-") ? "cusp" : "planet"}-${aspect.bodyB.startsWith("house-") ? "cusp" : "planet"}` === pairFilter;
+  const visibleAspects = progression.progressedToNatalAspects.filter(matchesPair);
+  const visibleEvents = (progression.calendar ?? []).filter(matchesPair);
+  const referenceLabel = (key: string, label: string) => key.startsWith("house-")
+    ? `Куспід ${houseRomanNumerals[Number(key.slice(6)) - 1] ?? key.slice(6)}`
+    : pointLabelUk(key, label);
 
   return (
     <section className="space-y-4 rounded-lg border bg-muted/15 p-4">
@@ -3475,13 +3484,30 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
 
       <ProgressionOverlayWheel progression={progression} />
 
-      <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="tablist" aria-label="Таблиці повільних прогресій" className="flex gap-1">
+          <Button role="tab" aria-selected={view === "aspects"} variant={view === "aspects" ? "default" : "outline"} onClick={() => setView("aspects")}>Аспекти</Button>
+          <Button role="tab" aria-selected={view === "calendar"} variant={view === "calendar" ? "default" : "outline"} onClick={() => setView("calendar")}>Календар {progression.calendarYear ?? ""}</Button>
+        </div>
+        <Select value={pairFilter} onValueChange={setPairFilter}>
+          <SelectTrigger className="w-full sm:w-56" aria-label="Тип пар"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Усі пари</SelectItem>
+            <SelectItem value="planet-planet">Планети → планети</SelectItem>
+            <SelectItem value="planet-cusp">Планети → куспіди</SelectItem>
+            <SelectItem value="cusp-planet">Куспіди → планети</SelectItem>
+            <SelectItem value="cusp-cusp">Куспіди → куспіди</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {view === "aspects" ? <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h4 className="text-sm font-semibold">Прогресивні аспекти до наталу</h4>
-          <Badge variant="secondary">{progression.progressedToNatalAspects.length}</Badge>
+          <Badge variant="secondary">{visibleAspects.length}</Badge>
         </div>
 
-        {progression.progressedToNatalAspects.length > 0 ? (
+        {visibleAspects.length > 0 ? (
           <div className="overflow-x-auto rounded-lg border bg-background">
             <Table>
               <TableHeader>
@@ -3496,15 +3522,15 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {progression.progressedToNatalAspects.map((aspect) => {
+                {visibleAspects.map((aspect) => {
                   const progressedPoint = progressedPoints.get(aspect.bodyA) ?? null;
                   const natalPoint = natalPoints.get(aspect.bodyB) ?? null;
 
                   return (
                     <TableRow key={`progression-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
                       <TableCell className="font-medium">
-                        {planetGlyphs[aspect.bodyA] ?? aspect.bodyA}{" "}
-                        {pointLabelUk(aspect.bodyA, aspect.progressedPointLabel)}
+                        {planetGlyphs[aspect.bodyA] ?? ""}{" "}
+                        {referenceLabel(aspect.bodyA, aspect.progressedPointLabel)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatPointPosition(progressedPoint)}
@@ -3514,15 +3540,15 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
                         {aspectLabels[aspect.type] ?? aspect.type}
                       </TableCell>
                       <TableCell className="font-medium">
-                        {planetGlyphs[aspect.bodyB] ?? aspect.bodyB}{" "}
-                        {pointLabelUk(aspect.bodyB, natalPoint?.label ?? aspect.natalPointLabel)}
+                        {planetGlyphs[aspect.bodyB] ?? ""}{" "}
+                        {referenceLabel(aspect.bodyB, natalPoint?.label ?? aspect.natalPointLabel)}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
                       <TableCell>
                         <Badge variant="outline">{transitPhaseLabelsUk[aspect.phase] ?? aspect.phase}</Badge>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {aspect.exactAt ? formatDateTimeCompact(aspect.exactAt) : "n/a"}
+                        {aspect.exactAt ? formatDateTimeCompact(aspect.exactAt) : "Не визначено"}
                       </TableCell>
                     </TableRow>
                   );
@@ -3531,9 +3557,22 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
             </Table>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">В орбісі 1° прогресивних major-аспектів не знайдено.</p>
+          <p className="text-sm text-muted-foreground">В орбісі 1° аспектів для вибраних пар не знайдено.</p>
         )}
-      </div>
+      </div> : <div className="space-y-2">
+        <Badge variant="secondary">Точні проходження: {visibleEvents.length}</Badge>
+        {!progression.calendar ? <p className="text-sm text-muted-foreground">Цей збережений прогноз не містить календаря. Перерахуйте прогноз.</p> : visibleEvents.length === 0 ?
+          <p className="text-sm text-muted-foreground">Точних проходжень за цей рік для вибраних пар не знайдено.</p> :
+          <div className="overflow-x-auto rounded-lg border bg-background"><Table>
+            <TableHeader><TableRow><TableHead>Прогресія</TableHead><TableHead>Аспект</TableHead><TableHead>Натал</TableHead><TableHead>Точна дата (UTC)</TableHead></TableRow></TableHeader>
+            <TableBody>{visibleEvents.map((event) => <TableRow key={`${event.bodyA}-${event.type}-${event.bodyB}-${event.exactAt}`}>
+              <TableCell>{referenceLabel(event.bodyA, event.progressedPointLabel)}</TableCell>
+              <TableCell className={getAspectTextClass(event.type)}>{aspectLabels[event.type]} {event.exactAngle}°</TableCell>
+              <TableCell>{referenceLabel(event.bodyB, event.natalPointLabel)}</TableCell>
+              <TableCell className="whitespace-nowrap">{formatReturnMoment(event.exactAt)}</TableCell>
+            </TableRow>)}</TableBody>
+          </Table></div>}
+      </div>}
     </section>
   );
 }

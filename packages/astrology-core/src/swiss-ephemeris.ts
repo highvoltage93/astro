@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { findProgressionCrossings } from "./progression-crossings";
 import {
   calc,
   constants,
@@ -9,10 +10,10 @@ import {
   type Calc,
   type HouseSystems
 } from "sweph";
-import { calculateAspectsBetween, calculateMajorAspects } from "./aspects";
+import { allowedOrbForPair, calculateAspectsBetween, calculateMajorAspects } from "./aspects";
 import { calculateAspectConfigurations } from "./aspect-configurations";
 import { resolveCalculationRules, rulershipTables, type CalculationRules } from "./calculation-rules";
-import { DEFAULT_MAJOR_ASPECT_ORBS, DEFAULT_POINT_ORBS, MAJOR_ASPECT_ANGLES, ZODIAC_SIGNS } from "./constants";
+import { DEFAULT_POINT_ORBS, MAJOR_ASPECT_ANGLES, ZODIAC_SIGNS } from "./constants";
 import type {
   Ayanamsa,
   Aspect,
@@ -1144,28 +1145,26 @@ const allowedOrbForExactTransitPair = (
   natalPointKey: string,
   pointOrbs: PointOrbSettings = {}
 ): number => {
-  const fallbackOrb = DEFAULT_MAJOR_ASPECT_ORBS[type];
-  const transitOrb = pointOrbs[transitPointKey] ?? fallbackOrb;
-  const natalOrb = pointOrbs[natalPointKey] ?? fallbackOrb;
-
-  return Math.min(fallbackOrb, transitOrb, natalOrb);
+  return allowedOrbForPair(type, { key: transitPointKey }, { key: natalPointKey }, undefined, pointOrbs);
 };
 
 const enrichTransitAspect = ({
   aspect,
   baseDateTime,
   natalPointsByKey,
-  transitPointsByKey
+  transitPointsByKey,
+  pointOrbs
 }: {
   aspect: Aspect;
   baseDateTime: DateTime;
   natalPointsByKey: Map<string, ChartPoint>;
   transitPointsByKey: Map<string, ChartPoint>;
+  pointOrbs?: PointOrbSettings;
 }): TransitAspect => {
   const transitPoint = transitPointsByKey.get(aspect.bodyA);
   const natalPoint = natalPointsByKey.get(aspect.bodyB);
-  const allowedOrb = DEFAULT_MAJOR_ASPECT_ORBS[aspect.type] ?? 8;
-  const closeness = Math.max(0, 1 - aspect.orb / allowedOrb);
+  const allowedOrb = allowedOrbForExactTransitPair(aspect.type, aspect.bodyA, aspect.bodyB, pointOrbs);
+  const closeness = allowedOrb === 0 ? (aspect.orb === 0 ? 1 : 0) : Math.max(0, 1 - aspect.orb / allowedOrb);
   const aspectWeight = ASPECT_SCORE_WEIGHTS[aspect.type] ?? 0.65;
   const bodyWeight = transitPoint ? TRANSIT_BODY_SCORE_WEIGHTS[transitPoint.key] ?? 0.55 : 0.55;
   const score = round((closeness * 0.62 + aspectWeight * 0.23 + bodyWeight * 0.15) * 100, 1);
@@ -1224,12 +1223,14 @@ const enrichTransitAspects = ({
   aspects,
   baseDateTime,
   natalPoints,
-  transitPoints
+  transitPoints,
+  pointOrbs
 }: {
   aspects: Aspect[];
   baseDateTime: DateTime;
   natalPoints: ChartPoint[];
   transitPoints: ChartPoint[];
+  pointOrbs?: PointOrbSettings;
 }): TransitAspect[] => {
   const natalPointsByKey = new Map(natalPoints.map((point) => [point.key, point]));
   const transitPointsByKey = new Map(transitPoints.map((point) => [point.key, point]));
@@ -1240,7 +1241,8 @@ const enrichTransitAspects = ({
         aspect,
         baseDateTime,
         natalPointsByKey,
-        transitPointsByKey
+        transitPointsByKey,
+        pointOrbs
       })
     )
     .sort((a, b) => b.score - a.score || a.orb - b.orb);
@@ -1566,7 +1568,8 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     aspects: calculateAspectsBetween(transit.bodies, natalPoints, undefined, previewPointOrbs),
     baseDateTime: baseTransitDateTime,
     natalPoints,
-    transitPoints: transit.bodies
+    transitPoints: transit.bodies,
+    pointOrbs: previewPointOrbs
   });
   const weekAhead: TransitDayForecast[] = Array.from({ length: 7 }, (_, dayIndex) => {
     const dayTransitDateTime = baseTransitDateTime.plus({ days: dayIndex });
@@ -1594,7 +1597,8 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
         aspects: calculateAspectsBetween(dayTransit.bodies, natalPoints, undefined, previewPointOrbs),
         baseDateTime: dayTransitDateTime,
         natalPoints,
-        transitPoints: dayTransit.bodies
+        transitPoints: dayTransit.bodies,
+        pointOrbs: previewPointOrbs
       }).slice(0, 5)
     };
   });
@@ -2178,6 +2182,8 @@ const findSecondaryProgressionExactDate = ({
 }): DateTime | null => {
   const speed = progressedPoint.speed ?? 0;
 
+  if (progressedPoint.key.startsWith("house-")) return null;
+
   if (Math.abs(speed) < 0.0001) {
     return null;
   }
@@ -2286,11 +2292,7 @@ const buildSecondaryProgressionAspect = ({
   const phase =
     aspect.orb <= 0.01
       ? "exact"
-      : yearsToExact !== null
-        ? yearsToExact > 0
-          ? "applying"
-          : "separating"
-        : estimatedProgressedDays === null
+      : estimatedProgressedDays === null
           ? "stationary"
           : estimatedProgressedDays > 0
             ? "applying"
@@ -2349,6 +2351,30 @@ const calculateSecondaryProgressionFromNatal = (
     ? assignNatalHousesToTransitPoints(progressedBase.bodies, natal.houses)
     : progressedBase.bodies;
   const progressedHousePlacements = hasNatalHouses ? progressedBodies : [];
+  const warnings: CalculationWarning[] = [...progressedBase.warnings];
+  const flags = buildBodyFlags({ zodiac: input.zodiac ?? natal.settings.zodiac });
+  const cuspPointsAt = (utc: DateTime): ChartPoint[] => {
+    if (!hasNatalHouses) return [];
+    const result = houses_ex2(
+      buildJulianDate(utc).jdUt,
+      (input.zodiac ?? natal.settings.zodiac) === "sidereal" ? constants.SEFLG_SIDEREAL : 0,
+      natal.subject.latitude, natal.subject.longitude, HOUSE_SYSTEM_CODES[natal.settings.houseSystem]
+    );
+    if (result.error) {
+      addCalculationWarning(warnings, "PROGRESSION_HOUSES_UNAVAILABLE", result.error.trim());
+      return [];
+    }
+    return result.data.houses.map((longitude, index) => ({
+      ...buildPoint({ key: `house-${index + 1}`, label: `Куспід ${index + 1}`, kind: "angle",
+        longitude, speed: result.data.housesSpeed[index], house: index + 1 }),
+      longitude
+    }));
+  };
+  const progressedCusps = cuspPointsAt(progressedDateTime);
+  const natalCusps = natal.houses.map((cusp) => buildPoint({
+    key: `house-${cusp.house}`, label: `Куспід ${cusp.house}`, kind: "angle",
+    longitude: cusp.longitude, house: cusp.house
+  }));
   const progressed: ChartResult = {
     ...progressedBase,
     chartType: "progression",
@@ -2356,17 +2382,16 @@ const calculateSecondaryProgressionFromNatal = (
   };
   const natalReferencePoints = [
     ...natal.bodies,
-    ...natal.angles.filter((point) => point.key === "asc" || point.key === "mc")
+    ...natalCusps
   ];
+  const progressedReferencePoints = [...progressed.bodies, ...progressedCusps];
   const aspects = calculateAspectsBetween(
-    progressed.bodies,
+    progressedReferencePoints,
     natalReferencePoints,
     SECONDARY_PROGRESSION_ASPECT_ORBS
   );
-  const progressedPointsByKey = new Map(progressed.bodies.map((point) => [point.key, point]));
+  const progressedPointsByKey = new Map(progressedReferencePoints.map((point) => [point.key, point]));
   const natalPointsByKey = new Map(natalReferencePoints.map((point) => [point.key, point]));
-  const warnings: CalculationWarning[] = [...progressed.warnings];
-  const flags = buildBodyFlags({ zodiac: input.zodiac ?? natal.settings.zodiac });
   const progressedToNatalAspects = aspects
     .map((aspect) => {
       const progressedPoint = progressedPointsByKey.get(aspect.bodyA);
@@ -2390,6 +2415,76 @@ const calculateSecondaryProgressionFromNatal = (
     .filter((aspect): aspect is SecondaryProgressionAspect => aspect !== null)
     .sort((a, b) => b.score - a.score || a.orb - b.orb);
 
+  const calendarStart = Math.max(targetDateTime.startOf("year").toMillis(), birthDateTime.toMillis());
+  const calendarEnd = targetDateTime.startOf("year").plus({ years: 1 }).toMillis();
+  const epochAt = (time: number) => DateTime.fromMillis(
+    birthDateTime.toMillis() + (time - birthDateTime.toMillis()) / SECONDARY_PROGRESSION_YEAR_DAYS,
+    { zone: "utc" }
+  );
+  let cachedCuspTime = NaN;
+  let cachedCusps: ChartPoint[] = [];
+  const longitudeAt = (key: string, time: number): number | null => {
+    const utc = epochAt(time);
+    if (key.startsWith("house-")) {
+      if (cachedCuspTime !== time) { cachedCusps = cuspPointsAt(utc); cachedCuspTime = time; }
+      return cachedCusps.find((point) => point.key === key)?.longitude ?? null;
+    }
+    return calculatePointPositionAt({ flags, pointKey: key, utc, warnings })?.longitude ?? null;
+  };
+  const sampleTimes: number[] = [];
+  for (let time = calendarStart; time < calendarEnd; time += 6 * 3600000) sampleTimes.push(time);
+  sampleTimes.push(calendarEnd);
+  const calendar: NonNullable<SecondaryProgressionResult["calendar"]> = [];
+  const samplesByKey = new Map(progressedReferencePoints.map((point) => [point.key,
+    [] as Array<{ time: number; longitude: number | null }>]));
+  for (const time of sampleTimes) {
+    for (const point of progressedReferencePoints) {
+      samplesByKey.get(point.key)!.push({ time, longitude: longitudeAt(point.key, time) });
+    }
+  }
+  for (const point of progressedReferencePoints) {
+    const samples = samplesByKey.get(point.key)!;
+    // Never bridge an interval where the requested house system or body failed.
+    if (samples.some((sample) => sample.longitude === null)) continue;
+    for (const natalPoint of natalReferencePoints) {
+      for (const [type, exactAngle] of Object.entries(MAJOR_ASPECT_ANGLES) as Array<[AspectType, number]>) {
+        for (const target of aspectTargetLongitudes(natalPoint.longitude, exactAngle)) {
+          const roots = findProgressionCrossings(
+            samples as Array<{ time: number; longitude: number }>, target,
+            (time) => longitudeAt(point.key, time)
+          );
+          for (const time of roots) {
+            if (time >= calendarEnd) continue;
+            calendar.push({ bodyA: point.key, bodyB: natalPoint.key, type, exactAngle, orb: 0,
+              exactAt: toUtcIso(DateTime.fromMillis(time, { zone: "utc" })),
+              progressedPointLabel: point.label, natalPointLabel: natalPoint.label });
+          }
+        }
+      }
+    }
+  }
+  calendar.sort((a, b) => a.exactAt.localeCompare(b.exactAt));
+  for (const aspect of progressedToNatalAspects) {
+    if (!aspect.bodyA.startsWith("house-")) continue;
+    const reference = natalPointsByKey.get(aspect.bodyB)!;
+    const samples: Array<{ time: number; longitude: number }> = [];
+    // The active-aspect search crosses New Year independently of the calendar view.
+    for (let offset = -10 * 86400000; offset <= 10 * 86400000; offset += 6 * 3600000) {
+      const time = targetDateTime.toMillis() + offset;
+      if (time < birthDateTime.toMillis()) continue;
+      const longitude = longitudeAt(aspect.bodyA, time);
+      if (longitude === null) { samples.length = 0; break; }
+      samples.push({ time, longitude });
+    }
+    const roots = aspectTargetLongitudes(reference.longitude, aspect.exactAngle).flatMap((target) =>
+      findProgressionCrossings(samples, target, (time) => longitudeAt(aspect.bodyA, time)));
+    const nearest = roots.sort((a, b) => Math.abs(a - targetDateTime.toMillis()) - Math.abs(b - targetDateTime.toMillis()))[0];
+    if (nearest !== undefined) {
+      aspect.exactAt = toUtcIso(DateTime.fromMillis(nearest, { zone: "utc" }));
+      aspect.yearsToExact = (nearest - targetDateTime.toMillis()) / (86400000 * SECONDARY_PROGRESSION_YEAR_DAYS);
+    }
+  }
+
   return {
     method: "secondary-day-for-year",
     yearLengthDays: SECONDARY_PROGRESSION_YEAR_DAYS,
@@ -2401,6 +2496,10 @@ const calculateSecondaryProgressionFromNatal = (
     progressed,
     progressedHousePlacements,
     progressedToNatalAspects,
+    progressedReferencePoints,
+    natalReferencePoints,
+    calendar,
+    calendarYear: targetDateTime.year,
     warnings
   };
 };
