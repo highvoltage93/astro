@@ -1,5 +1,8 @@
 import { DateTime } from "luxon";
 import { findProgressionCrossings } from "./progression-crossings";
+import { progressionCalendarWindow } from "./progression-calendar-window";
+import { calculateProgressionAspects, findProgressionIngress, PROGRESSION_ASPECT_ANGLES } from "./progression-aspects";
+import type { ProgressionAspect } from "./types";
 import {
   calc,
   constants,
@@ -83,6 +86,8 @@ type PlanetHouseResponsibility = {
   house: number;
   role: HouseConnectionRole;
   planetKey: string;
+  rulerSource?: HouseRuler["rulerSource"];
+  sign?: string;
 };
 
 type FixedHouseRulerDefinition = {
@@ -698,7 +703,7 @@ const calculateSyntheticSignature = (points: ChartPoint[]): SyntheticSignature =
   };
 };
 
-const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint[], aspects: Aspect[], rules: CalculationRules): HouseConnection[] => {
+export const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint[], aspects: Aspect[], rules: CalculationRules): HouseConnection[] => {
   if (houseRulers.length === 0) {
     return [];
   }
@@ -706,16 +711,17 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
   const responsibilitiesByPlanet = new Map<string, PlanetHouseResponsibility[]>();
   const connectionMap = new Map<string, HouseConnection>();
 
-  const addResponsibility = (planetKey: string, house: number | undefined, role: HouseConnectionRole): void => {
+  const addResponsibility = (planetKey: string, house: number | undefined, role: HouseConnectionRole, ruler?: HouseRuler): void => {
     if (!house) {
       return;
     }
 
     const responsibilities = responsibilitiesByPlanet.get(planetKey) ?? [];
-    const exists = responsibilities.some((responsibility) => responsibility.house === house && responsibility.role === role);
+    const exists = responsibilities.some((responsibility) => responsibility.house === house && responsibility.role === role &&
+      responsibility.rulerSource === ruler?.rulerSource && responsibility.sign === ruler?.sign);
 
     if (!exists) {
-      responsibilities.push({ house, role, planetKey });
+      responsibilities.push({ house, role, planetKey, rulerSource: ruler?.rulerSource, sign: ruler?.sign });
       responsibilitiesByPlanet.set(planetKey, responsibilities);
     }
   };
@@ -759,7 +765,7 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
       continue;
     }
 
-    addResponsibility(houseRuler.rulerKey, houseRuler.house, "ruler");
+    addResponsibility(houseRuler.rulerKey, houseRuler.house, "ruler", houseRuler);
   }
 
   for (const [planetKey, responsibilities] of responsibilitiesByPlanet.entries()) {
@@ -787,7 +793,11 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
           toHouse: responsibilityB.house,
           planetA: planetKey,
           fromRole: responsibilityA.role,
-          toRole: responsibilityB.role
+          toRole: responsibilityB.role,
+          fromRulerSource: responsibilityA.rulerSource,
+          toRulerSource: responsibilityB.rulerSource,
+          fromSign: responsibilityA.sign,
+          toSign: responsibilityB.sign
         });
       }
     }
@@ -800,8 +810,6 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
     if (responsibilitiesA.length === 0 || responsibilitiesB.length === 0) {
       continue;
     }
-
-    const aspectPairs = new Set<string>();
 
     for (const responsibilityA of responsibilitiesA) {
       if (!responsibilityA) {
@@ -817,13 +825,6 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
           responsibilityA.house < responsibilityB.house
             ? [responsibilityA.house, responsibilityB.house]
             : [responsibilityB.house, responsibilityA.house];
-        const aspectPairKey = `${fromHouse}-${toHouse}`;
-
-        if (aspectPairs.has(aspectPairKey)) {
-          continue;
-        }
-
-        aspectPairs.add(aspectPairKey);
         addConnection(fromHouse, toHouse, {
           source: "aspect",
           tone: aspectToneForHousePair(aspect.type, fromHouse, toHouse, rules),
@@ -833,6 +834,10 @@ const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: ChartPoint
           planetB: responsibilityB.planetKey,
           fromRole: responsibilityA.role,
           toRole: responsibilityB.role,
+          fromRulerSource: responsibilityA.rulerSource,
+          toRulerSource: responsibilityB.rulerSource,
+          fromSign: responsibilityA.sign,
+          toSign: responsibilityB.sign,
           aspectType: aspect.type,
           aspectAngle: aspect.exactAngle
         });
@@ -1113,7 +1118,7 @@ const calculateMoonPhase = (bodies: ChartPoint[]): MoonPhase | null => {
   };
 };
 
-const transitAspectTargetDelta = (aspect: Aspect, transitPoint: ChartPoint, natalPoint: ChartPoint): number => {
+const transitAspectTargetDelta = (aspect: Pick<Aspect, "exactAngle">, transitPoint: ChartPoint, natalPoint: ChartPoint): number => {
   const targetLongitudes =
     aspect.exactAngle === 0 || aspect.exactAngle === 180
       ? [normalizeLongitude(natalPoint.longitude + aspect.exactAngle)]
@@ -2173,7 +2178,7 @@ const findSecondaryProgressionExactDate = ({
   progressedPoint,
   warnings
 }: {
-  aspect: Aspect;
+  aspect: ProgressionAspect;
   flags: number;
   natalPoint: ChartPoint;
   progressedDateTime: DateTime;
@@ -2262,7 +2267,7 @@ const buildSecondaryProgressionAspect = ({
   targetDateTime,
   warnings
 }: {
-  aspect: Aspect;
+  aspect: ProgressionAspect;
   birthDateTime: DateTime;
   flags: number;
   natalPoint: ChartPoint;
@@ -2298,7 +2303,7 @@ const buildSecondaryProgressionAspect = ({
             ? "applying"
             : "separating";
   const closeness = Math.max(0, 1 - aspect.orb / SECONDARY_PROGRESSION_ASPECT_ORB);
-  const aspectWeight = ASPECT_SCORE_WEIGHTS[aspect.type] ?? 0.65;
+  const aspectWeight = (ASPECT_SCORE_WEIGHTS as Partial<Record<string, number>>)[aspect.type] ?? 0.65;
   const bodyWeight = TRANSIT_BODY_SCORE_WEIGHTS[progressedPoint.key] ?? 0.55;
   const score = round((closeness * 0.68 + aspectWeight * 0.2 + bodyWeight * 0.12) * 100, 1);
 
@@ -2385,10 +2390,10 @@ const calculateSecondaryProgressionFromNatal = (
     ...natalCusps
   ];
   const progressedReferencePoints = [...progressed.bodies, ...progressedCusps];
-  const aspects = calculateAspectsBetween(
+  const aspects = calculateProgressionAspects(
     progressedReferencePoints,
     natalReferencePoints,
-    SECONDARY_PROGRESSION_ASPECT_ORBS
+    SECONDARY_PROGRESSION_ASPECT_ORB
   );
   const progressedPointsByKey = new Map(progressedReferencePoints.map((point) => [point.key, point]));
   const natalPointsByKey = new Map(natalReferencePoints.map((point) => [point.key, point]));
@@ -2415,8 +2420,9 @@ const calculateSecondaryProgressionFromNatal = (
     .filter((aspect): aspect is SecondaryProgressionAspect => aspect !== null)
     .sort((a, b) => b.score - a.score || a.orb - b.orb);
 
-  const calendarStart = Math.max(targetDateTime.startOf("year").toMillis(), birthDateTime.toMillis());
-  const calendarEnd = targetDateTime.startOf("year").plus({ years: 1 }).toMillis();
+  const calendarWindow = progressionCalendarWindow();
+  const calendarStart = Math.max(calendarWindow.start.toMillis(), birthDateTime.toMillis());
+  const calendarEnd = calendarWindow.end.toMillis();
   const epochAt = (time: number) => DateTime.fromMillis(
     birthDateTime.toMillis() + (time - birthDateTime.toMillis()) / SECONDARY_PROGRESSION_YEAR_DAYS,
     { zone: "utc" }
@@ -2435,6 +2441,11 @@ const calculateSecondaryProgressionFromNatal = (
   for (let time = calendarStart; time < calendarEnd; time += 6 * 3600000) sampleTimes.push(time);
   sampleTimes.push(calendarEnd);
   const calendar: NonNullable<SecondaryProgressionResult["calendar"]> = [];
+  const formulaFor = (point: ChartPoint, rulers: HouseRuler[]): string => {
+    if (point.key.startsWith("house-")) return point.key.slice(6);
+    const ruled = rulers.filter((ruler) => ruler.rulerKey === point.key).map((ruler) => ruler.house);
+    return `${point.house ?? "?"}${ruled.length ? ` (${ruled.join(" ")})` : ""}`;
+  };
   const samplesByKey = new Map(progressedReferencePoints.map((point) => [point.key,
     [] as Array<{ time: number; longitude: number | null }>]));
   for (const time of sampleTimes) {
@@ -2447,15 +2458,28 @@ const calculateSecondaryProgressionFromNatal = (
     // Never bridge an interval where the requested house system or body failed.
     if (samples.some((sample) => sample.longitude === null)) continue;
     for (const natalPoint of natalReferencePoints) {
-      for (const [type, exactAngle] of Object.entries(MAJOR_ASPECT_ANGLES) as Array<[AspectType, number]>) {
+      for (const [type, exactAngle] of Object.entries(PROGRESSION_ASPECT_ANGLES) as Array<[ProgressionAspect["type"], number]>) {
         for (const target of aspectTargetLongitudes(natalPoint.longitude, exactAngle)) {
           const roots = findProgressionCrossings(
             samples as Array<{ time: number; longitude: number }>, target,
             (time) => longitudeAt(point.key, time)
           );
           for (const time of roots) {
-            if (time >= calendarEnd) continue;
+            if (time < calendarStart || time >= calendarEnd) continue;
+            const ingress = findProgressionIngress(time, target, SECONDARY_PROGRESSION_ASPECT_ORB,
+              Math.max(birthDateTime.toMillis(), time - 10 * SECONDARY_PROGRESSION_YEAR_DAYS * 86400000),
+              point.key.startsWith("house-") ? 6 * 3600000 : 86400000,
+              (moment) => longitudeAt(point.key, moment));
+            const eventPosition = point.key.startsWith("house-") ? null :
+              calculatePointPositionAt({ flags, pointKey: point.key, utc: epochAt(time), warnings });
+            const eventPoint = eventPosition ? { ...point, speed: eventPosition.speed,
+              house: findHouse(eventPosition.longitude, natal.houses) } : point;
+            const eventRulers = calculateHouseRulers(natal.houses,
+              natal.bodies.map((body) => body.key === point.key ? eventPoint : body), natal.settings.calculationRules ?? resolveCalculationRules());
             calendar.push({ bodyA: point.key, bodyB: natalPoint.key, type, exactAngle, orb: 0,
+              activeFrom: ingress === null ? null : toUtcIso(DateTime.fromMillis(ingress, { zone: "utc" })),
+              formulaA: formulaFor(eventPoint, eventRulers),
+              formulaB: formulaFor(natalPoint, natal.houseRulers ?? []),
               exactAt: toUtcIso(DateTime.fromMillis(time, { zone: "utc" })),
               progressedPointLabel: point.label, natalPointLabel: natalPoint.label });
           }
@@ -2499,7 +2523,9 @@ const calculateSecondaryProgressionFromNatal = (
     progressedReferencePoints,
     natalReferencePoints,
     calendar,
-    calendarYear: targetDateTime.year,
+    calendarFrom: toUtcIso(calendarWindow.start),
+    calendarUntil: toUtcIso(calendarWindow.end),
+    calendarTimezone: calendarWindow.timezone,
     warnings
   };
 };
@@ -2872,6 +2898,7 @@ const buildForecastTimeline = ({
   }
 
   for (const aspect of secondaryProgression.progressedToNatalAspects) {
+    if (aspect.type === "semisextile" || aspect.type === "quincunx") continue;
     if (!aspect.exactAt) {
       continue;
     }

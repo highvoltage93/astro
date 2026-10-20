@@ -4,7 +4,7 @@ import type {
 } from "./chart-types";
 
 export type ForecastSubject = { displayName: string; birthplaceName: string; countryCode: string };
-type ForecastContext = { subject: ForecastSubject; visiblePointKeys: Record<string, boolean>; returnPlaceName?: string };
+type ForecastContext = { subject: ForecastSubject; visiblePointKeys: Record<string, boolean>; returnPlaceName?: string; returnTimezone?: string };
 
 export type ForecastArchiveInput =
   | { kind: "forecast"; parameters: ForecastPreviewPayload & { targetYear: number }; context: ForecastContext }

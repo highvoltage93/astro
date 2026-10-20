@@ -10,6 +10,7 @@ const subjectSchema = z.object({
 const contextSchema = z.object({
   subject: subjectSchema,
   returnPlaceName: z.string().max(500).optional(),
+  returnTimezone: z.string().max(100).optional(),
   visiblePointKeys: z.record(z.boolean())
 });
 

@@ -9,5 +9,6 @@ export const signLabelsUk: Record<string, string> = {
   libra: "Терези", scorpio: "Скорпіон", sagittarius: "Стрілець", capricorn: "Козеріг", aquarius: "Водолій", pisces: "Риби"
 };
 export const aspectLabels: Record<string, string> = {
+  semisextile: "Напівсекстиль",
   conjunction: "З'єднання", opposition: "Опозиція", trine: "Трин", square: "Квадрат", sextile: "Секстиль", quincunx: "Квінконс"
 };

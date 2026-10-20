@@ -1,6 +1,7 @@
 "use client";
 
 import { EventSearch } from "@/components/event-search";
+import { DateTime } from "luxon";
 import { ReturnPlaceSearch } from "@/components/return-place-search";
 
 import {
@@ -741,6 +742,7 @@ export function AstroWorkbench() {
   const [solarReturnLatitude, setSolarReturnLatitude] = useState(initialForm.latitude);
   const [solarReturnLongitude, setSolarReturnLongitude] = useState(initialForm.longitude);
   const [solarReturnPlaceName, setSolarReturnPlaceName] = useState(initialForm.birthplaceName);
+  const [solarReturnTimezone, setSolarReturnTimezone] = useState(initialForm.timezone);
   const [forecastPreview, setForecastPreview] = useState<ForecastPreviewResult | null>(null);
   const [synastryPreview, setSynastryPreview] = useState<SynastryPreviewResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -772,7 +774,7 @@ export function AstroWorkbench() {
 
   const previewInputs = {
     transits: [form, pointOrbs, calculationRules, transitDateTime],
-    forecast: [form, pointOrbs, calculationRules, forecastFromDateTime, forecastTargetYear, forecastDays, solarReturnLatitude, solarReturnLongitude, solarReturnPlaceName],
+    forecast: [form, pointOrbs, calculationRules, forecastFromDateTime, forecastTargetYear, forecastDays, solarReturnLatitude, solarReturnLongitude, solarReturnPlaceName, solarReturnTimezone],
     synastry: [form, partnerForm, pointOrbs, calculationRules]
   };
   const latestPreviewInputs = useRef(previewInputs);
@@ -1086,6 +1088,7 @@ export function AstroWorkbench() {
       setSolarReturnLatitude(String(detailedProfile.latitude));
       setSolarReturnLongitude(String(detailedProfile.longitude));
       setSolarReturnPlaceName(detailedProfile.birthplaceName);
+      setSolarReturnTimezone(detailedProfile.timezone);
       setPointOrbs(calculation?.result.settings.pointOrbs ?? defaultPointOrbs);
       setCalculationRules(calculation?.result.settings.calculationRules ?? legacyCalculationRules());
       setCalculationProfile(calculation?.result.settings.calculationProfile);
@@ -1156,6 +1159,7 @@ export function AstroWorkbench() {
       setSolarReturnLatitude(String(payload.latitude));
       setSolarReturnLongitude(String(payload.longitude));
       setSolarReturnPlaceName(placeName);
+      setSolarReturnTimezone(payload.timezone);
 
       if (interpretationResult.status === "fulfilled") {
         setInterpretation(interpretationResult.value);
@@ -1342,6 +1346,7 @@ export function AstroWorkbench() {
         setSolarReturnLatitude(String(natal.latitude));
         setSolarReturnLongitude(String(natal.longitude));
         setSolarReturnPlaceName(record.input.context.subject.birthplaceName);
+        setSolarReturnTimezone(natal.timezone);
         setStatus("ready");
         setLoadedForecast(record);
         setForecastDrafts({});
@@ -1352,6 +1357,10 @@ export function AstroWorkbench() {
           setForecastDays(String(parameters.days ?? 90));
           setSolarReturnLatitude(String(parameters.returnLatitude ?? natal.latitude));
           setSolarReturnLongitude(String(parameters.returnLongitude ?? natal.longitude));
+          setSolarReturnTimezone(record.input.context.returnTimezone ?? (
+            (parameters.returnLatitude ?? natal.latitude) === natal.latitude &&
+            (parameters.returnLongitude ?? natal.longitude) === natal.longitude ? natal.timezone : "UTC"
+          ));
           setSolarReturnPlaceName(record.input.context.returnPlaceName ?? (
             (parameters.returnLatitude ?? natal.latitude) === natal.latitude &&
             (parameters.returnLongitude ?? natal.longitude) === natal.longitude
@@ -1602,7 +1611,7 @@ export function AstroWorkbench() {
       setForecastDrafts((current) => ({ ...current, forecast: {
         requestId: createForecastRequestId(),
         title: `Прогноз ${parsedTargetYear}: ${form.displayName}`.slice(0, 120),
-        input: { kind: "forecast", parameters, context: { subject: archiveSubject(form), visiblePointKeys, returnPlaceName: solarReturnPlaceName } }
+        input: { kind: "forecast", parameters, context: { subject: archiveSubject(form), visiblePointKeys, returnPlaceName: solarReturnPlaceName, returnTimezone: solarReturnTimezone } }
       } }));
       setForecastStatus("ready");
     } catch (requestError) {
@@ -1862,6 +1871,7 @@ export function AstroWorkbench() {
                     returnLatitude={solarReturnLatitude}
                     returnLongitude={solarReturnLongitude}
                     returnPlaceName={solarReturnPlaceName}
+                    returnTimezone={solarReturnTimezone}
                     targetYear={forecastTargetYear}
                     onCalculate={calculateForecast}
                     onDaysChange={(value) => {
@@ -1876,6 +1886,7 @@ export function AstroWorkbench() {
                       setSolarReturnLatitude(String(place.latitude));
                       setSolarReturnLongitude(String(place.longitude));
                       setSolarReturnPlaceName(place.displayName);
+                      setSolarReturnTimezone(place.timezone ?? "UTC");
                       clearForecastState();
                     }}
                     onTargetYearChange={(value) => {
@@ -2697,6 +2708,7 @@ function ForecastModuleCard({
   returnLatitude,
   returnLongitude,
   returnPlaceName,
+  returnTimezone,
   status,
   targetYear,
   onCalculate,
@@ -2712,6 +2724,7 @@ function ForecastModuleCard({
   returnLatitude: string;
   returnLongitude: string;
   returnPlaceName: string;
+  returnTimezone: string;
   status: "idle" | "loading" | "ready" | "error";
   targetYear: string;
   onCalculate: () => Promise<void>;
@@ -2831,7 +2844,7 @@ function ForecastModuleCard({
             {activeForecastView === "overview" ? (
               <div className="space-y-4" role="tabpanel">
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <ForecastMetric label="Соляр" value={preview.solarReturn ? formatReturnMoment(preview.solarReturn.exactAt) : "n/a"} />
+                  <ForecastMetric label="Соляр" value={preview.solarReturn ? formatSolarMoment(preview.solarReturn.exactAt, returnTimezone) : "n/a"} />
                   <ForecastMetric label="Лунар" value={preview.lunarReturn ? formatDateTimeCompact(preview.lunarReturn.exactAt) : "n/a"} />
                   <ForecastMetric label="Точних транзитів" value={`${exactTransits.length} · ${highPriorityTransits} сильних`} />
                 </div>
@@ -2851,7 +2864,7 @@ function ForecastModuleCard({
 
             {activeForecastView === "solar-return" ? (
               <div role="tabpanel">
-                <SolarReturnPanel event={preview.solarReturn} natal={preview.natal} placeName={returnPlaceName} />
+                <SolarReturnPanel event={preview.solarReturn} natal={preview.natal} placeName={returnPlaceName} timezone={returnTimezone} />
               </div>
             ) : null}
 
@@ -3452,6 +3465,11 @@ function ForecastEventDrawer({ event, onClose }: { event: ForecastTimelineEvent 
 }
 
 function SecondaryProgressionPanel({ progression }: { progression: SecondaryProgressionResult }) {
+  const progressionGlyphs: Record<string, string> = { conjunction: "☌", sextile: "⚹", square: "□", trine: "△", opposition: "☍", semisextile: "⚺", quincunx: "⚻" };
+  const formulaOperator = (type: string) => type === "conjunction" ? "±" : ["trine", "sextile", "semisextile"].includes(type) ? "+" : "−";
+  const calendarDate = (value: string) => DateTime.fromISO(value, { setZone: true }).toUTC().toFormat("dd.MM.yyyy");
+  const calendarPoint = (key: string) => key.startsWith("house-") ? houseRomanNumerals[Number(key.slice(6)) - 1] : planetGlyphs[key] ?? key;
+  const calendarFormula = (key: string, formula?: string) => key.startsWith("house-") ? calendarPoint(key) : formula ?? "—";
   const [view, setView] = useState<"aspects" | "calendar">("aspects");
   const [pairFilter, setPairFilter] = useState("all");
   const progressedPoints = new Map((progression.progressedReferencePoints ?? progression.progressed.bodies).map((point) => [point.key, point]));
@@ -3487,7 +3505,7 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Таблиці повільних прогресій" className="flex gap-1">
           <Button role="tab" aria-selected={view === "aspects"} variant={view === "aspects" ? "default" : "outline"} onClick={() => setView("aspects")}>Аспекти</Button>
-          <Button role="tab" aria-selected={view === "calendar"} variant={view === "calendar" ? "default" : "outline"} onClick={() => setView("calendar")}>Календар {progression.calendarYear ?? ""}</Button>
+          <Button role="tab" aria-selected={view === "calendar"} variant={view === "calendar" ? "default" : "outline"} onClick={() => setView("calendar")}>Календар</Button>
         </div>
         <Select value={pairFilter} onValueChange={setPairFilter}>
           <SelectTrigger className="w-full sm:w-56" aria-label="Тип пар"><SelectValue /></SelectTrigger>
@@ -3560,16 +3578,23 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
           <p className="text-sm text-muted-foreground">В орбісі 1° аспектів для вибраних пар не знайдено.</p>
         )}
       </div> : <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">
+          {progression.calendarFrom && progression.calendarUntil
+            ? `${DateTime.fromISO(progression.calendarFrom).setZone(progression.calendarTimezone ?? "UTC").toFormat("dd.MM.yyyy")} — ${DateTime.fromISO(progression.calendarUntil).setZone(progression.calendarTimezone ?? "UTC").toFormat("dd.MM.yyyy")} · ${progression.calendarTimezone ?? "UTC"}`
+            : progression.calendarYear ? `${progression.calendarYear} · архівний календар` : ""}
+        </p>
         <Badge variant="secondary">Точні проходження: {visibleEvents.length}</Badge>
         {!progression.calendar ? <p className="text-sm text-muted-foreground">Цей збережений прогноз не містить календаря. Перерахуйте прогноз.</p> : visibleEvents.length === 0 ?
           <p className="text-sm text-muted-foreground">Точних проходжень за цей рік для вибраних пар не знайдено.</p> :
           <div className="overflow-x-auto rounded-lg border bg-background"><Table>
-            <TableHeader><TableRow><TableHead>Прогресія</TableHead><TableHead>Аспект</TableHead><TableHead>Натал</TableHead><TableHead>Точна дата (UTC)</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Прогресія</TableHead><TableHead>Аспект</TableHead><TableHead>Натал</TableHead><TableHead>Початок (UTC)</TableHead><TableHead>Екзакт (UTC)</TableHead><TableHead>Формули</TableHead></TableRow></TableHeader>
             <TableBody>{visibleEvents.map((event) => <TableRow key={`${event.bodyA}-${event.type}-${event.bodyB}-${event.exactAt}`}>
-              <TableCell>{referenceLabel(event.bodyA, event.progressedPointLabel)}</TableCell>
-              <TableCell className={getAspectTextClass(event.type)}>{aspectLabels[event.type]} {event.exactAngle}°</TableCell>
-              <TableCell>{referenceLabel(event.bodyB, event.natalPointLabel)}</TableCell>
-              <TableCell className="whitespace-nowrap">{formatReturnMoment(event.exactAt)}</TableCell>
+              <TableCell className="text-lg" title={referenceLabel(event.bodyA, event.progressedPointLabel)}><span aria-label={referenceLabel(event.bodyA, event.progressedPointLabel)}>{calendarPoint(event.bodyA)}</span></TableCell>
+              <TableCell className={cn("text-lg", getAspectTextClass(event.type))} title={`${aspectLabels[event.type]} ${event.exactAngle}°`}><span aria-label={aspectLabels[event.type]}>{progressionGlyphs[event.type] ?? event.exactAngle}</span></TableCell>
+              <TableCell className="text-lg" title={referenceLabel(event.bodyB, event.natalPointLabel)}><span aria-label={referenceLabel(event.bodyB, event.natalPointLabel)}>{calendarPoint(event.bodyB)}</span></TableCell>
+              <TableCell className="whitespace-nowrap" title={event.activeFrom ? formatReturnMoment(event.activeFrom) : "Початок не визначено в межах пошуку або відсутній у старому прогнозі"}>{event.activeFrom ? calendarDate(event.activeFrom) : "Не визначено"}</TableCell>
+              <TableCell className="whitespace-nowrap" title={formatReturnMoment(event.exactAt)}>{calendarDate(event.exactAt)}</TableCell>
+              <TableCell className="whitespace-nowrap tabular-nums">{calendarFormula(event.bodyA, event.formulaA)} <span className={getAspectTextClass(event.type)}>{formulaOperator(event.type)}</span> {calendarFormula(event.bodyB, event.formulaB)}</TableCell>
             </TableRow>)}</TableBody>
           </Table></div>}
       </div>}
@@ -3687,7 +3712,12 @@ function ReturnEventPanel({ event, title }: { event: ReturnEvent | null; title: 
   );
 }
 
-function SolarReturnPanel({ event, natal, placeName }: { event: ReturnEvent | null; natal: ChartResult; placeName: string }) {
+function formatSolarMoment(value: string, timezone: string): string {
+  const local = DateTime.fromISO(value, { setZone: true }).setZone(timezone);
+  return local.isValid ? `${local.toFormat("dd.MM.yyyy HH:mm:ss")} · ${timezone} (UTC${local.toFormat("ZZ")})` : formatReturnMoment(value);
+}
+
+function SolarReturnPanel({ event, natal, placeName, timezone }: { event: ReturnEvent | null; natal: ChartResult; placeName: string; timezone: string }) {
   if (!event) {
     return (
       <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
@@ -3706,14 +3736,14 @@ function SolarReturnPanel({ event, natal, placeName }: { event: ReturnEvent | nu
           <p className="text-xs font-semibold uppercase text-primary">Solar return</p>
           <h3 className="mt-1 text-base font-semibold">Солярна карта</h3>
         </div>
-        <Badge variant="secondary">{formatReturnMoment(event.exactAt)}</Badge>
+        <Badge variant="secondary" className="max-w-full whitespace-normal break-words">{formatSolarMoment(event.exactAt, timezone)}</Badge>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <ForecastMetric label="Момент повернення" value={formatReturnMoment(event.exactAt)} />
+        <ForecastMetric label="Момент повернення" value={formatSolarMoment(event.exactAt, timezone)} />
         <ForecastMetric
           label="Період дії"
-          value={event.validUntil ? `${formatTimelineDay(event.exactAt)} — ${formatTimelineDay(event.validUntil)}` : "n/a"}
+          value={event.validUntil ? `${formatSolarMoment(event.exactAt, timezone).split(" ")[0]} — ${formatSolarMoment(event.validUntil, timezone).split(" ")[0]}` : "n/a"}
         />
         <ForecastMetric
           label="Місце соляра"
@@ -4439,6 +4469,7 @@ function SolarReturnOverlayWheel({ event, natal }: { event: ReturnEvent; natal: 
   return (
     <SynastryOverlayWheel
       ariaLabel="Накладена карта наталу та соляра"
+      solarLayout
       description=""
       large
       preview={preview}
@@ -4527,6 +4558,7 @@ function SynastryOverlayWheel({
   description = "Bi-wheel · аспекти між планетами партнерів",
   preview,
   large = false,
+  solarLayout = false,
   subjectAName,
   subjectBName
 }: {
@@ -4534,6 +4566,7 @@ function SynastryOverlayWheel({
   description?: string;
   preview: SynastryPreviewResult;
   large?: boolean;
+  solarLayout?: boolean;
   subjectAName: string;
   subjectBName: string;
 }) {
@@ -4543,10 +4576,10 @@ function SynastryOverlayWheel({
   const signRadius = 123;
   const subjectARadius = 101;
   const subjectBRadius = 76;
-  const subjectAHouseLabelRadius = 111;
-  const subjectBHouseLabelRadius = 43;
-  const subjectAAspectRadius = 88;
-  const subjectBAspectRadius = 63;
+  const subjectAHouseLabelRadius = solarLayout ? 149 : 111;
+  const subjectBHouseLabelRadius = solarLayout ? 59 : 43;
+  const subjectAAspectRadius = solarLayout ? innerRadius : 88;
+  const subjectBAspectRadius = solarLayout ? innerRadius : 63;
   const ascendant = preview.subjectA.angles.find((angle) => angle.key === "asc") ?? null;
   const wheelOffset = ascendant ? normalizeDegrees(270 + ascendant.longitude) : 0;
 
@@ -4562,6 +4595,29 @@ function SynastryOverlayWheel({
 
   const subjectAPoints = new Map(preview.subjectA.bodies.map((point) => [point.key, point]));
   const subjectBPoints = new Map(preview.subjectB.bodies.map((point) => [point.key, point]));
+  const labelLongitudes = (points: ChartPoint[]) => {
+    const sorted = points.filter((point) => point.kind !== "angle").slice().sort((a, b) => a.longitude - b.longitude);
+    const result = new Map<string, number>();
+    if (!sorted.length) return result;
+    let start = 0;
+    let largestGap = -1;
+    sorted.forEach((point, index) => {
+      const next = sorted[(index + 1) % sorted.length]!;
+      const gap = normalizeDegrees(next.longitude - point.longitude);
+      if (gap > largestGap) { largestGap = gap; start = (index + 1) % sorted.length; }
+    });
+    let previous = -Infinity;
+    const origin = sorted[start]!.longitude;
+    for (let index = 0; index < sorted.length; index += 1) {
+      const point = sorted[(start + index) % sorted.length]!;
+      const angle = Math.max(normalizeDegrees(point.longitude - origin), previous + 11);
+      result.set(point.key, normalizeDegrees(origin + angle));
+      previous = angle;
+    }
+    return result;
+  };
+  const labelsA = solarLayout ? labelLongitudes(preview.subjectA.bodies) : new Map<string, number>();
+  const labelsB = solarLayout ? labelLongitudes(preview.subjectB.bodies) : new Map<string, number>();
 
   return (
     <div className={large ? "min-w-0" : "rounded-lg border bg-muted/20 p-3"}>
@@ -4577,18 +4633,26 @@ function SynastryOverlayWheel({
         aria-label={ariaLabel}
       >
         <circle cx={center} cy={center} r={outerRadius} className="fill-background stroke-foreground stroke-[1.4]" />
+        {solarLayout ? zodiacSigns.map((sign, index) => {
+          const a = toXY(index * 30, outerRadius);
+          const b = toXY((index + 1) * 30, outerRadius);
+          const c = toXY((index + 1) * 30, subjectARadius + 15);
+          const d = toXY(index * 30, subjectARadius + 15);
+          return <path key={`solar-sector-${sign.key}`} fill={sign.color} fillOpacity={0.22}
+            d={`M ${a.x} ${a.y} A ${outerRadius} ${outerRadius} 0 0 0 ${b.x} ${b.y} L ${c.x} ${c.y} A ${subjectARadius + 15} ${subjectARadius + 15} 0 0 1 ${d.x} ${d.y} Z`} />;
+        }) : null}
         <circle cx={center} cy={center} r={subjectARadius + 15} className="fill-none stroke-border stroke-[1]" />
         <circle cx={center} cy={center} r={subjectBRadius + 15} className="fill-none stroke-border stroke-[1]" />
         <circle cx={center} cy={center} r={innerRadius} className="fill-none stroke-border stroke-[1] [stroke-dasharray:3_4]" />
 
         {preview.subjectA.houses.map((cusp) => {
           const next = preview.subjectA.houses[cusp.house % preview.subjectA.houses.length];
-          const start = toXY(cusp.longitude, outerRadius);
+          const start = toXY(cusp.longitude, solarLayout ? outerRadius + 6 : outerRadius);
           const end = toXY(cusp.longitude, innerRadius);
           const houseCenterLongitude = next
             ? normalizeDegrees(cusp.longitude + normalizeDegrees(next.longitude - cusp.longitude) / 2)
             : cusp.longitude;
-          const label = toXY(houseCenterLongitude, subjectAHouseLabelRadius);
+          const label = toXY(solarLayout ? cusp.longitude : houseCenterLongitude, subjectAHouseLabelRadius);
           return (
             <g className="cursor-help" key={`syn-house-${cusp.house}`}>
               <title>{`${subjectAName}: куспід ${cusp.house} дому\n${signLabelsUk[cusp.sign] ?? cusp.sign} ${formatZodiacDegree(
@@ -4606,7 +4670,7 @@ function SynastryOverlayWheel({
                 y={label.y}
                 className="fill-astro-coral text-[9px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
               >
-                {cusp.house}
+                {solarLayout ? `${houseRomanNumerals[cusp.house - 1]} ${Math.floor(cusp.signDegree)}°` : cusp.house}
               </text>
             </g>
           );
@@ -4638,7 +4702,7 @@ function SynastryOverlayWheel({
                 y={label.y}
                 className="fill-astro-coral text-[8px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
               >
-                {cusp.house}
+                {solarLayout ? houseRomanNumerals[cusp.house - 1] : cusp.house}
               </text>
             </g>
           );
@@ -4666,7 +4730,7 @@ function SynastryOverlayWheel({
           );
         })}
 
-        {preview.interAspects.slice(0, 36).map((aspect) => {
+        {(solarLayout ? preview.interAspects : preview.interAspects.slice(0, 36)).map((aspect) => {
           const pointA = subjectAPoints.get(aspect.bodyA);
           const pointB = subjectBPoints.get(aspect.bodyB);
 
@@ -4687,21 +4751,27 @@ function SynastryOverlayWheel({
               className={cn("stroke-[1] opacity-75", getAspectStrokeClass(aspect.type))}
             >
               <title>
-                {pointLabelUk(pointA.key, pointA.label)} {aspectLabels[aspect.type] ?? aspect.type}{" "}
-                {pointLabelUk(pointB.key, pointB.label)} · відстань{" "}
+                {subjectAName}: {pointLabelUk(pointA.key, pointA.label)} {aspectLabels[aspect.type] ?? aspect.type}{" "}
+                {subjectBName}: {pointLabelUk(pointB.key, pointB.label)} · відстань{" "}
                 {angularDistanceDegrees(pointA.longitude, pointB.longitude).toFixed(2)}° · орб {aspect.orb.toFixed(2)}°
               </title>
             </line>
           );
         })}
 
-        {preview.subjectA.bodies.map((point) => {
-          const position = toXY(point.longitude, subjectARadius);
+        {preview.subjectA.bodies.filter((point) => !solarLayout || point.kind !== "angle").map((point) => {
+          const position = toXY(labelsA.get(point.key) ?? point.longitude, subjectARadius);
+          const anchor = toXY(point.longitude, subjectARadius + 15);
 
           return (
             <g key={`syn-a-${point.key}`}>
               <title>{`${subjectAName}\n${formatPointTooltip(point, preview.subjectA)}`}</title>
-              <circle cx={position.x} cy={position.y} r="12" className="fill-background stroke-primary stroke-[1.3]" />
+              {solarLayout ? <>
+                <line x1={anchor.x} y1={anchor.y} x2={position.x} y2={position.y} className="stroke-primary/40 stroke-[0.5]" />
+                <circle cx={anchor.x} cy={anchor.y} r="1.1" className="fill-primary" />
+                <text x={position.x + 5} y={position.y - 5} className="fill-foreground text-[5px]">{Math.floor(point.signDegree)}°</text>
+                {(point.speed ?? 0) < 0 ? <text x={position.x + 5} y={position.y + 5} className="fill-primary text-[5px]">R</text> : null}
+              </> : <circle cx={position.x} cy={position.y} r="12" className="fill-background stroke-primary stroke-[1.3]" />}
               <text
                 x={position.x}
                 y={position.y}
@@ -4713,13 +4783,19 @@ function SynastryOverlayWheel({
           );
         })}
 
-        {preview.subjectB.bodies.map((point) => {
-          const position = toXY(point.longitude, subjectBRadius);
+        {preview.subjectB.bodies.filter((point) => !solarLayout || point.kind !== "angle").map((point) => {
+          const position = toXY(labelsB.get(point.key) ?? point.longitude, subjectBRadius);
+          const anchor = toXY(point.longitude, subjectBRadius + 15);
 
           return (
             <g key={`syn-b-${point.key}`}>
               <title>{`${subjectBName}\n${formatPointTooltip(point, preview.subjectB)}`}</title>
-              <circle cx={position.x} cy={position.y} r="11" className="fill-background stroke-astro-coral stroke-[1.3]" />
+              {solarLayout ? <>
+                <line x1={anchor.x} y1={anchor.y} x2={position.x} y2={position.y} className="stroke-astro-coral/40 stroke-[0.5]" />
+                <circle cx={anchor.x} cy={anchor.y} r="1.1" className="fill-astro-coral" />
+                <text x={position.x + 5} y={position.y - 5} className="fill-foreground text-[5px]">{Math.floor(point.signDegree)}°</text>
+                {(point.speed ?? 0) < 0 ? <text x={position.x + 5} y={position.y + 5} className="fill-astro-coral text-[5px]">R</text> : null}
+              </> : <circle cx={position.x} cy={position.y} r="11" className="fill-background stroke-astro-coral stroke-[1.3]" />}
               <text
                 x={position.x}
                 y={position.y}
@@ -5442,8 +5518,14 @@ function formatHouseConnectionTitle(connection: HouseConnection): string {
       const sign = detail.tone === "tense" ? "-" : "+";
       const planetA = formatHouseConnectionPlanetLabel(detail.planetA);
       const planetB = formatHouseConnectionPlanetLabel(detail.planetB ?? detail.planetA);
-      const roleA = formatHouseConnectionRole(detail.fromRole);
-      const roleB = formatHouseConnectionRole(detail.toRole);
+      const describeRole = (role: "placement" | "ruler", source?: string, zodiacSign?: string) => {
+        const label = formatHouseConnectionRole(role);
+        if (!source) return label;
+        if (source === "fixed-house") return `${label}: фіксоване управління`;
+        return `${label}: ${zodiacSign ? signLabelsUk[zodiacSign] ?? zodiacSign : ""}, ${source === "cusp" ? "куспід" : "додатковий знак"}`;
+      };
+      const roleA = describeRole(detail.fromRole, detail.fromRulerSource, detail.fromSign);
+      const roleB = describeRole(detail.toRole, detail.toRulerSource, detail.toSign);
       const aspectAngle = detail.source === "aspect" ? formatHouseConnectionAspectAngle(detail) : "";
       const fromHouse = detail.fromHouse ?? connection.fromHouse;
       const toHouse = detail.toHouse ?? connection.toHouse;
@@ -6193,11 +6275,13 @@ function AspectList({ aspects }: { aspects: Aspect[] }) {
 
 function getAspectStrokeClass(type: string): string {
   switch (type) {
+    case "semisextile":
     case "trine":
     case "sextile":
       return "stroke-astro-coral";
     case "square":
     case "opposition":
+    case "quincunx":
       return "stroke-blue-600";
     default:
       return "stroke-primary";
@@ -6206,11 +6290,13 @@ function getAspectStrokeClass(type: string): string {
 
 function getAspectTextClass(type: string): string {
   switch (type) {
+    case "semisextile":
     case "trine":
     case "sextile":
       return "text-astro-coral";
     case "square":
     case "opposition":
+    case "quincunx":
       return "text-blue-600";
     default:
       return "text-primary";

@@ -92,6 +92,10 @@ export type AspectConfiguration = {
 };
 
 export type HouseConnectionDetail = {
+  fromRulerSource?: "cusp" | "contained-sign" | "fixed-house";
+  toRulerSource?: "cusp" | "contained-sign" | "fixed-house";
+  fromSign?: string;
+  toSign?: string;
   source: "ruler-position" | "rulership" | "aspect";
   tone: "harmonious" | "tense" | "neutral";
   fromHouse: number;
@@ -274,7 +278,9 @@ export type ExactTransitEvent = TransitAspect & {
   natalHouse?: number;
 };
 
-export type SecondaryProgressionAspect = Aspect & {
+export type ProgressionAspect = Omit<Aspect, "type"> & { type: Aspect["type"] | "semisextile" | "quincunx" };
+
+export type SecondaryProgressionAspect = ProgressionAspect & {
   phase: "applying" | "separating" | "exact" | "stationary";
   exactAt: string | null;
   yearsToExact: number | null;
@@ -299,7 +305,13 @@ export type SecondaryProgressionResult = {
   progressedReferencePoints?: ChartPoint[];
   natalReferencePoints?: ChartPoint[];
   calendarYear?: number;
-  calendar?: Array<Aspect & {
+  calendarFrom?: string;
+  calendarUntil?: string;
+  calendarTimezone?: string;
+  calendar?: Array<ProgressionAspect & {
+    activeFrom?: string | null;
+    formulaA?: string;
+    formulaB?: string;
     exactAt: string;
     progressedPointLabel: string;
     natalPointLabel: string;
