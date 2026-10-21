@@ -37,6 +37,15 @@ export const transitPreviewSchema = z.object({
 });
 
 export const forecastPreviewSchema = z.object({
+  progressionTargetDateTime: z.string().datetime({ offset: true }).optional(),
+  progressionLocation: z.object({
+    name: z.string().trim().min(1).max(500),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+    timezone: z.string().min(1).max(100).refine((zone) => {
+      try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; } catch { return false; }
+    }, "Invalid timezone")
+  }).optional(),
   fromDateTime: z.string().datetime({ offset: true }),
   natal: natalPreviewSchema,
   targetYear: z.number().int().min(1900).max(2100).optional(),

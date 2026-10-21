@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { searchPlaces } from "@/lib/api";
 import type { PlaceSearchResult } from "@/lib/chart-types";
 
-export function ReturnPlaceSearch({ name, onSelect, onPendingChange }: {
+export function ReturnPlaceSearch({ name, onSelect, onPendingChange, label = "Місто соляра" }: {
+  label?: string;
   name: string;
   onSelect: (place: PlaceSearchResult) => void;
   onPendingChange: (pending: boolean) => void;
@@ -51,7 +52,7 @@ export function ReturnPlaceSearch({ name, onSelect, onPendingChange }: {
     }} onKeyDown={(event) => {
       if (event.key === "Escape") { event.preventDefault(); close(); container.current?.querySelector("input")?.focus(); }
     }}>
-      <Input aria-label="Місто соляра" autoComplete="off" placeholder="Місто соляра" value={query}
+      <Input aria-label={label} autoComplete="off" placeholder={label} value={query}
         onFocus={() => { if (query !== name) { setError(null); setOpen(true); } }}
         onChange={(event) => {
           request.current?.abort();

@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { findProgressionCrossings } from "./progression-crossings";
 import { progressionCalendarWindow } from "./progression-calendar-window";
-import { calculateProgressionAspects, findProgressionIngress, PROGRESSION_ASPECT_ANGLES } from "./progression-aspects";
+import { calculateProgressionAspects, findProgressionIngress, progressionOrbFor, PROGRESSION_ASPECT_ANGLES } from "./progression-aspects";
 import type { ProgressionAspect } from "./types";
 import {
   calc,
@@ -804,6 +804,9 @@ export const calculateHouseConnections = (houseRulers: HouseRuler[], bodies: Cha
   }
 
   for (const aspect of aspects) {
+    if ([aspect.bodyA, aspect.bodyB].some((key) => key === "north-node" || key === "south-node")) {
+      continue;
+    }
     const responsibilitiesA = responsibilitiesByPlanet.get(aspect.bodyA) ?? [];
     const responsibilitiesB = responsibilitiesByPlanet.get(aspect.bodyB) ?? [];
 
@@ -2295,14 +2298,14 @@ const buildSecondaryProgressionAspect = ({
       ? transitAspectTargetDelta(aspect, progressedPoint, natalPoint) / (progressedPoint.speed ?? 1)
       : null;
   const phase =
-    aspect.orb <= 0.01
+    aspect.orb <= (progressedPoint.key.startsWith("house-") ? 0.00001 : 0.01)
       ? "exact"
       : estimatedProgressedDays === null
           ? "stationary"
           : estimatedProgressedDays > 0
             ? "applying"
             : "separating";
-  const closeness = Math.max(0, 1 - aspect.orb / SECONDARY_PROGRESSION_ASPECT_ORB);
+  const closeness = Math.max(0, 1 - aspect.orb / progressionOrbFor(progressedPoint.key, SECONDARY_PROGRESSION_ASPECT_ORB));
   const aspectWeight = (ASPECT_SCORE_WEIGHTS as Partial<Record<string, number>>)[aspect.type] ?? 0.65;
   const bodyWeight = TRANSIT_BODY_SCORE_WEIGHTS[progressedPoint.key] ?? 0.55;
   const score = round((closeness * 0.68 + aspectWeight * 0.2 + bodyWeight * 0.12) * 100, 1);
@@ -2322,8 +2325,17 @@ const buildSecondaryProgressionAspect = ({
 
 const calculateSecondaryProgressionFromNatal = (
   input: SecondaryProgressionInput,
-  natal: ChartResult
+  birthNatal: ChartResult
 ): SecondaryProgressionResult => {
+  const location = input.progressionLocation;
+  const natal = location ? calculateNatalChart({
+    ...input.natal,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    zodiac: input.zodiac ?? birthNatal.settings.zodiac,
+    ayanamsa: input.ayanamsa ?? birthNatal.settings.ayanamsa,
+    ephemerisPath: input.ephemerisPath
+  }) : birthNatal;
   const targetDateTime = parseTransitDateTime(input.targetDateTime);
   const birthDateTime = DateTime.fromISO(natal.subject.utcDateTime, { setZone: true }).toUTC();
 
@@ -2383,10 +2395,12 @@ const calculateSecondaryProgressionFromNatal = (
   const progressed: ChartResult = {
     ...progressedBase,
     chartType: "progression",
-    bodies: progressedBodies
+    bodies: progressedBodies.filter((point) => point.key !== "south-node" && point.key !== "chiron"),
+    aspects: progressedBase.aspects.filter((aspect) => ![aspect.bodyA, aspect.bodyB].some((key) => key === "south-node" || key === "chiron")),
+    houses: progressedCusps.map((point) => ({ house: point.house!, longitude: point.longitude, sign: point.sign, signDegree: point.signDegree }))
   };
   const natalReferencePoints = [
-    ...natal.bodies,
+    ...natal.bodies.filter((point) => point.key !== "south-node" && point.key !== "chiron"),
     ...natalCusps
   ];
   const progressedReferencePoints = [...progressed.bodies, ...progressedCusps];
@@ -2420,7 +2434,7 @@ const calculateSecondaryProgressionFromNatal = (
     .filter((aspect): aspect is SecondaryProgressionAspect => aspect !== null)
     .sort((a, b) => b.score - a.score || a.orb - b.orb);
 
-  const calendarWindow = progressionCalendarWindow();
+  const calendarWindow = progressionCalendarWindow(targetDateTime, location?.timezone ?? "Europe/Kyiv");
   const calendarStart = Math.max(calendarWindow.start.toMillis(), birthDateTime.toMillis());
   const calendarEnd = calendarWindow.end.toMillis();
   const epochAt = (time: number) => DateTime.fromMillis(
@@ -2441,11 +2455,27 @@ const calculateSecondaryProgressionFromNatal = (
   for (let time = calendarStart; time < calendarEnd; time += 6 * 3600000) sampleTimes.push(time);
   sampleTimes.push(calendarEnd);
   const calendar: NonNullable<SecondaryProgressionResult["calendar"]> = [];
-  const formulaFor = (point: ChartPoint, rulers: HouseRuler[]): string => {
+  const formulaFor = (point: ChartPoint, rulers: HouseRuler[], natalBasis = false): string => {
     if (point.key.startsWith("house-")) return point.key.slice(6);
     const ruled = rulers.filter((ruler) => ruler.rulerKey === point.key).map((ruler) => ruler.house);
-    return `${point.house ?? "?"}${ruled.length ? ` (${ruled.join(" ")})` : ""}`;
+    const number = (house: number) => `${house}${natalBasis ? "₀" : ""}`;
+    return `${point.house ? number(point.house) : "?"}${ruled.length ? ` (${ruled.map(number).join(" ")})` : ""}`;
   };
+  const combinedFormula = (point: ChartPoint, rulers: HouseRuler[], isProgressed: boolean): string => {
+    const local = formulaFor(point, rulers);
+    if (!location || point.key.startsWith("house-")) return local;
+    const originalPoint = isProgressed ? { ...point, house: findHouse(point.longitude, birthNatal.houses) }
+      : birthNatal.bodies.find((body) => body.key === point.key) ?? point;
+    const originalRulers = isProgressed ? calculateHouseRulers(birthNatal.houses,
+      birthNatal.bodies.map((body) => body.key === point.key ? originalPoint : body),
+      birthNatal.settings.calculationRules ?? resolveCalculationRules()) : birthNatal.houseRulers ?? [];
+    return `${formulaFor(originalPoint, originalRulers, true)} / ${local}`;
+  };
+  const progressionRulers = calculateHouseRulers(natal.houses, progressed.bodies, natal.settings.calculationRules ?? resolveCalculationRules());
+  for (const aspect of progressedToNatalAspects) {
+    aspect.formulaA = combinedFormula(progressedPointsByKey.get(aspect.bodyA)!, progressionRulers, true);
+    aspect.formulaB = combinedFormula(natalPointsByKey.get(aspect.bodyB)!, natal.houseRulers ?? [], false);
+  }
   const samplesByKey = new Map(progressedReferencePoints.map((point) => [point.key,
     [] as Array<{ time: number; longitude: number | null }>]));
   for (const time of sampleTimes) {
@@ -2466,20 +2496,20 @@ const calculateSecondaryProgressionFromNatal = (
           );
           for (const time of roots) {
             if (time < calendarStart || time >= calendarEnd) continue;
-            const ingress = findProgressionIngress(time, target, SECONDARY_PROGRESSION_ASPECT_ORB,
+            const ingress = findProgressionIngress(time, target, progressionOrbFor(point.key, SECONDARY_PROGRESSION_ASPECT_ORB),
               Math.max(birthDateTime.toMillis(), time - 10 * SECONDARY_PROGRESSION_YEAR_DAYS * 86400000),
               point.key.startsWith("house-") ? 6 * 3600000 : 86400000,
               (moment) => longitudeAt(point.key, moment));
             const eventPosition = point.key.startsWith("house-") ? null :
               calculatePointPositionAt({ flags, pointKey: point.key, utc: epochAt(time), warnings });
-            const eventPoint = eventPosition ? { ...point, speed: eventPosition.speed,
+            const eventPoint = eventPosition ? { ...point, longitude: eventPosition.longitude, speed: eventPosition.speed,
               house: findHouse(eventPosition.longitude, natal.houses) } : point;
             const eventRulers = calculateHouseRulers(natal.houses,
               natal.bodies.map((body) => body.key === point.key ? eventPoint : body), natal.settings.calculationRules ?? resolveCalculationRules());
             calendar.push({ bodyA: point.key, bodyB: natalPoint.key, type, exactAngle, orb: 0,
               activeFrom: ingress === null ? null : toUtcIso(DateTime.fromMillis(ingress, { zone: "utc" })),
-              formulaA: formulaFor(eventPoint, eventRulers),
-              formulaB: formulaFor(natalPoint, natal.houseRulers ?? []),
+              formulaA: combinedFormula(eventPoint, eventRulers, true),
+              formulaB: combinedFormula(natalPoint, natal.houseRulers ?? [], false),
               exactAt: toUtcIso(DateTime.fromMillis(time, { zone: "utc" })),
               progressedPointLabel: point.label, natalPointLabel: natalPoint.label });
           }
@@ -2511,14 +2541,17 @@ const calculateSecondaryProgressionFromNatal = (
 
   return {
     method: "secondary-day-for-year",
+    location,
+    birthNatal: location ? birthNatal : undefined,
     yearLengthDays: SECONDARY_PROGRESSION_YEAR_DAYS,
     aspectOrbDegrees: SECONDARY_PROGRESSION_ASPECT_ORB,
+    cuspAspectOrbDegrees: 1 / 60,
     targetDateTime: toUtcIso(targetDateTime),
     progressedDateTime: toUtcIso(progressedDateTime),
     ageYears: round(ageYears, 6),
     natal,
     progressed,
-    progressedHousePlacements,
+    progressedHousePlacements: progressedHousePlacements.filter((point) => point.key !== "south-node" && point.key !== "chiron"),
     progressedToNatalAspects,
     progressedReferencePoints,
     natalReferencePoints,
@@ -3112,14 +3145,15 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
   const secondaryProgression = calculateSecondaryProgressionFromNatal(
     {
       natal: input.natal,
-      targetDateTime: toUtcIso(baseDateTime),
+      targetDateTime: input.progressionTargetDateTime ?? toUtcIso(baseDateTime),
+      progressionLocation: input.progressionLocation,
       zodiac: settings.zodiac,
       ayanamsa: settings.ayanamsa,
       ephemerisPath: input.ephemerisPath
     },
     natal
   );
-  const solarArcDirections = calculateSolarArcDirections(secondaryProgression, input.ephemerisPath);
+  const solarArcDirections = calculateSolarArcDirections({ ...secondaryProgression, natal }, input.ephemerisPath);
   const timelineEvents = buildForecastTimeline({
     baseDateTime,
     days,

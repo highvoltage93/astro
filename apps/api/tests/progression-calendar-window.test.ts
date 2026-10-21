@@ -3,6 +3,14 @@ import { test } from "node:test";
 import { DateTime } from "luxon";
 import { progressionCalendarWindow } from "../../../packages/astrology-core/src/progression-calendar-window";
 
+test("selected future and historical dates determine the entire calendar year window", () => {
+  for (const [start, end] of [["2032-01-01", "2033-01-01"], ["2010-06-20", "2011-06-20"]]) {
+    const window = progressionCalendarWindow(DateTime.fromISO(`${start}T12:00:00`, { zone: "Europe/Kyiv" }));
+    assert.equal(window.start.setZone(window.timezone).toISODate(), start);
+    assert.equal(window.end.setZone(window.timezone).toISODate(), end);
+  }
+});
+
 test("rolling year uses today's Kyiv date, independent of server timezone", () => {
   const window = progressionCalendarWindow(DateTime.fromISO("2026-10-20T22:30:00Z"));
   assert.equal(window.start.setZone(window.timezone).toISODate(), "2026-10-21");

@@ -288,6 +288,8 @@ export type ExactTransitEvent = TransitAspect & {
 export type ProgressionAspect = Omit<Aspect, "type"> & { type: Aspect["type"] | "semisextile" | "quincunx" };
 
 export type SecondaryProgressionAspect = ProgressionAspect & {
+  formulaA?: string;
+  formulaB?: string;
   phase: TransitAspectPhase;
   exactAt: string | null;
   yearsToExact: number | null;
@@ -299,6 +301,7 @@ export type SecondaryProgressionAspect = ProgressionAspect & {
 };
 
 export type SecondaryProgressionInput = {
+  progressionLocation?: ProgressionLocation;
   natal: NatalPreviewInput;
   targetDateTime: string;
   zodiac?: ZodiacType;
@@ -306,7 +309,12 @@ export type SecondaryProgressionInput = {
   ephemerisPath?: string;
 };
 
+export type ProgressionLocation = { name: string; latitude: number; longitude: number; timezone: string };
+
 export type SecondaryProgressionResult = {
+  cuspAspectOrbDegrees?: number;
+  location?: ProgressionLocation;
+  birthNatal?: ChartResult;
   method: "secondary-day-for-year";
   yearLengthDays: number;
   aspectOrbDegrees: number;
@@ -386,6 +394,8 @@ export type ForecastTimelineEvent = {
 };
 
 export type ForecastPreviewInput = {
+  progressionTargetDateTime?: string;
+  progressionLocation?: ProgressionLocation;
   natal: NatalPreviewInput;
   fromDateTime: string;
   targetYear?: number;

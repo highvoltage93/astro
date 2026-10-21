@@ -15,6 +15,21 @@ const rulers = [ruler("mars", 2, "scorpio"), ruler("mars", 3, "aries"),
   ruler("uranus", 5, "aquarius", "contained-sign"), ruler("uranus", 6, "aquarius")];
 const aspect: Aspect = { bodyA: "mars", bodyB: "uranus", type: "trine", exactAngle: 120, orb: 0 };
 
+test("node aspects on either side do not contribute to house connections", () => {
+  const bodies = [body("mars", 1), body("uranus", 5), body("north-node", 8), body("south-node", 2)];
+  const nodeAspects: Aspect[] = ["north-node", "south-node"].flatMap((key) => [
+    { ...aspect, bodyA: key }, { ...aspect, bodyB: key }
+  ]);
+  nodeAspects.push({ ...aspect, bodyA: "north-node", bodyB: "south-node", type: "opposition", exactAngle: 180 });
+  const input = [aspect, ...nodeAspects];
+  const original = JSON.stringify(input);
+  assert.deepEqual(
+    calculateHouseConnections(rulers, bodies, input, defaultCalculationRules()),
+    calculateHouseConnections(rulers, bodies, [aspect], defaultCalculationRules())
+  );
+  assert.equal(JSON.stringify(input), original);
+});
+
 test("each independent responsibility contributes to repeated aspect formulas", () => {
   const result = calculateHouseConnections(rulers, [body("mars", 1), body("uranus", 5)], [aspect], defaultCalculationRules());
   const details = result.flatMap((connection) => connection.details).filter((detail) => detail.source === "aspect");

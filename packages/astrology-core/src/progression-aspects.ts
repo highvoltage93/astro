@@ -3,14 +3,18 @@ import type { ChartPoint, ProgressionAspect } from "./types";
 
 export const PROGRESSION_ASPECT_ANGLES = { ...MAJOR_ASPECT_ANGLES, semisextile: 30, quincunx: 150 };
 
+export const progressionOrbFor = (sourceKey: string, planetOrb = 1): number =>
+  sourceKey.startsWith("house-") ? 1 / 60 : planetOrb;
+
 export function calculateProgressionAspects(points: ChartPoint[], natal: ChartPoint[], orb: number): ProgressionAspect[] {
   const result: ProgressionAspect[] = [];
   for (const a of points) for (const b of natal) {
+    if ([a.key, b.key].some((key) => key === "south-node" || key === "chiron")) continue;
     const difference = Math.abs(a.longitude - b.longitude) % 360;
     const distance = Math.min(difference, 360 - difference);
     for (const [type, exactAngle] of Object.entries(PROGRESSION_ASPECT_ANGLES)) {
       const deviation = Math.abs(distance - exactAngle);
-      if (deviation <= orb) result.push({ bodyA: a.key, bodyB: b.key,
+      if (deviation <= progressionOrbFor(a.key, orb)) result.push({ bodyA: a.key, bodyB: b.key,
         type: type as ProgressionAspect["type"], exactAngle, orb: deviation });
     }
   }
