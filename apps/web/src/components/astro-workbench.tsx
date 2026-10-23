@@ -130,7 +130,6 @@ type ProfessionalDataTab =
 const workspaceTabs: Array<{ key: WorkspaceTab; label: string }> = [
   { key: "interpretation", label: "Базова трактовка" },
   { key: "forecast", label: "Прогностичний модуль" },
-  { key: "transits", label: "Транзити" },
   { key: "events", label: "Пошук подій" },
   { key: "synastry", label: "Синастрія" }
 ];
@@ -1379,7 +1378,7 @@ export function AstroWorkbench() {
           setTransitDateTime(toForecastDateTimeInput(record.input.parameters.transitDateTime));
           setTransitPreview(record.result);
           setTransitStatus("ready");
-          setActiveWorkspaceTab("transits");
+          setActiveWorkspaceTab("forecast");
         } else {
           setPartnerForm(formFromArchive(record.input.parameters.subjectB, record.input.context.partner));
           setSynastryPreview(record.result);
@@ -1664,12 +1663,12 @@ export function AstroWorkbench() {
     }
   };
 
-  const activePreview = activeWorkspaceTab === "forecast" ? forecastPreview
+  const activePreview = activeWorkspaceTab === "forecast" ? forecastPreview ?? transitPreview
     : activeWorkspaceTab === "transits" ? transitPreview
     : activeWorkspaceTab === "synastry" ? synastryPreview : null;
   const saveControls = [
     { tab: "forecast", draft: forecastDrafts.forecast, preview: forecastPreview, status: forecastStatus },
-    { tab: "transits", draft: forecastDrafts.transits, preview: transitPreview, status: transitStatus },
+    { tab: "forecast", draft: forecastDrafts.transits, preview: transitPreview, status: transitStatus },
     { tab: "synastry", draft: forecastDrafts.synastry, preview: synastryPreview, status: synastryStatus }
   ];
 
@@ -1873,6 +1872,17 @@ export function AstroWorkbench() {
 
                 {activeWorkspaceTab === "forecast" ? (
                   <ForecastModuleCard
+                    key={loadedForecast?.id ?? "current-forecast"}
+                    openTransits={loadedForecast?.kind === "transit"}
+                    transitContent={<TransitForecastCard
+                      error={transitError} preview={transitPreview} status={transitStatus}
+                      transitDateTime={transitDateTime} onCalculate={calculateTransits}
+                      onTransitDateTimeChange={(value) => {
+                        setTransitDateTime(value);
+                        setTransitPreview(null);
+                        setTransitError(null);
+                        setTransitStatus("idle");
+                      }} />}
                     days={forecastDays}
                     error={forecastError}
                     fromDateTime={forecastFromDateTime}
@@ -1913,22 +1923,6 @@ export function AstroWorkbench() {
                     onTargetYearChange={(value) => {
                       setForecastTargetYear(value);
                       clearForecastState();
-                    }}
-                  />
-                ) : null}
-
-                {activeWorkspaceTab === "transits" ? (
-                  <TransitForecastCard
-                    error={transitError}
-                    preview={transitPreview}
-                    status={transitStatus}
-                    transitDateTime={transitDateTime}
-                    onCalculate={calculateTransits}
-                    onTransitDateTimeChange={(value) => {
-                      setTransitDateTime(value);
-                      setTransitPreview(null);
-                      setTransitError(null);
-                      setTransitStatus("idle");
                     }}
                   />
                 ) : null}
@@ -2722,6 +2716,8 @@ function InterpretationCard({
 }
 
 function ForecastModuleCard({
+  transitContent,
+  openTransits = false,
   progressionLocation,
   onProgressionLocationChange,
   days,
@@ -2740,6 +2736,8 @@ function ForecastModuleCard({
   onReturnPlaceChange,
   onTargetYearChange
 }: {
+  transitContent: ReactNode;
+  openTransits?: boolean;
   progressionLocation?: ForecastPreviewPayload["progressionLocation"];
   onProgressionLocationChange: (place: PlaceSearchResult | null) => void;
   days: string;
@@ -2760,7 +2758,7 @@ function ForecastModuleCard({
 }) {
   const [activeForecastView, setActiveForecastView] = useState<
     "overview" | "solar-return" | "progression" | "transits"
-  >("overview");
+  >(openTransits ? "transits" : "overview");
   const [returnPlacePending, setReturnPlacePending] = useState(false);
   const [progressionPlacePending, setProgressionPlacePending] = useState(false);
   const [progressionPlaceReset, setProgressionPlaceReset] = useState(0);
@@ -2854,8 +2852,7 @@ function ForecastModuleCard({
           </p>
         ) : null}
 
-        {preview ? (
-          <div className="space-y-4">
+        <div className="space-y-4">
             <div className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1" role="tablist" aria-label="Методи прогнозування">
               {[
                 ["overview", "Огляд"],
@@ -2885,7 +2882,7 @@ function ForecastModuleCard({
               ))}
             </div>
 
-            {activeForecastView === "overview" ? (
+            {preview && activeForecastView === "overview" ? (
               <div className="space-y-4" role="tabpanel">
                 <div className="grid gap-2 sm:grid-cols-3">
                   <ForecastMetric label="Соляр" value={preview.solarReturn ? formatSolarMoment(preview.solarReturn.exactAt, returnTimezone) : "n/a"} />
@@ -2900,13 +2897,13 @@ function ForecastModuleCard({
               </div>
             ) : null}
 
-            {activeForecastView === "progression" ? (
+            {preview && activeForecastView === "progression" ? (
               <div role="tabpanel">
                 <SecondaryProgressionPanel progression={preview.secondaryProgression} />
               </div>
             ) : null}
 
-            {activeForecastView === "solar-return" ? (
+            {preview && activeForecastView === "solar-return" ? (
               <div role="tabpanel">
                 <SolarReturnPanel event={preview.solarReturn} natal={preview.natal} placeName={returnPlaceName} timezone={returnTimezone} />
               </div>
@@ -2914,6 +2911,7 @@ function ForecastModuleCard({
 
             {activeForecastView === "transits" ? (
               <div className="space-y-2" role="tabpanel">
+                {transitContent}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold">Точні дати транзитів</h3>
                   <Badge variant="secondary">{exactTransits.length}</Badge>
@@ -2922,7 +2920,7 @@ function ForecastModuleCard({
               </div>
             ) : null}
 
-            {preview.warnings.map((warning) => (
+            {preview?.warnings.map((warning) => (
               <div
                 className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
                 key={`forecast-warning-${warning.code}`}
@@ -2931,7 +2929,6 @@ function ForecastModuleCard({
               </div>
             ))}
           </div>
-        ) : null}
       </CardContent>
     </Card>
   );
@@ -3552,7 +3549,7 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
 
       <ProgressionOverlayWheel progression={progression} />
       <p className="text-sm text-muted-foreground">{progression.location?.name ?? "Місце народження"} · {displayTimezone}</p>
-      <p className="text-xs text-muted-foreground">Куспіди: пряме прогресування часу. Метод розрахунку домів Альтаїра ще не звірено.</p>
+      <p className="text-xs text-muted-foreground">{progression.houseMethod === "solar-arc-mc" ? "Доми: МС за сонячною дугою" : "Архівний метод домів. Перерахуйте прогноз для МС за сонячною дугою."}</p>
 
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Таблиці повільних прогресій" className="flex gap-1">
@@ -4631,7 +4628,12 @@ function SynastryOverlayWheel({
   const subjectBAspectRadius = solarLayout ? innerRadius : 63;
   // Match natal SVG sizes despite the different viewBox coordinate systems.
   const natalUnit = 372 / 710;
-  const ascendant = preview.subjectA.angles.find((angle) => angle.key === "asc") ?? null;
+  const primaryHouseChart = solarLayout ? preview.subjectB : preview.subjectA;
+  const secondaryHouseChart = solarLayout ? preview.subjectA : preview.subjectB;
+  const primaryHouseName = solarLayout ? subjectBName : subjectAName;
+  const secondaryHouseName = solarLayout ? subjectAName : subjectBName;
+  const ascendant = (solarLayout ? primaryHouseChart.houses.find((cusp) => cusp.house === 1) : undefined)
+    ?? primaryHouseChart.angles.find((angle) => angle.key === "asc") ?? null;
   const wheelOffset = ascendant ? normalizeDegrees(270 + ascendant.longitude) : 0;
 
   const toXY = (longitude: number, radius: number): { x: number; y: number } => {
@@ -4696,8 +4698,8 @@ function SynastryOverlayWheel({
         <circle cx={center} cy={center} r={subjectBRadius + 15} className="fill-none stroke-border stroke-[1]" style={solarLayout ? { strokeWidth: natalUnit } : undefined} />
         <circle cx={center} cy={center} r={innerRadius} className={cn("fill-none stroke-border stroke-[1]", !solarLayout && "[stroke-dasharray:3_4]")} style={solarLayout ? { strokeWidth: 1.2 * natalUnit } : undefined} />
 
-        {preview.subjectA.houses.map((cusp) => {
-          const next = preview.subjectA.houses[cusp.house % preview.subjectA.houses.length];
+        {primaryHouseChart.houses.map((cusp) => {
+          const next = primaryHouseChart.houses[cusp.house % primaryHouseChart.houses.length];
           const start = toXY(cusp.longitude, solarLayout ? outerRadius + 6 : outerRadius);
           const end = toXY(cusp.longitude, innerRadius);
           const houseCenterLongitude = next
@@ -4706,7 +4708,7 @@ function SynastryOverlayWheel({
           const label = toXY(solarLayout ? cusp.longitude : houseCenterLongitude, subjectAHouseLabelRadius);
           return (
             <g className="cursor-help" key={`syn-house-${cusp.house}`}>
-              <title>{`${subjectAName}: куспід ${cusp.house} дому\n${signLabelsUk[cusp.sign] ?? cusp.sign} ${formatZodiacDegree(
+              <title>{`${primaryHouseName}: куспід ${cusp.house} дому\n${signLabelsUk[cusp.sign] ?? cusp.sign} ${formatZodiacDegree(
                 cusp.signDegree
               )}\nАбсолютна довгота: ${cusp.longitude.toFixed(4)}°`}</title>
               <line
@@ -4729,8 +4731,8 @@ function SynastryOverlayWheel({
           );
         })}
 
-        {preview.subjectB.houses.map((cusp) => {
-          const next = preview.subjectB.houses[cusp.house % preview.subjectB.houses.length];
+        {secondaryHouseChart.houses.map((cusp) => {
+          const next = secondaryHouseChart.houses[cusp.house % secondaryHouseChart.houses.length];
           const start = toXY(cusp.longitude, subjectBRadius + 15);
           const end = toXY(cusp.longitude, innerRadius);
           const houseCenterLongitude = next
@@ -4740,7 +4742,7 @@ function SynastryOverlayWheel({
 
           return (
             <g className="cursor-help" key={`syn-partner-house-${cusp.house}`}>
-              <title>{`${subjectBName}: куспід ${cusp.house} дому\n${signLabelsUk[cusp.sign] ?? cusp.sign} ${formatZodiacDegree(
+              <title>{`${secondaryHouseName}: куспід ${cusp.house} дому\n${signLabelsUk[cusp.sign] ?? cusp.sign} ${formatZodiacDegree(
                 cusp.signDegree
               )}\nАбсолютна довгота: ${cusp.longitude.toFixed(4)}°`}</title>
               <line
@@ -5294,12 +5296,12 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
           <HouseRulersTable houseRulers={houseRulers} />
 
           <div className="overflow-auto rounded-lg border">
-            <table className="min-w-[820px] border-collapse text-xs">
+            <table className="w-full border-collapse text-xs">
               <thead className="sticky top-0 z-10 bg-card">
                 <tr>
-                  <th className="h-9 w-12 border-b border-r px-2 text-left font-semibold text-muted-foreground">Поле</th>
+                  <th className="h-7 w-8 border-b border-r px-0.5 text-center font-semibold text-muted-foreground">Поле</th>
                   {houses.map((house) => (
-                    <th className="h-9 border-b border-r px-2 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
+                    <th className="h-7 border-b border-r px-0.5 text-center font-semibold text-muted-foreground" key={`house-col-${house}`}>
                       {house}
                     </th>
                   ))}
@@ -5308,14 +5310,14 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
               <tbody>
                 {houses.map((fromHouse) => (
                   <tr key={`house-row-${fromHouse}`}>
-                    <th className="h-12 border-b border-r bg-muted/30 px-2 text-left font-semibold">{fromHouse}</th>
+                    <th className="h-8 border-b border-r bg-muted/30 px-0.5 text-center font-semibold">{fromHouse}</th>
                     {houses.map((toHouse) => {
                       const connection = connectionMap.get(houseConnectionKey(fromHouse, toHouse));
 
                       return (
                         <td
                           className={cn(
-                            "h-12 min-w-16 whitespace-pre-line border-b border-r px-1 text-center align-middle font-medium leading-[1.15]",
+                            "h-8 whitespace-pre-line border-b border-r px-0.5 py-0.5 text-center align-middle font-medium leading-[1.15]",
                             getHouseConnectionCellClass(connection)
                           )}
                           key={`house-cell-${fromHouse}-${toHouse}`}
@@ -5330,14 +5332,14 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
               </tbody>
               <tfoot className="sticky bottom-0 bg-card">
                 <tr>
-                  <th className="h-16 border-r px-2 text-left font-semibold text-primary">Σ</th>
+                  <th className="h-12 border-r px-0.5 text-center font-semibold text-primary">Σ</th>
                   {houses.map((house) => {
                     const total = houseTotals.get(house);
 
                     return (
                       <td
                         className={cn(
-                          "h-16 min-w-16 whitespace-pre-line border-r px-1 text-center align-middle font-semibold leading-[1.15]",
+                          "h-12 whitespace-pre-line border-r px-0.5 py-0.5 text-center align-middle font-semibold leading-[1.15]",
                           getHouseConnectionSummaryCellClass(total)
                         )}
                         key={`house-total-${house}`}
@@ -5382,8 +5384,8 @@ function HouseConnectionsTable({ chart }: { chart: ChartResult | null }) {
 
 function HouseRulersTable({ houseRulers }: { houseRulers: HouseRuler[] }) {
   return (
-    <div className="max-h-[300px] overflow-auto rounded-lg border">
-      <Table>
+    <div className="overflow-x-auto rounded-lg border">
+      <Table className="[&_th]:h-8 [&_th]:px-1 [&_td]:px-1 [&_td]:py-1">
         <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow>
             <TableHead>Дім</TableHead>
@@ -5608,13 +5610,13 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
       </div>
 
       <div className="overflow-auto rounded-lg border">
-        <table className="min-w-[760px] border-collapse text-xs">
+        <table className="w-full border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-card">
             <tr>
-              <th className="h-9 w-11 border-b border-r bg-card px-2 text-left font-semibold text-muted-foreground" />
+              <th className="h-7 w-7 border-b border-r bg-card px-0.5 text-left font-semibold text-muted-foreground" />
               {matrixPoints.map((point) => (
                 <th
-                  className="h-9 min-w-10 border-b border-r px-1 text-center font-semibold text-muted-foreground"
+                  className="h-7 border-b border-r px-0.5 text-center font-semibold text-muted-foreground"
                   key={`aspect-col-${point.key}`}
                   title={pointLabelUk(point.key, point.label)}
                 >
@@ -5627,7 +5629,7 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
             {matrixPoints.map((rowPoint, rowIndex) => (
               <tr key={`aspect-row-${rowPoint.key}`}>
                 <th
-                  className="h-10 border-b border-r bg-muted/30 px-2 text-center font-semibold text-muted-foreground"
+                  className="h-8 border-b border-r bg-muted/30 px-0.5 text-center font-semibold text-muted-foreground"
                   title={pointLabelUk(rowPoint.key, rowPoint.label)}
                 >
                   {planetGlyphs[rowPoint.key] ?? rowPoint.label.slice(0, 2)}
@@ -5638,7 +5640,7 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
                   return (
                     <td
                       className={cn(
-                        "h-10 min-w-10 border-b border-r px-1 text-center align-middle",
+                        "h-8 border-b border-r px-0.5 py-0.5 text-center align-middle",
                         aspect ? getAspectMatrixCellClass(aspect.type) : "bg-background text-muted-foreground"
                       )}
                       key={`aspect-cell-${rowPoint.key}-${columnPoint.key}`}
@@ -5663,8 +5665,8 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
         </table>
       </div>
 
-      <div className="max-h-[260px] overflow-auto rounded-lg border">
-        <Table>
+      <div className="overflow-x-auto rounded-lg border">
+        <Table className="[&_th]:h-8 [&_th]:px-1 [&_td]:px-1 [&_td]:py-1">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead>Планета A</TableHead>

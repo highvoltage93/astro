@@ -21,7 +21,7 @@ test("relocation keeps birth instant and planetary longitudes but changes houses
   assert.equal(result.calendarTimezone, location.timezone);
   const planetEvents = result.calendar?.filter((event) => !event.bodyA.startsWith("house-")) ?? [];
   assert.ok(planetEvents.length > 0);
-  assert.ok(planetEvents.every((event) => event.formulaA?.includes("₀") && event.formulaA.includes(" / ")));
+  assert.ok(planetEvents.every((event) => event.formulaA && !event.formulaA.includes("/")));
 });
 
 test("calendar starts on today's local date, not server or Kyiv date", () => {

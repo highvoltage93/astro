@@ -1,6 +1,8 @@
 import { DateTime } from "luxon";
 import { findProgressionCrossings } from "./progression-crossings";
 import { progressionCalendarWindow } from "./progression-calendar-window";
+import { solarArcMcHouses } from "./solar-arc-mc";
+import { relocationFormula } from "./relocation-formula";
 import { calculateProgressionAspects, findProgressionIngress, progressionOrbFor, PROGRESSION_ASPECT_ANGLES } from "./progression-aspects";
 import type { ProgressionAspect } from "./types";
 import {
@@ -2370,20 +2372,43 @@ const calculateSecondaryProgressionFromNatal = (
   const progressedHousePlacements = hasNatalHouses ? progressedBodies : [];
   const warnings: CalculationWarning[] = [...progressedBase.warnings];
   const flags = buildBodyFlags({ zodiac: input.zodiac ?? natal.settings.zodiac });
-  const cuspPointsAt = (utc: DateTime): ChartPoint[] => {
-    if (!hasNatalHouses) return [];
-    const result = houses_ex2(
-      buildJulianDate(utc).jdUt,
-      (input.zodiac ?? natal.settings.zodiac) === "sidereal" ? constants.SEFLG_SIDEREAL : 0,
-      natal.subject.latitude, natal.subject.longitude, HOUSE_SYSTEM_CODES[natal.settings.houseSystem]
-    );
-    if (result.error) {
-      addCalculationWarning(warnings, "PROGRESSION_HOUSES_UNAVAILABLE", result.error.trim());
+  const natalSunPosition = hasNatalHouses ? calculatePointPositionAt({ flags, pointKey: "sun", utc: birthDateTime, warnings }) : null;
+  const natalMc = natal.angles.find((point) => point.key === "mc");
+  const birthJulianDate = buildJulianDate(birthDateTime);
+  const obliquityResult = hasNatalHouses ? calc(birthJulianDate.jdEt, constants.SE_ECL_NUT, constants.SEFLG_SWIEPH) : null;
+  const obliquity = obliquityResult?.data[0];
+  const tropicalNatalHouses = hasNatalHouses ? houses_ex2(birthJulianDate.jdUt, 0,
+    natal.subject.latitude, natal.subject.longitude, HOUSE_SYSTEM_CODES[natal.settings.houseSystem]) : null;
+  const zodiacOffset = natalMc && tropicalNatalHouses
+    ? normalizeLongitude(tropicalNatalHouses.data.points[1] - natalMc.longitude) : 0;
+  const cuspLongitudesAt = (utc: DateTime): number[] => {
+    if (!hasNatalHouses || !natalMc || !natalSunPosition || obliquity === undefined) return [];
+    if (tropicalNatalHouses?.error || obliquityResult?.error) {
+      addCalculationWarning(warnings, "PROGRESSION_HOUSES_UNAVAILABLE", tropicalNatalHouses?.error || obliquityResult?.error || "Natal house data unavailable");
       return [];
     }
-    return result.data.houses.map((longitude, index) => ({
+    const sun = calculatePointPositionAt({ flags, pointKey: "sun", utc, warnings });
+    if (!sun) return [];
+    try {
+      return solarArcMcHouses({ natalMc: natalMc.longitude, natalSun: natalSunPosition.longitude,
+        progressedSun: sun.longitude, obliquity, latitude: natal.subject.latitude,
+        houseSystem: HOUSE_SYSTEM_CODES[natal.settings.houseSystem], zodiacOffset }).houses;
+    } catch (error) {
+      addCalculationWarning(warnings, "PROGRESSION_HOUSES_UNAVAILABLE", error instanceof Error ? error.message : "Solar Arc MC house calculation failed");
+      return [];
+    }
+  };
+  const cuspPointsAt = (utc: DateTime): ChartPoint[] => {
+    const longitudes = cuspLongitudesAt(utc);
+    if (!longitudes.length) return [];
+    // Speeds must follow the solar-arc model, not Earth's daily rotation.
+    const deltaDays = 0.001;
+    const before = cuspLongitudesAt(utc.minus({ days: deltaDays }));
+    const after = cuspLongitudesAt(utc.plus({ days: deltaDays }));
+    return longitudes.map((longitude, index) => ({
       ...buildPoint({ key: `house-${index + 1}`, label: `Куспід ${index + 1}`, kind: "angle",
-        longitude, speed: result.data.housesSpeed[index], house: index + 1 }),
+        longitude, speed: before[index] !== undefined && after[index] !== undefined
+          ? signedAngularDistance(before[index]!, after[index]!) / (2 * deltaDays) : undefined, house: index + 1 }),
       longitude
     }));
   };
@@ -2455,11 +2480,10 @@ const calculateSecondaryProgressionFromNatal = (
   for (let time = calendarStart; time < calendarEnd; time += 6 * 3600000) sampleTimes.push(time);
   sampleTimes.push(calendarEnd);
   const calendar: NonNullable<SecondaryProgressionResult["calendar"]> = [];
-  const formulaFor = (point: ChartPoint, rulers: HouseRuler[], natalBasis = false): string => {
+  const formulaFor = (point: ChartPoint, rulers: HouseRuler[]): string => {
     if (point.key.startsWith("house-")) return point.key.slice(6);
     const ruled = rulers.filter((ruler) => ruler.rulerKey === point.key).map((ruler) => ruler.house);
-    const number = (house: number) => `${house}${natalBasis ? "₀" : ""}`;
-    return `${point.house ? number(point.house) : "?"}${ruled.length ? ` (${ruled.map(number).join(" ")})` : ""}`;
+    return relocationFormula({ placement: point.house, ruled });
   };
   const combinedFormula = (point: ChartPoint, rulers: HouseRuler[], isProgressed: boolean): string => {
     const local = formulaFor(point, rulers);
@@ -2469,7 +2493,10 @@ const calculateSecondaryProgressionFromNatal = (
     const originalRulers = isProgressed ? calculateHouseRulers(birthNatal.houses,
       birthNatal.bodies.map((body) => body.key === point.key ? originalPoint : body),
       birthNatal.settings.calculationRules ?? resolveCalculationRules()) : birthNatal.houseRulers ?? [];
-    return `${formulaFor(originalPoint, originalRulers, true)} / ${local}`;
+    return relocationFormula(
+      { placement: point.house, ruled: rulers.filter((ruler) => ruler.rulerKey === point.key).map((ruler) => ruler.house) },
+      { placement: originalPoint.house, ruled: originalRulers.filter((ruler) => ruler.rulerKey === point.key).map((ruler) => ruler.house) }
+    );
   };
   const progressionRulers = calculateHouseRulers(natal.houses, progressed.bodies, natal.settings.calculationRules ?? resolveCalculationRules());
   for (const aspect of progressedToNatalAspects) {
@@ -2523,7 +2550,7 @@ const calculateSecondaryProgressionFromNatal = (
     const reference = natalPointsByKey.get(aspect.bodyB)!;
     const samples: Array<{ time: number; longitude: number }> = [];
     // The active-aspect search crosses New Year independently of the calendar view.
-    for (let offset = -10 * 86400000; offset <= 10 * 86400000; offset += 6 * 3600000) {
+    for (let offset = -366 * 86400000; offset <= 366 * 86400000; offset += 86400000) {
       const time = targetDateTime.toMillis() + offset;
       if (time < birthDateTime.toMillis()) continue;
       const longitude = longitudeAt(aspect.bodyA, time);
@@ -2541,6 +2568,7 @@ const calculateSecondaryProgressionFromNatal = (
 
   return {
     method: "secondary-day-for-year",
+    houseMethod: "solar-arc-mc",
     location,
     birthNatal: location ? birthNatal : undefined,
     yearLengthDays: SECONDARY_PROGRESSION_YEAR_DAYS,
