@@ -6,6 +6,10 @@ const delta = (a: number, b: number) => ((b - a + 540) % 360) - 180;
 const input = { natalMc: 120, natalSun: 280, progressedSun: 280,
   obliquity: 23.44, latitude: 50.45, houseSystem: "P" as const };
 
+test("failed polar house calculations are not silently accepted as fallback houses", () => {
+  assert.throws(() => solarArcMcHouses({ ...input, latitude: 89 }), /could not be calculated/);
+});
+
 test("MC follows the actual Sun arc rather than Earth's daily rotation", () => {
   const first = solarArcMcHouses(input);
   const next = solarArcMcHouses({ ...input, progressedSun: 280.9856 });
