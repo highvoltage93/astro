@@ -218,8 +218,6 @@ export default function LoginPage() {
 
   return (
     <main className="auth-cosmos relative min-h-screen overflow-x-hidden text-foreground">
-      <div aria-hidden="true" className="auth-stars auth-stars-far" />
-      <div aria-hidden="true" className="auth-stars auth-stars-near" />
 
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1240px] items-center gap-7 px-3 py-5 sm:px-6 sm:py-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(390px,0.72fr)] lg:gap-16 lg:px-8">
         <section className="order-2 max-w-2xl py-2 sm:py-6 lg:order-1 lg:py-12">
@@ -228,7 +226,7 @@ export default function LoginPage() {
             Професійна астрологічна платформа
           </div>
 
-          <h1 className="text-3xl font-semibold leading-tight tracking-normal sm:text-5xl lg:text-6xl">Astroprocessor</h1>
+          <h1 className="zoria-brand break-words text-[28px] leading-tight sm:text-[40px]">ZORIA ASTROPROCESSOR</h1>
           <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground sm:mt-5 sm:text-lg sm:leading-7">
             {mode === "register"
               ? "Створи власний простір для професійної роботи з натальними картами, прогностикою та матеріалами консультацій."
@@ -236,8 +234,8 @@ export default function LoginPage() {
           </p>
 
           {mode === "register" ? (
-            <div className="mt-6 overflow-hidden rounded-lg border bg-white/65 shadow-xl shadow-primary/5 backdrop-blur-md sm:mt-8">
-              <div className="border-b bg-gradient-to-r from-primary/10 via-white/70 to-accent/80 px-4 py-4 sm:px-5">
+            <div className="mt-6 overflow-hidden rounded-lg border bg-card shadow-xl shadow-primary/5 backdrop-blur-md sm:mt-8">
+              <div className="border-b bg-secondary px-4 py-4 sm:px-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase text-primary">Усе в одному процесорі</p>
@@ -304,10 +302,10 @@ export default function LoginPage() {
           )}
         </section>
 
-        <Card className="order-1 w-full border-border/80 bg-gradient-to-br from-white/95 via-white/95 to-accent/70 text-card-foreground shadow-2xl shadow-primary/10 backdrop-blur-xl lg:order-2">
+        <Card className="order-1 w-full border-border/80 bg-card text-card-foreground shadow-2xl shadow-primary/10 backdrop-blur-xl lg:order-2">
           <CardHeader className="space-y-2 p-4 pb-4 sm:p-5 sm:pb-4">
             <CardDescription className="font-semibold uppercase text-primary">
-              {mode === "login" ? "Welcome back" : "Create account"}
+              {mode === "login" ? "З поверненням" : "Реєстрація"}
             </CardDescription>
             <CardTitle className="text-xl sm:text-2xl">{mode === "login" ? "Вхід до робочої зони" : "Новий профіль"}</CardTitle>
             <p className="text-sm leading-6 text-muted-foreground">
@@ -352,7 +350,7 @@ export default function LoginPage() {
                     aria-describedby={fieldErrors.email ? "auth-email-error" : undefined}
                     aria-invalid={Boolean(fieldErrors.email)}
                     autoComplete="email"
-                    className="bg-white/75"
+                    className="bg-secondary"
                     placeholder="name@example.com"
                     type="email"
                     value={form.email}
@@ -373,7 +371,7 @@ export default function LoginPage() {
                   aria-describedby={fieldErrors.username ? "auth-username-error" : undefined}
                   aria-invalid={Boolean(fieldErrors.username)}
                   autoComplete="username"
-                  className="bg-white/75"
+                  className="bg-secondary"
                   placeholder="username"
                   value={form.username}
                   onChange={(event) => updateForm("username", event.target.value)}
@@ -393,7 +391,7 @@ export default function LoginPage() {
                     aria-describedby={fieldErrors.password ? "auth-password-error" : undefined}
                     aria-invalid={Boolean(fieldErrors.password)}
                     autoComplete={mode === "login" ? "current-password" : "new-password"}
-                    className="bg-white/75 pr-11"
+                    className="bg-secondary pr-11"
                     placeholder="Щонайменше 4 символи"
                     type={showPassword ? "text" : "password"}
                     value={form.password}
@@ -426,7 +424,7 @@ export default function LoginPage() {
                     aria-describedby={fieldErrors.confirmPassword ? "auth-confirm-password-error" : undefined}
                     aria-invalid={Boolean(fieldErrors.confirmPassword)}
                     autoComplete="new-password"
-                    className="bg-white/75"
+                    className="bg-secondary"
                     placeholder="Повтори пароль"
                     type={showPassword ? "text" : "password"}
                     value={form.confirmPassword}

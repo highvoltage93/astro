@@ -45,7 +45,8 @@ services:
       postgres:
         condition: service_healthy
     command: >
-      sh -c "pnpm --filter @astroprocessor/astrology-core ephemeris:download &&
+      sh -c "CI=true pnpm install --frozen-lockfile &&
+             pnpm --filter @astroprocessor/astrology-core ephemeris:download &&
              pnpm --filter @astroprocessor/astrology-core build &&
              pnpm --filter @astroprocessor/api prisma:generate &&
              pnpm --filter @astroprocessor/api db:push &&
@@ -73,7 +74,9 @@ services:
       - /app/packages/consultation-format/node_modules
     depends_on:
       - api
-    command: pnpm --filter @astroprocessor/web dev
+    command: >
+      sh -c "CI=true pnpm install --frozen-lockfile &&
+             pnpm --filter @astroprocessor/web dev"
 
 volumes:
   postgres-data:

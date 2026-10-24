@@ -24,7 +24,7 @@ export const legacyCalculationRules = (): CalculationRules => ({
   lilithRulesEighthHouse: true, tenseHouses: [6, 8, 12]
 });
 export const rulershipModelLabels: Record<CalculationRules["rulershipModel"], string> = {
-  astroprocessor: "Astroprocessor: поточні правила", traditional: "Традиційні управителі", modern: "Сучасні управителі"
+  astroprocessor: "ZORIA ASTROPROCESSOR: поточні правила", traditional: "Традиційні управителі", modern: "Сучасні управителі"
 };
 export const profileReference = (profile: CalculationProfile): CalculationProfileReference => ({
   id: profile.id, name: profile.name, revision: profile.revision

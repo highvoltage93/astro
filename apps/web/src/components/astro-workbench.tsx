@@ -269,18 +269,18 @@ const anglePointOrder = ["asc", "desc", "ic", "mc"];
 const placementOrder = [...primaryPlanetOrder, ...secondaryPointOrder, ...anglePointOrder];
 
 const zodiacSigns = [
-  { key: "aries", glyph: "♈", label: "Овен", gender: "чоловічий", cross: "кардинальний", element: "вогонь", color: "#e53935" },
-  { key: "taurus", glyph: "♉", label: "Телець", gender: "жіночий", cross: "фіксований", element: "земля", color: "#43a047" },
-  { key: "gemini", glyph: "♊", label: "Близнюки", gender: "чоловічий", cross: "мутабельний", element: "повітря", color: "#f9a825" },
-  { key: "cancer", glyph: "♋", label: "Рак", gender: "жіночий", cross: "кардинальний", element: "вода", color: "#1e88e5" },
-  { key: "leo", glyph: "♌", label: "Лев", gender: "чоловічий", cross: "фіксований", element: "вогонь", color: "#fb8c00" },
-  { key: "virgo", glyph: "♍", label: "Діва", gender: "жіночий", cross: "мутабельний", element: "земля", color: "#7cb342" },
-  { key: "libra", glyph: "♎", label: "Терези", gender: "чоловічий", cross: "кардинальний", element: "повітря", color: "#00acc1" },
-  { key: "scorpio", glyph: "♏", label: "Скорпіон", gender: "жіночий", cross: "фіксований", element: "вода", color: "#8e24aa" },
-  { key: "sagittarius", glyph: "♐", label: "Стрілець", gender: "чоловічий", cross: "мутабельний", element: "вогонь", color: "#d81b60" },
-  { key: "capricorn", glyph: "♑", label: "Козеріг", gender: "жіночий", cross: "кардинальний", element: "земля", color: "#6d4c41" },
-  { key: "aquarius", glyph: "♒", label: "Водолій", gender: "чоловічий", cross: "фіксований", element: "повітря", color: "#3949ab" },
-  { key: "pisces", glyph: "♓", label: "Риби", gender: "жіночий", cross: "мутабельний", element: "вода", color: "#00897b" }
+  { key: "aries", glyph: "♈", label: "Овен", gender: "чоловічий", cross: "кардинальний", element: "вогонь", color: "var(--chart-fire)" },
+  { key: "taurus", glyph: "♉", label: "Телець", gender: "жіночий", cross: "фіксований", element: "земля", color: "var(--chart-earth)" },
+  { key: "gemini", glyph: "♊", label: "Близнюки", gender: "чоловічий", cross: "мутабельний", element: "повітря", color: "var(--chart-air)" },
+  { key: "cancer", glyph: "♋", label: "Рак", gender: "жіночий", cross: "кардинальний", element: "вода", color: "var(--chart-water)" },
+  { key: "leo", glyph: "♌", label: "Лев", gender: "чоловічий", cross: "фіксований", element: "вогонь", color: "var(--chart-fire)" },
+  { key: "virgo", glyph: "♍", label: "Діва", gender: "жіночий", cross: "мутабельний", element: "земля", color: "var(--chart-earth)" },
+  { key: "libra", glyph: "♎", label: "Терези", gender: "чоловічий", cross: "кардинальний", element: "повітря", color: "var(--chart-air)" },
+  { key: "scorpio", glyph: "♏", label: "Скорпіон", gender: "жіночий", cross: "фіксований", element: "вода", color: "var(--chart-water)" },
+  { key: "sagittarius", glyph: "♐", label: "Стрілець", gender: "чоловічий", cross: "мутабельний", element: "вогонь", color: "var(--chart-fire)" },
+  { key: "capricorn", glyph: "♑", label: "Козеріг", gender: "жіночий", cross: "кардинальний", element: "земля", color: "var(--chart-earth)" },
+  { key: "aquarius", glyph: "♒", label: "Водолій", gender: "чоловічий", cross: "фіксований", element: "повітря", color: "var(--chart-air)" },
+  { key: "pisces", glyph: "♓", label: "Риби", gender: "жіночий", cross: "мутабельний", element: "вода", color: "var(--chart-water)" }
 ] as const;
 
 const signGlyphs = zodiacSigns.map((sign) => sign.glyph);
@@ -1677,7 +1677,7 @@ export function AstroWorkbench() {
       <main className="app-shell-background flex min-h-screen items-center justify-center px-4 text-foreground">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardDescription className="font-semibold uppercase text-primary">Astroprocessor</CardDescription>
+            <CardDescription className="font-semibold uppercase text-primary">ZORIA ASTROPROCESSOR</CardDescription>
             <CardTitle>Перевіряю сесію</CardTitle>
           </CardHeader>
           <CardContent>
@@ -1693,7 +1693,7 @@ export function AstroWorkbench() {
       <div className="mx-auto max-w-[1500px]">
         <header className="mb-4 flex flex-col gap-3 sm:mb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
+            <p className="text-xs font-semibold uppercase text-primary">ZORIA ASTROPROCESSOR</p>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">Робоча зона</h1>
               <Button
@@ -1764,7 +1764,7 @@ export function AstroWorkbench() {
           onClose={() => setIsSettingsDrawerOpen(false)}
         />
 
-        <section className={cn("grid items-start gap-4 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[minmax(0,780px)_minmax(560px,1fr)] xl:overflow-hidden", (archiveLoading || (archiveError && !chart)) && "hidden")}>
+        <section className={cn("grid items-start gap-4 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:overflow-hidden", (archiveLoading || (archiveError && !chart)) && "hidden")}>
           <div className="min-w-0 space-y-4 xl:h-full xl:max-w-[780px] xl:overflow-y-auto xl:pr-1">
             <Card className="min-w-0">
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-4 sm:p-5">
@@ -2922,7 +2922,7 @@ function ForecastModuleCard({
 
             {preview?.warnings.map((warning) => (
               <div
-                className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
+                className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-astro-amber"
                 key={`forecast-warning-${warning.code}`}
               >
                 {warning.message}
@@ -2946,15 +2946,15 @@ function ForecastMetric({ label, value }: { label: string; value: string }) {
 const getTimelineSourceClass = (source: ForecastTimelineSource): string => {
   switch (source) {
     case "transit":
-      return "border-blue-300 bg-blue-50 text-blue-800";
+      return "border-[var(--aspect-harmonious)]/40 bg-[var(--aspect-harmonious)]/10 text-[var(--aspect-harmonious)]";
     case "secondary-progression":
-      return "border-violet-300 bg-violet-50 text-violet-800";
+      return "border-astro-violet/40 bg-astro-violet/10 text-astro-violet";
     case "solar-arc":
-      return "border-amber-300 bg-amber-50 text-amber-900";
+      return "border-primary/40 bg-primary/10 text-primary";
     case "solar-return":
-      return "border-rose-300 bg-rose-50 text-rose-800";
+      return "border-astro-coral/40 bg-astro-coral/10 text-astro-coral";
     case "lunar-return":
-      return "border-teal-300 bg-teal-50 text-teal-800";
+      return "border-astro-teal/40 bg-astro-teal/10 text-astro-teal";
     default:
       return "";
   }
@@ -4450,7 +4450,7 @@ function SynastryCard({
 
             {preview.warnings.map((warning) => (
               <div
-                className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
+                className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-astro-amber"
                 key={warning.code}
               >
                 {warning.message}
@@ -4680,23 +4680,23 @@ function SynastryOverlayWheel({
         <span className="text-muted-foreground">{description}</span>
       </div>
       <svg
-        className={cn("mx-auto aspect-square w-full overflow-visible", large ? "max-w-[780px]" : "max-w-[520px]")}
+        className={cn("zoria-chart mx-auto aspect-square w-full overflow-visible", large ? "max-w-[780px]" : "max-w-[520px]")}
         viewBox="-26 -26 372 372"
         role="img"
         aria-label={ariaLabel}
       >
-        <circle cx={center} cy={center} r={outerRadius} className="fill-background stroke-foreground stroke-[1.4]" style={solarLayout ? { strokeWidth: 1.8 * natalUnit } : undefined} />
+        <circle cx={center} cy={center} r={outerRadius} className="fill-[var(--chart-cream)] stroke-[var(--chart-outline)] stroke-[1.4]" style={solarLayout ? { strokeWidth: 1.8 * natalUnit } : undefined} />
         {solarLayout ? zodiacSigns.map((sign, index) => {
           const a = toXY(index * 30, outerRadius);
           const b = toXY((index + 1) * 30, outerRadius);
           const c = toXY((index + 1) * 30, subjectARadius + 15);
           const d = toXY(index * 30, subjectARadius + 15);
-          return <path key={`solar-sector-${sign.key}`} fill={sign.color} fillOpacity={index % 2 === 0 ? 0.14 : 0.09}
+          return <path key={`solar-sector-${sign.key}`} fill={sign.color} fillOpacity={1}
             d={`M ${a.x} ${a.y} A ${outerRadius} ${outerRadius} 0 0 0 ${b.x} ${b.y} L ${c.x} ${c.y} A ${subjectARadius + 15} ${subjectARadius + 15} 0 0 1 ${d.x} ${d.y} Z`} />;
         }) : null}
-        <circle cx={center} cy={center} r={subjectARadius + 15} className={solarLayout ? "fill-none stroke-foreground" : "fill-none stroke-border stroke-[1]"} style={solarLayout ? { strokeWidth: 1.2 * natalUnit } : undefined} />
-        <circle cx={center} cy={center} r={subjectBRadius + 15} className="fill-none stroke-border stroke-[1]" style={solarLayout ? { strokeWidth: natalUnit } : undefined} />
-        <circle cx={center} cy={center} r={innerRadius} className={cn("fill-none stroke-border stroke-[1]", !solarLayout && "[stroke-dasharray:3_4]")} style={solarLayout ? { strokeWidth: 1.2 * natalUnit } : undefined} />
+        <circle cx={center} cy={center} r={subjectARadius + 15} className={solarLayout ? "fill-none stroke-[var(--chart-outline)]" : "fill-none stroke-[var(--chart-house-line)] stroke-[1]"} style={solarLayout ? { strokeWidth: 1.2 * natalUnit } : undefined} />
+        <circle cx={center} cy={center} r={subjectBRadius + 15} className="fill-none stroke-[var(--chart-house-line)] stroke-[1]" style={solarLayout ? { strokeWidth: natalUnit } : undefined} />
+        <circle cx={center} cy={center} r={innerRadius} className={cn("fill-none stroke-[var(--chart-house-line)] stroke-[1]", !solarLayout && "[stroke-dasharray:3_4]")} style={solarLayout ? { strokeWidth: 1.2 * natalUnit } : undefined} />
 
         {primaryHouseChart.houses.map((cusp) => {
           const next = primaryHouseChart.houses[cusp.house % primaryHouseChart.houses.length];
@@ -4716,13 +4716,13 @@ function SynastryOverlayWheel({
                 y1={start.y}
                 x2={end.x}
                 y2={end.y}
-                className="stroke-astro-coral stroke-[1]"
+                className="stroke-[var(--chart-house-line)] stroke-[1]"
                 style={solarLayout ? { strokeWidth: 1.1 * natalUnit, opacity: 0.75 } : undefined}
               />
               <text
                 x={label.x}
                 y={label.y}
-                className="fill-astro-coral text-[9px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
+                className="fill-[var(--chart-house)] text-[9px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
                 style={solarLayout ? { fontSize: 12 * natalUnit, fontWeight: 700 } : undefined}
               >
                 {solarLayout ? `${houseRomanNumerals[cusp.house - 1]} ${Math.floor(cusp.signDegree)}°` : cusp.house}
@@ -4750,13 +4750,13 @@ function SynastryOverlayWheel({
                 y1={start.y}
                 x2={end.x}
                 y2={end.y}
-                className="stroke-astro-coral stroke-[0.9] opacity-60 [stroke-dasharray:2_3]"
+                className="stroke-[var(--chart-house-line)] stroke-[0.9] opacity-60 [stroke-dasharray:2_3]"
                 style={solarLayout ? { strokeWidth: 1.1 * natalUnit } : undefined}
               />
               <text
                 x={label.x}
                 y={label.y}
-                className="fill-astro-coral text-[8px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
+                className="fill-[var(--chart-house)] text-[8px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
                 style={solarLayout ? { fontSize: 12 * natalUnit, fontWeight: 700 } : undefined}
               >
                 {solarLayout ? houseRomanNumerals[cusp.house - 1] : cusp.house}
@@ -4778,7 +4778,7 @@ function SynastryOverlayWheel({
               <text
                 x={sign.x}
                 y={sign.y}
-                fill={signMeta?.color}
+                fill="var(--chart-ink)"
                 className="text-base font-semibold [dominant-baseline:middle] [text-anchor:middle]"
                 style={solarLayout ? { fontSize: 22 * natalUnit } : undefined}
               >
@@ -4849,11 +4849,11 @@ function SynastryOverlayWheel({
               {solarLayout ? <>
                 <text x={position.x + 5} y={position.y - 5} className="fill-foreground text-[5px]">{Math.floor(point.signDegree)}°</text>
                 {(point.speed ?? 0) < 0 ? <text x={position.x + 5} y={position.y + 5} className="fill-astro-coral font-bold" style={{ fontSize: 9 * natalUnit }}>R</text> : null}
-              </> : <circle cx={position.x} cy={position.y} r="11" className="fill-background stroke-astro-coral stroke-[1.3]" />}
+              </> : <circle cx={position.x} cy={position.y} r="11" className="fill-background stroke-[var(--chart-house-line)] stroke-[1.3]" />}
               <text
                 x={position.x}
                 y={position.y}
-                className={cn("font-bold [dominant-baseline:middle] [text-anchor:middle]", solarLayout ? "fill-foreground stroke-background [paint-order:stroke]" : "fill-astro-coral text-[11px]")}
+                className={cn("font-bold [dominant-baseline:middle] [text-anchor:middle]", solarLayout ? "fill-foreground stroke-background [paint-order:stroke]" : "fill-foreground text-[11px]")}
                 style={solarLayout ? { fontSize: 17 * natalUnit, strokeWidth: 3 * natalUnit } : undefined}
               >
                 {planetGlyphs[point.key] ?? point.label.slice(0, 2)}
@@ -4920,7 +4920,7 @@ function ProfessionalDataCard({
 
           {chart?.warnings.map((warning) => (
             <div
-              className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-amber-900"
+              className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-astro-amber"
               key={warning.code}
             >
               {warning.message}
@@ -5492,7 +5492,7 @@ function getHouseConnectionSummaryCellClass(summary: HouseConnectionSummary | un
   }
 
   if (summary.tense > summary.harmonious) {
-    return "bg-blue-600/20 text-blue-800";
+    return "bg-[var(--aspect-tense)]/20 text-[var(--aspect-tense)]";
   }
 
   if (summary.harmonious > 0) {
@@ -5520,11 +5520,11 @@ function getHouseConnectionCellClass(connection: HouseConnection | undefined): s
   }
 
   if (connection.tense > connection.harmonious) {
-    return "bg-blue-600/15 text-blue-800";
+    return "bg-[var(--aspect-tense)]/15 text-[var(--aspect-tense)]";
   }
 
   if (connection.harmonious > 0) {
-    return "bg-astro-coral/15 text-astro-coral";
+    return "bg-[var(--aspect-harmonious)]/15 text-[var(--aspect-harmonious)]";
   }
 
   return "bg-muted/50 text-muted-foreground";
@@ -5887,7 +5887,7 @@ function StatusBadge({ status }: { status: string }) {
       variant="secondary"
       className={cn(
         "justify-center py-2",
-        isStub && "bg-astro-amber/15 text-amber-900 hover:bg-astro-amber/20",
+        isStub && "bg-astro-amber/15 text-astro-amber hover:bg-astro-amber/20",
         isReady && "bg-primary/10 text-primary hover:bg-primary/15"
       )}
     >
@@ -6025,7 +6025,7 @@ export function ChartWheel({
   return (
     <div className="mx-auto w-full max-w-[780px] px-1 sm:px-3">
       <svg
-        className={cn("aspect-square w-full overflow-visible", printMode && "pointer-events-none")}
+        className={cn("zoria-chart aspect-square w-full overflow-visible", printMode && "pointer-events-none")}
         viewBox="-55 -55 710 710"
         role="img"
         aria-label={label}
@@ -6037,7 +6037,7 @@ export function ChartWheel({
           </marker>
         </defs>
 
-        <circle cx={center} cy={center} r={outerRadius} className="fill-background stroke-foreground stroke-[1.8]" />
+        <circle cx={center} cy={center} r={outerRadius} className="fill-[var(--chart-cream)] stroke-[var(--chart-outline)] stroke-[1.8]" />
 
         {Array.from({ length: 12 }, (_, index) => {
           const signMeta = zodiacSigns[index];
@@ -6051,13 +6051,13 @@ export function ChartWheel({
               <path
                 d={annularSectorPath(index * 30, (index + 1) * 30)}
                 fill={signMeta?.color}
-                fillOpacity={index % 2 === 0 ? 0.14 : 0.09}
+                fillOpacity={1}
               />
-              <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-border stroke-[1]" />
+              <line x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-[var(--chart-house-line)] stroke-[1]" />
               <text
                 x={sign.x}
                 y={sign.y}
-                fill={signMeta?.color}
+                fill="var(--chart-ink)"
                 className="text-[22px] font-semibold [dominant-baseline:middle] [text-anchor:middle]"
               >
                 {signGlyphs[index]}
@@ -6066,14 +6066,14 @@ export function ChartWheel({
           );
         })}
 
-        <circle cx={center} cy={center} r={zodiacInnerRadius} className="fill-none stroke-foreground stroke-[1.2]" />
-        <circle cx={center} cy={center} r={outerPointRadius + 14} className="fill-none stroke-border stroke-[1]" />
-        <circle cx={center} cy={center} r={innerPointRadius - 14} className="fill-none stroke-border stroke-[1]" />
+        <circle cx={center} cy={center} r={zodiacInnerRadius} className="fill-none stroke-[var(--chart-outline)] stroke-[1.2]" />
+        <circle cx={center} cy={center} r={outerPointRadius + 14} className="fill-none stroke-[var(--chart-house-line)] stroke-[1]" />
+        <circle cx={center} cy={center} r={innerPointRadius - 14} className="fill-none stroke-[var(--chart-house-line)] stroke-[1]" />
         <circle
           cx={center}
           cy={center}
           r={aspectRadius}
-          className="fill-background stroke-border stroke-[1.2]"
+          className="fill-[var(--chart-cream)] stroke-[var(--chart-house-line)] stroke-[1.2]"
         />
 
         {chart?.houses.map((cusp) => {
@@ -6091,13 +6091,13 @@ export function ChartWheel({
                 y1={start.y}
                 x2={end.x}
                 y2={end.y}
-                className={cn("stroke-astro-coral", isHighlightedHouse ? "stroke-[2.4]" : "stroke-[1.1] opacity-75")}
+                className={cn("stroke-[var(--chart-house-line)]", isHighlightedHouse ? "stroke-[2.4]" : "stroke-[1.1] opacity-75")}
               />
               <text
                 x={label.x}
                 y={label.y}
                 className={cn(
-                  "fill-astro-coral stroke-background [paint-order:stroke] [stroke-width:3px] font-bold [dominant-baseline:middle] [text-anchor:middle]",
+                  "fill-[var(--chart-house)] stroke-[var(--chart-cream)] [paint-order:stroke] [stroke-width:3px] font-bold [dominant-baseline:middle] [text-anchor:middle]",
                   isHighlightedHouse ? "text-[14px]" : "text-[12px]"
                 )}
               >
@@ -6289,10 +6289,10 @@ export function ChartWheel({
             )}
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
-            <Badge variant="outline" className="border-astro-coral/50 text-astro-coral">
+            <Badge variant="outline" className="border-[var(--aspect-harmonious)]/50 text-[var(--aspect-harmonious)]">
               Гармонійні
             </Badge>
-            <Badge variant="outline" className="border-blue-600/40 text-blue-700">
+            <Badge variant="outline" className="border-[var(--aspect-tense)]/40 text-[var(--aspect-tense)]">
               Напружені
             </Badge>
           </div>
@@ -6333,11 +6333,11 @@ function getAspectStrokeClass(type: string): string {
     case "semisextile":
     case "trine":
     case "sextile":
-      return "stroke-astro-coral";
+      return "stroke-[var(--aspect-harmonious)]";
     case "square":
     case "opposition":
     case "quincunx":
-      return "stroke-blue-600";
+      return "stroke-[var(--aspect-tense)]";
     default:
       return "stroke-primary";
   }
@@ -6348,11 +6348,11 @@ function getAspectTextClass(type: string): string {
     case "semisextile":
     case "trine":
     case "sextile":
-      return "text-astro-coral";
+      return "text-[var(--aspect-harmonious)]";
     case "square":
     case "opposition":
     case "quincunx":
-      return "text-blue-600";
+      return "text-[var(--aspect-tense)]";
     default:
       return "text-primary";
   }
@@ -6365,7 +6365,7 @@ function getAspectMatrixCellClass(type: string): string {
       return "bg-astro-coral/15 text-astro-coral";
     case "square":
     case "opposition":
-      return "bg-blue-600/15 text-blue-700";
+      return "bg-[var(--aspect-tense)]/15 text-[var(--aspect-tense)]";
     default:
       return "bg-primary/10 text-primary";
   }
@@ -6394,7 +6394,7 @@ function getDignityTextClass(type: string): string {
     case "detriment":
     case "fall":
     case "enmity":
-      return "text-blue-600";
+      return "text-destructive";
     default:
       return "text-muted-foreground";
   }

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full touch-pan-x overflow-auto overscroll-x-contain">
+    <div className="relative w-full min-w-0 overflow-auto overscroll-x-contain">
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   )
@@ -11,7 +11,7 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  ({ className, ...props }, ref) => <thead ref={ref} className={cn("bg-secondary [&_tr]:border-b", className)} {...props} />
 );
 TableHeader.displayName = "TableHeader";
 
@@ -46,7 +46,7 @@ TableHead.displayName = "TableHead";
 
 const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
-    <td ref={ref} className={cn("px-2 py-2.5 align-middle sm:px-3 sm:py-3", className)} {...props} />
+    <td ref={ref} className={cn("px-2 py-2 align-middle sm:px-3", className)} {...props} />
   )
 );
 TableCell.displayName = "TableCell";

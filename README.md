@@ -13,6 +13,8 @@ Web-only astrology platform scaffolded from the product roadmap in `docs/`.
 
 ## Run With Docker
 
+Local API and web containers synchronize dependencies with `pnpm-lock.yaml` before starting. This updates persisted `node_modules` volumes when packages are added (for example, `luxon`). After changing Compose startup commands, recreate the services with `docker compose up -d --build api web`; restarting alone does not apply new commands. Dependency synchronization needs registry access when packages are missing. Do not use `docker compose down -v` to fix dependencies, because it also deletes the local PostgreSQL data volume.
+
 ```bash
 cp .env.example .env
 docker compose up --build

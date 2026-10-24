@@ -305,7 +305,7 @@ export function AstroDashboard() {
       <main className="app-shell-background flex min-h-screen items-center justify-center px-4 text-foreground">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardDescription className="font-semibold uppercase text-primary">Astroprocessor</CardDescription>
+            <CardDescription className="font-semibold uppercase text-primary">ZORIA ASTROPROCESSOR</CardDescription>
             <CardTitle>Перевіряю сесію</CardTitle>
           </CardHeader>
           <CardContent>
@@ -321,7 +321,7 @@ export function AstroDashboard() {
       <div className="mx-auto max-w-[1480px] space-y-4 sm:space-y-5">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase text-primary">Astroprocessor</p>
+            <p className="text-xs font-semibold uppercase text-primary">ZORIA ASTROPROCESSOR</p>
             <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">Дешборд</h1>
           </div>
           <DashboardAccountMenu
@@ -339,7 +339,7 @@ export function AstroDashboard() {
         <section className="space-y-4">
           <Card className="min-w-0">
             <CardHeader className="space-y-1">
-              <CardDescription className="font-semibold uppercase text-primary">New calculation</CardDescription>
+              <CardDescription className="font-semibold uppercase text-primary">Новий розрахунок</CardDescription>
               <CardTitle>Швидкий розрахунок карти</CardTitle>
             </CardHeader>
             <CardContent>
@@ -362,7 +362,7 @@ export function AstroDashboard() {
                     }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="legacy">Базові налаштування Astroprocessor</SelectItem>
+                        <SelectItem value="legacy">Базові налаштування ZORIA ASTROPROCESSOR</SelectItem>
                         {calculationProfiles.map((profile) => <SelectItem key={profile.id} value={profile.id}>{profile.name} · v{profile.revision}</SelectItem>)}
                       </SelectContent>
                     </Select>
