@@ -301,6 +301,7 @@ export type SecondaryProgressionAspect = ProgressionAspect & {
 };
 
 export type SecondaryProgressionInput = {
+  includeCalendar?: boolean;
   progressionLocation?: ProgressionLocation;
   natal: NatalPreviewInput;
   targetDateTime: string;
@@ -395,6 +396,8 @@ export type ForecastTimelineEvent = {
 };
 
 export type ForecastPreviewInput = {
+  method?: "all" | "overview" | "solar-return" | "progression" | "transits";
+  includeProgressionCalendar?: boolean;
   progressionTargetDateTime?: string;
   progressionLocation?: ProgressionLocation;
   natal: NatalPreviewInput;
@@ -447,13 +450,14 @@ export type TransitPreviewResult = {
 };
 
 export type ForecastPreviewResult = {
+  method?: ForecastPreviewInput["method"];
   chartType: "forecast";
   generatedAt: string;
   natal: ChartResult;
   solarReturn: ReturnEvent | null;
   lunarReturn: ReturnEvent | null;
-  secondaryProgression: SecondaryProgressionResult;
-  solarArcDirections: SolarArcDirectionResult;
+  secondaryProgression: SecondaryProgressionResult | null;
+  solarArcDirections: SolarArcDirectionResult | null;
   exactTransits: ExactTransitEvent[];
   timelineEvents: ForecastTimelineEvent[];
   warnings: CalculationWarning[];

@@ -11,6 +11,17 @@ import { registerEventSearchRoutes } from "./event-search";
 
 export const registerChartRoutes = async (app: FastifyInstance): Promise<void> => {
   await registerEventSearchRoutes(app);
+  app.post("/charts/progression/calendar", async (request, reply) => {
+    const parsed = forecastPreviewSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ code: "INVALID_PROGRESSION_CALENDAR_INPUT", issues: parsed.error.flatten() });
+    try {
+      const result = calculateForecastPreview({ ...parsed.data, method: "progression", includeProgressionCalendar: true,
+        ephemerisPath: env.swissEphEphePath });
+      return { progression: result.secondaryProgression };
+    } catch (error) {
+      return reply.code(422).send({ message: error instanceof Error ? error.message : "Unable to calculate progression calendar" });
+    }
+  });
   app.post("/charts/natal/preview", async (request, reply) => {
     const parsed = natalPreviewSchema.safeParse(request.body);
 

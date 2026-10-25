@@ -202,6 +202,8 @@ export type TransitPreviewPayload = {
 };
 
 export type ForecastPreviewPayload = {
+  method?: "all" | "overview" | "solar-return" | "progression" | "transits";
+  includeProgressionCalendar?: boolean;
   progressionTargetDateTime?: string;
   progressionLocation?: ProgressionLocation;
   fromDateTime: string;
@@ -387,13 +389,14 @@ export type ForecastTimelineEvent = {
 };
 
 export type ForecastPreviewResult = {
+  method?: ForecastPreviewPayload["method"];
   chartType: "forecast";
   generatedAt: string;
   natal: ChartResult;
   solarReturn: ReturnEvent | null;
   lunarReturn: ReturnEvent | null;
-  secondaryProgression: SecondaryProgressionResult;
-  solarArcDirections: SolarArcDirectionResult;
+  secondaryProgression: SecondaryProgressionResult | null;
+  solarArcDirections: SolarArcDirectionResult | null;
   exactTransits: ExactTransitEvent[];
   timelineEvents: ForecastTimelineEvent[];
   warnings: Array<{

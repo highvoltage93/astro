@@ -55,6 +55,7 @@ import {
   getSavedForecast,
   listBirthProfiles,
   requestForecastPreview,
+  requestProgressionCalendar,
   requestNatalInterpretation,
   requestNatalPreview,
   requestSynastryPreview,
@@ -744,6 +745,8 @@ export function AstroWorkbench() {
   const [solarReturnTimezone, setSolarReturnTimezone] = useState(initialForm.timezone);
   const [progressionLocation, setProgressionLocation] = useState<ForecastPreviewPayload["progressionLocation"]>();
   const [forecastPreview, setForecastPreview] = useState<ForecastPreviewResult | null>(null);
+  const [forecastParameters, setForecastParameters] = useState<ForecastPreviewPayload | null>(null);
+  const forecastRequestSequence = useRef(0);
   const [synastryPreview, setSynastryPreview] = useState<SynastryPreviewResult | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -811,6 +814,8 @@ export function AstroWorkbench() {
   }, [chart, visiblePointKeys]);
 
   const clearForecastState = (): void => {
+    forecastRequestSequence.current += 1;
+    setForecastParameters(null);
     setForecastPreview(null);
     setForecastError(null);
     setForecastStatus("idle");
@@ -1372,6 +1377,8 @@ export function AstroWorkbench() {
               ? record.input.context.subject.birthplaceName : ""
           ));
           setForecastPreview(record.result);
+          forecastRequestSequence.current += 1;
+          setForecastParameters(parameters);
           setForecastStatus("ready");
           setActiveWorkspaceTab("forecast");
         } else if (record.kind === "transit") {
@@ -1544,7 +1551,9 @@ export function AstroWorkbench() {
     }
   };
 
-  const calculateForecast = async (): Promise<void> => {
+  const calculateForecast = async (method: NonNullable<ForecastPreviewPayload["method"]> = "solar-return"): Promise<void> => {
+    const needsReturns = ["solar-return", "overview", "all"].includes(method);
+    const needsTransits = method === "transits" || method === "all";
     if (!forecastFromDateTime) {
       setForecastStatus("error");
       setForecastError("Вкажи стартову дату прогнозу.");
@@ -1567,26 +1576,26 @@ export function AstroWorkbench() {
       return;
     }
 
-    if (!Number.isInteger(parsedTargetYear) || parsedTargetYear < 1900 || parsedTargetYear > 2100) {
+    if (needsReturns && (!Number.isInteger(parsedTargetYear) || parsedTargetYear < 1900 || parsedTargetYear > 2100)) {
       setForecastStatus("error");
       setForecastError("Рік соляра має бути між 1900 і 2100.");
       return;
     }
 
-    if (!Number.isInteger(parsedDays) || parsedDays < 1 || parsedDays > 366) {
+    if (needsTransits && (!Number.isInteger(parsedDays) || parsedDays < 1 || parsedDays > 366)) {
       setForecastStatus("error");
       setForecastError("Період точних транзитів має бути від 1 до 366 днів.");
       return;
     }
 
-    if (
+    if (needsReturns && (
       !Number.isFinite(parsedReturnLatitude) ||
       parsedReturnLatitude < -90 ||
       parsedReturnLatitude > 90 ||
       !Number.isFinite(parsedReturnLongitude) ||
       parsedReturnLongitude < -180 ||
       parsedReturnLongitude > 180
-    ) {
+    )) {
       setForecastStatus("error");
       setForecastError("Вкажи коректні координати місця соляра.");
       return;
@@ -1595,20 +1604,23 @@ export function AstroWorkbench() {
     setForecastStatus("loading");
     setForecastError(null);
 
+    const sequence = ++forecastRequestSequence.current;
     const capturedInputs = latestPreviewInputs.current.forecast;
-    const inputsUnchanged = () => capturedInputs.every((value, index) => value === latestPreviewInputs.current.forecast[index]);
+    const inputsUnchanged = () => sequence === forecastRequestSequence.current && capturedInputs.every((value, index) => value === latestPreviewInputs.current.forecast[index]);
 
     const parameters: ForecastPreviewPayload & { targetYear: number } = {
+      method,
+      includeProgressionCalendar: false,
       progressionLocation,
       progressionTargetDateTime: progressionLocation
         ? DateTime.fromISO(forecastFromDateTime, { zone: progressionLocation.timezone }).toUTC().toISO() ?? undefined
         : undefined,
       fromDateTime: selectedForecastDate.toISOString(),
       natal: buildNatalPayload(),
-      targetYear: parsedTargetYear,
-      days: parsedDays,
-      returnLatitude: parsedReturnLatitude,
-      returnLongitude: parsedReturnLongitude,
+      targetYear: needsReturns ? parsedTargetYear : Math.max(1900, Math.min(2100, selectedForecastDate.getFullYear())),
+      days: needsTransits ? parsedDays : undefined,
+      returnLatitude: needsReturns ? parsedReturnLatitude : undefined,
+      returnLongitude: needsReturns ? parsedReturnLongitude : undefined,
       zodiac: form.zodiac,
       pointOrbs
     };
@@ -1617,9 +1629,10 @@ export function AstroWorkbench() {
       if (!inputsUnchanged()) return;
 
       setForecastPreview(result);
+      setForecastParameters(parameters);
       setForecastDrafts((current) => ({ ...current, forecast: {
         requestId: createForecastRequestId(),
-        title: `Прогноз ${parsedTargetYear}: ${form.displayName}`.slice(0, 120),
+        title: `${method === "solar-return" ? "Соляр" : method === "progression" ? "Прогресії" : method === "transits" ? "Транзити" : "Огляд"} ${parameters.targetYear}: ${form.displayName}`.slice(0, 120),
         input: { kind: "forecast", parameters, context: { subject: archiveSubject(form), visiblePointKeys, returnPlaceName: solarReturnPlaceName, returnTimezone: solarReturnTimezone } }
       } }));
       setForecastStatus("ready");
@@ -1628,6 +1641,22 @@ export function AstroWorkbench() {
       setForecastStatus("error");
       setForecastError(requestError instanceof Error ? requestError.message : "Unknown forecast API error");
     }
+  };
+
+  const loadProgressionCalendar = async (): Promise<void> => {
+    if (!forecastParameters || !forecastPreview?.secondaryProgression) return;
+    const capturedPreview = forecastPreview;
+    const sequence = forecastRequestSequence.current;
+    const draft = forecastDrafts.forecast;
+    const archivedInput = loadedForecast?.kind === "forecast" ? loadedForecast.input : null;
+    const result = await requestProgressionCalendar(forecastParameters);
+    if (sequence !== forecastRequestSequence.current) return;
+    setForecastPreview((current) => current === capturedPreview ? { ...current, secondaryProgression: result } : current);
+    const input = draft?.input.kind === "forecast" ? draft.input : archivedInput;
+    if (input) setForecastDrafts((current) => ({ ...current, forecast: {
+      requestId: createForecastRequestId(), title: draft?.title ?? loadedForecast?.title ?? "Повільні прогресії",
+      input: { ...input, parameters: { ...input.parameters, includeProgressionCalendar: true } }
+    } }));
   };
 
   const calculateSynastry = async (): Promise<void> => {
@@ -1887,6 +1916,7 @@ export function AstroWorkbench() {
                     error={forecastError}
                     fromDateTime={forecastFromDateTime}
                     preview={forecastPreview}
+                    onLoadCalendar={loadProgressionCalendar}
                     status={forecastStatus}
                     returnLatitude={solarReturnLatitude}
                     returnLongitude={solarReturnLongitude}
@@ -2716,6 +2746,7 @@ function InterpretationCard({
 }
 
 function ForecastModuleCard({
+  onLoadCalendar,
   transitContent,
   openTransits = false,
   progressionLocation,
@@ -2736,6 +2767,7 @@ function ForecastModuleCard({
   onReturnPlaceChange,
   onTargetYearChange
 }: {
+  onLoadCalendar: () => Promise<void>;
   transitContent: ReactNode;
   openTransits?: boolean;
   progressionLocation?: ForecastPreviewPayload["progressionLocation"];
@@ -2750,7 +2782,7 @@ function ForecastModuleCard({
   returnTimezone: string;
   status: "idle" | "loading" | "ready" | "error";
   targetYear: string;
-  onCalculate: () => Promise<void>;
+  onCalculate: (method: NonNullable<ForecastPreviewPayload["method"]>) => Promise<void>;
   onDaysChange: (value: string) => void;
   onFromDateTimeChange: (value: string) => void;
   onReturnPlaceChange: (place: PlaceSearchResult) => void;
@@ -2758,12 +2790,29 @@ function ForecastModuleCard({
 }) {
   const [activeForecastView, setActiveForecastView] = useState<
     "overview" | "solar-return" | "progression" | "transits"
-  >(openTransits ? "transits" : "overview");
+  >(openTransits ? "transits" : preview?.method && preview.method !== "all" ? preview.method : preview ? "overview" : "solar-return");
   const [returnPlacePending, setReturnPlacePending] = useState(false);
   const [progressionPlacePending, setProgressionPlacePending] = useState(false);
   const [progressionPlaceReset, setProgressionPlaceReset] = useState(0);
   const exactTransits = preview?.exactTransits ?? [];
   const highPriorityTransits = exactTransits.filter((event) => event.strength === "high").length;
+  const methodReady = Boolean(preview && (!preview.method || preview.method === "all" || preview.method === activeForecastView));
+  const showReturns = activeForecastView === "solar-return" || activeForecastView === "overview";
+  const methodTabs = (
+    <div className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1" role="tablist" aria-label="Методи прогнозування">
+      {([
+        ["overview", "Огляд"], ["solar-return", "Соляр"],
+        ["progression", "Повільні прогресії"], ["transits", "Транзити"]
+      ] as const).map(([key, label]) => (
+        <button key={key} type="button" role="tab" aria-selected={activeForecastView === key}
+          disabled={status === "loading"} onClick={() => setActiveForecastView(key)}
+          className={cn("min-h-9 shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            activeForecastView === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/70 hover:text-foreground")}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <Card>
@@ -2777,6 +2826,7 @@ function ForecastModuleCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {methodTabs}
         <div className="grid gap-3 lg:grid-cols-[1.2fr_0.7fr_0.7fr_auto]">
           <Field label="Дата прогнозу / початок року прогресій">
             <Input
@@ -2786,7 +2836,7 @@ function ForecastModuleCard({
               onChange={(event) => onFromDateTimeChange(event.target.value)}
             />
           </Field>
-          <Field label="Днів транзитів">
+          {activeForecastView === "transits" ? <Field label="Днів транзитів">
             <Input
               min={1}
               max={366}
@@ -2794,8 +2844,8 @@ function ForecastModuleCard({
               value={days}
               onChange={(event) => onDaysChange(event.target.value)}
             />
-          </Field>
-          <Field label="Рік соляра">
+          </Field> : null}
+          {showReturns ? <Field label="Рік соляра">
             <Input
               min={1900}
               max={2100}
@@ -2803,9 +2853,9 @@ function ForecastModuleCard({
               value={targetYear}
               onChange={(event) => onTargetYearChange(event.target.value)}
             />
-          </Field>
+          </Field> : null}
           <div className="flex items-end">
-            <Button type="button" disabled={status === "loading" || returnPlacePending || progressionPlacePending} onClick={onCalculate}>
+            <Button type="button" disabled={status === "loading" || (showReturns && returnPlacePending) || (activeForecastView === "progression" && progressionPlacePending)} onClick={() => void onCalculate(activeForecastView)}>
               <Activity />
               {status === "loading" ? "Рахую" : "Порахувати"}
             </Button>
@@ -2816,7 +2866,7 @@ function ForecastModuleCard({
           progressionLocation ? DateTime.now().setZone(progressionLocation.timezone).toFormat("yyyy-MM-dd'T'HH:mm:ss") : toDateTimeLocalValue(new Date())
         )}><CalendarDays className="h-4 w-4" />Сьогодні</Button>
 
-        <div className="space-y-2 border-t pt-3">
+        {showReturns ? <div className="space-y-2 border-t pt-3">
           <Field label="Місце соляра">
             <ReturnPlaceSearch key={`${returnLatitude}:${returnLongitude}:${returnPlaceName}`}
               name={returnPlaceName} onSelect={onReturnPlaceChange} onPendingChange={setReturnPlacePending} />
@@ -2825,9 +2875,9 @@ function ForecastModuleCard({
           {!returnPlaceName && !returnPlacePending ? (
             <p className="text-xs text-muted-foreground">Збережене місце: {returnLatitude}, {returnLongitude}</p>
           ) : null}
-        </div>
+        </div> : null}
 
-        <div className="flex items-end gap-2 border-t pt-3">
+        {activeForecastView === "progression" ? <div className="flex items-end gap-2 border-t pt-3">
           <div className="min-w-0 flex-1">
             <Field label="Локальна карта повільних прогресій">
               <ReturnPlaceSearch key={`${progressionPlaceReset}:${progressionLocation ? `${progressionLocation.latitude}:${progressionLocation.longitude}` : "birth"}`}
@@ -2838,7 +2888,7 @@ function ForecastModuleCard({
           </div>
           <Button type="button" variant="outline" size="icon" title="Повернути місце народження" aria-label="Повернути місце народження"
             disabled={!progressionLocation && !progressionPlacePending} onClick={() => { onProgressionLocationChange(null); setProgressionPlacePending(false); setProgressionPlaceReset((value) => value + 1); }}><RotateCcw className="h-4 w-4" /></Button>
-        </div>
+        </div> : null}
 
         {error ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
@@ -2853,41 +2903,14 @@ function ForecastModuleCard({
         ) : null}
 
         <div className="space-y-4">
-            <div className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1" role="tablist" aria-label="Методи прогнозування">
-              {[
-                ["overview", "Огляд"],
-                ["solar-return", "Соляр"],
-                ["progression", "Повільні прогресії"],
-                ["transits", "Транзити"]
-              ].map(([key, label]) => (
-                <button
-                  aria-selected={activeForecastView === key}
-                  className={cn(
-                    "min-h-9 shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    activeForecastView === key
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                  )}
-                  key={key}
-                  role="tab"
-                  type="button"
-                  onClick={() =>
-                    setActiveForecastView(
-                      key as "overview" | "solar-return" | "progression" | "transits"
-                    )
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            {!methodReady && status !== "loading" ? <p className="text-sm text-muted-foreground">Обраний метод ще не розраховано.</p> : null}
 
-            {preview && activeForecastView === "overview" ? (
+            {preview && methodReady && activeForecastView === "overview" ? (
               <div className="space-y-4" role="tabpanel">
                 <div className="grid gap-2 sm:grid-cols-3">
                   <ForecastMetric label="Соляр" value={preview.solarReturn ? formatSolarMoment(preview.solarReturn.exactAt, returnTimezone) : "n/a"} />
                   <ForecastMetric label="Лунар" value={preview.lunarReturn ? formatDateTimeCompact(preview.lunarReturn.exactAt) : "n/a"} />
-                  <ForecastMetric label="Точних транзитів" value={`${exactTransits.length} · ${highPriorityTransits} сильних`} />
+                  {(!preview.method || preview.method === "all") ? <ForecastMetric label="Точних транзитів" value={`${exactTransits.length} · ${highPriorityTransits} сильних`} /> : null}
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-2">
@@ -2897,13 +2920,13 @@ function ForecastModuleCard({
               </div>
             ) : null}
 
-            {preview && activeForecastView === "progression" ? (
+            {preview?.secondaryProgression && methodReady && activeForecastView === "progression" ? (
               <div role="tabpanel">
-                <SecondaryProgressionPanel progression={preview.secondaryProgression} />
+                <SecondaryProgressionPanel key={preview.generatedAt} progression={preview.secondaryProgression} onLoadCalendar={onLoadCalendar} />
               </div>
             ) : null}
 
-            {preview && activeForecastView === "solar-return" ? (
+            {preview && methodReady && activeForecastView === "solar-return" ? (
               <div role="tabpanel">
                 <SolarReturnPanel event={preview.solarReturn} natal={preview.natal} placeName={returnPlaceName} timezone={returnTimezone} />
               </div>
@@ -2914,20 +2937,20 @@ function ForecastModuleCard({
                 {transitContent}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold">Точні дати транзитів</h3>
-                  <Badge variant="secondary">{exactTransits.length}</Badge>
+                  <Badge variant="secondary">{methodReady ? exactTransits.length : "—"}</Badge>
                 </div>
-                <ExactTransitsTable events={exactTransits} />
+                {methodReady ? <ExactTransitsTable events={exactTransits} /> : null}
               </div>
             ) : null}
 
-            {preview?.warnings.map((warning) => (
+            {methodReady ? preview?.warnings.map((warning) => (
               <div
                 className="rounded-lg border border-astro-amber/30 bg-astro-amber/10 p-3 text-sm text-astro-amber"
                 key={`forecast-warning-${warning.code}`}
               >
                 {warning.message}
               </div>
-            ))}
+            )) : null}
           </div>
       </CardContent>
     </Card>
@@ -3505,7 +3528,17 @@ function ForecastEventDrawer({ event, onClose }: { event: ForecastTimelineEvent 
   );
 }
 
-function SecondaryProgressionPanel({ progression }: { progression: SecondaryProgressionResult }) {
+function SecondaryProgressionPanel({ progression, onLoadCalendar }: { progression: SecondaryProgressionResult; onLoadCalendar: () => Promise<void> }) {
+  const [calendarStatus, setCalendarStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const calendarPending = useRef(false);
+  const loadCalendar = async () => {
+    if (calendarPending.current || progression.calendar) return;
+    calendarPending.current = true; setCalendarStatus("loading"); setCalendarError(null);
+    try { await onLoadCalendar(); setCalendarStatus("idle"); }
+    catch (error) { setCalendarStatus("error"); setCalendarError(error instanceof Error ? error.message : "Помилка календаря."); }
+    finally { calendarPending.current = false; }
+  };
   const displayTimezone = progression.location?.timezone ?? "UTC";
   const progressionMoment = (value: string) => formatSolarMoment(value, displayTimezone);
   const progressionGlyphs: Record<string, string> = { conjunction: "☌", sextile: "⚹", square: "□", trine: "△", opposition: "☍", semisextile: "⚺", quincunx: "⚻" };
@@ -3554,7 +3587,7 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Таблиці повільних прогресій" className="flex gap-1">
           <Button role="tab" aria-selected={view === "aspects"} variant={view === "aspects" ? "default" : "outline"} onClick={() => setView("aspects")}>Аспекти</Button>
-          <Button role="tab" aria-selected={view === "calendar"} variant={view === "calendar" ? "default" : "outline"} onClick={() => setView("calendar")}>Календар</Button>
+          <Button role="tab" aria-selected={view === "calendar"} variant={view === "calendar" ? "default" : "outline"} onClick={() => { setView("calendar"); void loadCalendar(); }}>Календар</Button>
         </div>
         <Select value={pairFilter} onValueChange={setPairFilter}>
           <SelectTrigger className="w-full sm:w-56" aria-label="Тип пар"><SelectValue /></SelectTrigger>
@@ -3622,7 +3655,7 @@ function SecondaryProgressionPanel({ progression }: { progression: SecondaryProg
             : progression.calendarYear ? `${progression.calendarYear} · архівний календар` : ""}
         </p>
         <Badge variant="secondary">Точні проходження: {visibleEvents.length}</Badge>
-        {!progression.calendar ? <p className="text-sm text-muted-foreground">Цей збережений прогноз не містить календаря. Перерахуйте прогноз.</p> : visibleEvents.length === 0 ?
+        {!progression.calendar ? <div className="space-y-2"><p role="status" className="text-sm text-muted-foreground">{calendarStatus === "loading" ? "Розраховую календар прогресій…" : "Календар ще не завантажено."}</p>{calendarError ? <p role="alert" className="text-sm text-destructive">{calendarError}</p> : null}<Button variant="outline" disabled={calendarStatus === "loading"} onClick={() => void loadCalendar()}><RefreshCw />{calendarStatus === "error" ? "Повторити" : "Завантажити календар"}</Button></div> : visibleEvents.length === 0 ?
           <p className="text-sm text-muted-foreground">Точних проходжень за цей рік для вибраних пар не знайдено.</p> :
           <div className="overflow-x-auto rounded-lg border bg-background"><Table>
             <TableHeader><TableRow><TableHead>Прогресія</TableHead><TableHead>Аспект</TableHead><TableHead>Натал</TableHead><TableHead>Початок</TableHead><TableHead>Екзакт</TableHead><TableHead>Формули</TableHead></TableRow></TableHeader>

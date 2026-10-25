@@ -2503,6 +2503,7 @@ const calculateSecondaryProgressionFromNatal = (
     aspect.formulaA = combinedFormula(progressedPointsByKey.get(aspect.bodyA)!, progressionRulers, true);
     aspect.formulaB = combinedFormula(natalPointsByKey.get(aspect.bodyB)!, natal.houseRulers ?? [], false);
   }
+  if (input.includeCalendar !== false) {
   const samplesByKey = new Map(progressedReferencePoints.map((point) => [point.key,
     [] as Array<{ time: number; longitude: number | null }>]));
   for (const time of sampleTimes) {
@@ -2545,6 +2546,7 @@ const calculateSecondaryProgressionFromNatal = (
     }
   }
   calendar.sort((a, b) => a.exactAt.localeCompare(b.exactAt));
+  }
   for (const aspect of progressedToNatalAspects) {
     if (!aspect.bodyA.startsWith("house-")) continue;
     const reference = natalPointsByKey.get(aspect.bodyB)!;
@@ -2583,7 +2585,7 @@ const calculateSecondaryProgressionFromNatal = (
     progressedToNatalAspects,
     progressedReferencePoints,
     natalReferencePoints,
-    calendar,
+    calendar: input.includeCalendar === false ? undefined : calendar,
     calendarFrom: toUtcIso(calendarWindow.start),
     calendarUntil: toUtcIso(calendarWindow.end),
     calendarTimezone: calendarWindow.timezone,
@@ -2913,6 +2915,7 @@ const timelineEventsShareTopic = (eventA: ForecastTimelineEvent, eventB: Forecas
 };
 
 const buildForecastTimeline = ({
+  natal,
   baseDateTime,
   days,
   exactTransits,
@@ -2921,12 +2924,13 @@ const buildForecastTimeline = ({
   solarArcDirections,
   solarReturn
 }: {
+  natal: ChartResult;
   baseDateTime: DateTime;
   days: number;
   exactTransits: ExactTransitEvent[];
   lunarReturn: ReturnEvent | null;
-  secondaryProgression: SecondaryProgressionResult;
-  solarArcDirections: SolarArcDirectionResult;
+  secondaryProgression: SecondaryProgressionResult | null;
+  solarArcDirections: SolarArcDirectionResult | null;
   solarReturn: ReturnEvent | null;
 }): ForecastTimelineEvent[] => {
   const candidates: ForecastTimelineEvent[] = [];
@@ -2958,7 +2962,7 @@ const buildForecastTimeline = ({
     });
   }
 
-  for (const aspect of secondaryProgression.progressedToNatalAspects) {
+  for (const aspect of secondaryProgression?.progressedToNatalAspects ?? []) {
     if (aspect.type === "semisextile" || aspect.type === "quincunx") continue;
     if (!aspect.exactAt) {
       continue;
@@ -2984,7 +2988,7 @@ const buildForecastTimeline = ({
     });
   }
 
-  for (const aspect of solarArcDirections.directedToNatalAspects) {
+  for (const aspect of solarArcDirections?.directedToNatalAspects ?? []) {
     if (!aspect.exactAt) {
       continue;
     }
@@ -3014,7 +3018,7 @@ const buildForecastTimeline = ({
       return;
     }
 
-    const natalPoint = secondaryProgression.natal.bodies.find((point) => point.key === event.targetPointKey);
+    const natalPoint = (secondaryProgression?.natal ?? natal).bodies.find((point) => point.key === event.targetPointKey);
 
     candidates.push({
       id: `${source}-${event.exactAt}`,
@@ -3088,6 +3092,10 @@ const buildForecastTimeline = ({
 };
 
 export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastPreviewResult => {
+  // Missing method preserves older API clients and saved full forecasts.
+  const method = input.method ?? "all";
+  const solarRequested = ["all", "overview", "solar-return"].includes(method);
+  const lunarRequested = ["all", "overview"].includes(method);
   const baseDateTime = parseTransitDateTime(input.fromDateTime);
   const requestedPointOrbs = cleanPointOrbs(input.pointOrbs);
   const natal = calculateNatalChart({
@@ -3116,7 +3124,7 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
   const natalSun = natal.bodies.find((body) => body.key === "sun") ?? null;
   const natalMoon = natal.bodies.find((body) => body.key === "moon") ?? null;
   const solarAnchor = dateInYearForBirthDate(input.natal.birthDate, targetYear);
-  const solarReturnEvent = natalSun
+  const solarReturnEvent = natalSun && solarRequested
     ? calculateReturnEvent({
         end: solarAnchor.plus({ days: 8 }),
         flags,
@@ -3131,7 +3139,7 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
       })
     : null;
   const nextSolarAnchor = dateInYearForBirthDate(input.natal.birthDate, targetYear + 1);
-  const nextSolarReturnAt = natalSun
+  const nextSolarReturnAt = natalSun && solarRequested
     ? findBodyReturnTime({
         end: nextSolarAnchor.plus({ days: 8 }),
         flags,
@@ -3148,7 +3156,7 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
         validUntil: nextSolarReturnAt ? toUtcIso(nextSolarReturnAt) : undefined
       }
     : null;
-  const lunarReturn = natalMoon
+  const lunarReturn = natalMoon && lunarRequested
     ? calculateReturnEvent({
         end: baseDateTime.plus({ days: 32 }),
         flags,
@@ -3162,27 +3170,30 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
         warnings
       })
     : null;
-  const exactTransits = calculateExactTransitEvents({
+  const exactTransits = method === "all" || method === "transits" ? calculateExactTransitEvents({
     baseDateTime,
     days,
     flags,
     natal,
     pointOrbs: forecastPointOrbs,
     warnings
-  });
-  const secondaryProgression = calculateSecondaryProgressionFromNatal(
+  }) : [];
+  const secondaryProgression = method === "all" || method === "progression" ? calculateSecondaryProgressionFromNatal(
     {
       natal: input.natal,
       targetDateTime: input.progressionTargetDateTime ?? toUtcIso(baseDateTime),
+      includeCalendar: input.includeProgressionCalendar ?? method === "all",
       progressionLocation: input.progressionLocation,
       zodiac: settings.zodiac,
       ayanamsa: settings.ayanamsa,
       ephemerisPath: input.ephemerisPath
     },
     natal
-  );
-  const solarArcDirections = calculateSolarArcDirections({ ...secondaryProgression, natal }, input.ephemerisPath);
+  ) : null;
+  const solarArcDirections = method === "all" && secondaryProgression
+    ? calculateSolarArcDirections({ ...secondaryProgression, natal }, input.ephemerisPath) : null;
   const timelineEvents = buildForecastTimeline({
+    natal,
     baseDateTime,
     days,
     exactTransits,
@@ -3195,16 +3206,17 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
   addReturnChartWarnings(warnings, solarReturn, "SOLAR");
   addReturnChartWarnings(warnings, lunarReturn, "LUNAR");
 
-  for (const warning of secondaryProgression.warnings) {
+  for (const warning of secondaryProgression?.warnings ?? []) {
     addCalculationWarning(warnings, `PROGRESSION_${warning.code}`, `Secondary progression: ${warning.message}`);
   }
 
-  for (const warning of solarArcDirections.warnings) {
+  for (const warning of solarArcDirections?.warnings ?? []) {
     addCalculationWarning(warnings, `SOLAR_ARC_${warning.code}`, `Solar arc: ${warning.message}`);
   }
 
   return {
     chartType: "forecast",
+    method,
     generatedAt: new Date().toISOString(),
     natal,
     solarReturn,

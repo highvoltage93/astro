@@ -37,6 +37,8 @@ export const transitPreviewSchema = z.object({
 });
 
 export const forecastPreviewSchema = z.object({
+  method: z.enum(["all", "overview", "solar-return", "progression", "transits"]).optional(),
+  includeProgressionCalendar: z.boolean().optional(),
   progressionTargetDateTime: z.string().datetime({ offset: true }).optional(),
   progressionLocation: z.object({
     name: z.string().trim().min(1).max(500),
