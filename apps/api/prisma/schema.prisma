@@ -46,6 +46,8 @@ model User {
   passwordHash   String
   locale         String          @default("uk")
   role           UserRole        @default(USER)
+  lastLoginAt    DateTime?
+  lastActiveAt   DateTime?
   birthProfiles  BirthProfile[]
   savedForecasts SavedForecast[]
   consultations Consultation[]

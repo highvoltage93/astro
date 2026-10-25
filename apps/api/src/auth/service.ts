@@ -3,6 +3,7 @@ import type { UserRole } from "@prisma/client";
 import type { FastifyRequest } from "fastify";
 import { env } from "../config/env";
 import { prisma } from "../prisma/client";
+import { recordUserActivity } from "./activity";
 
 const PASSWORD_ITERATIONS = 100_000;
 const PASSWORD_KEY_LENGTH = 32;
@@ -125,7 +126,7 @@ export const getOptionalAuthUser = async (request: FastifyRequest): Promise<Auth
     return null;
   }
 
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: {
       id: payload.sub
     },
@@ -137,4 +138,12 @@ export const getOptionalAuthUser = async (request: FastifyRequest): Promise<Auth
       role: true
     }
   });
+  if (user) {
+    try {
+      await recordUserActivity(user.id);
+    } catch {
+      request.log.warn("Unable to record user activity");
+    }
+  }
+  return user;
 };

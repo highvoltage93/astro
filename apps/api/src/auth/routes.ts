@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../prisma/client";
+import { recordUserActivity } from "./activity";
 import { createAuthToken, getOptionalAuthUser, hashPassword, verifyPassword } from "./service";
 
 const authSchema = z.object({
@@ -39,7 +40,9 @@ export const registerAuthRoutes = async (app: FastifyInstance): Promise<void> =>
         data: {
           email: parsed.data.email,
           username: parsed.data.username,
-          passwordHash: hashPassword(parsed.data.password)
+          passwordHash: hashPassword(parsed.data.password),
+          lastLoginAt: new Date(),
+          lastActiveAt: new Date()
         },
         select: authUserSelect
       });
@@ -88,6 +91,12 @@ export const registerAuthRoutes = async (app: FastifyInstance): Promise<void> =>
     }
 
     const { passwordHash: _passwordHash, ...authUser } = user;
+
+    try {
+      await recordUserActivity(user.id, true);
+    } catch {
+      request.log.warn("Unable to record successful login time");
+    }
 
     return {
       user: authUser,

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Orbit } from "lucide-react";
-import type { ReactNode } from "react";
+import { FileText, LayoutDashboard, Orbit, ShieldCheck } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { getCurrentUser } from "@/lib/api";
+import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -14,6 +16,17 @@ const navigation = [
 
 export function ZoriaShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setIsAdmin(false);
+    const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    if (token && pathname !== "/login") {
+      void getCurrentUser(token).then(({ user }) => { if (active) setIsAdmin(user.role === "ADMIN"); }).catch(() => { if (active) setIsAdmin(false); });
+    }
+    return () => { active = false; };
+  }, [pathname]);
+  const items = isAdmin ? [...navigation, { href: "/admin", label: "Адміністрування", icon: ShieldCheck }] : navigation;
   if (pathname === "/login" || pathname === "/consultations/print") return <>{children}</>;
 
   return (
@@ -26,8 +39,8 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
           <Orbit aria-hidden="true" className="size-7 shrink-0 text-primary" />
           <span className="min-w-0 lg:hidden min-[1440px]:block"><span className="zoria-brand block text-[28px] leading-none text-primary">ZORIA</span><span className="mt-1 block text-[10px] text-muted-foreground">ASTROPROCESSOR</span></span>
         </Link>
-        <nav aria-label="Головна навігація" className="grid grid-cols-3 gap-1 px-2 pb-2 lg:grid-cols-1 lg:gap-2 lg:px-3">
-          {navigation.map(({ href, label, icon: Icon }) => {
+        <nav aria-label="Головна навігація" className={cn("grid gap-1 px-2 pb-2 lg:grid-cols-1 lg:gap-2 lg:px-3", isAdmin ? "grid-cols-2" : "grid-cols-3")}>
+          {items.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return <Link key={href} href={href} title={label} aria-label={label} aria-current={active ? "page" : undefined}
               className={cn("flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-transparent px-2 py-3 text-xs transition-colors hover:bg-secondary lg:px-3 lg:text-sm min-[1440px]:justify-start", active ? "border-primary/30 bg-primary/10 text-primary" : "text-muted-foreground")}>

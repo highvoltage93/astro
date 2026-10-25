@@ -1,0 +1,3 @@
+ALTER TABLE "users"
+  ADD COLUMN "lastLoginAt" TIMESTAMP(3),
+  ADD COLUMN "lastActiveAt" TIMESTAMP(3);
