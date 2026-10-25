@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
+import { AdminFeedback } from "@/components/admin-feedback";
 
 type Role = "USER" | "CONSULTANT" | "ADMIN";
 type User = { id: string; username: string; email: string; role: Role; createdAt: string; updatedAt: string;
@@ -89,6 +90,7 @@ export default function AdminPage() {
       </header>
       {error ? <p role="alert" className="rounded-lg border border-destructive/40 bg-card p-4 text-destructive">{error}</p> : null}
       {notice ? <p role="status" className="text-primary">{notice}</p> : null}
+      {list ? <AdminFeedback onSaved={() => setRevision((value) => value + 1)} /> : null}
       {loading ? <p role="status" className="text-muted-foreground">Завантаження…</p> : null}
       {!loading && !list ? <Button asChild variant="secondary"><a href="/login">Увійти</a></Button> : null}
       {editing ? <Card>
@@ -120,7 +122,7 @@ export default function AdminPage() {
         </CardContent>
       </Card> : null}
       {list ? <Card><CardHeader><CardTitle>Останні 50 адміністративних змін</CardTitle></CardHeader><CardContent>
-        <Table><TableHeader><TableRow><TableHead>Дата</TableHead><TableHead>Хто</TableHead><TableHead>Дія</TableHead><TableHead>ID користувача</TableHead></TableRow></TableHeader><TableBody>{events.map((event) => <TableRow key={event.id}><TableCell className="whitespace-nowrap">{date(event.createdAt)}</TableCell><TableCell>{event.user?.username ?? "Серверна команда"}</TableCell><TableCell>{event.action === "admin.user.promote-cli" ? "Призначення адміністратора" : "Редагування користувача"}</TableCell><TableCell className="break-all">{event.entityId}</TableCell></TableRow>)}</TableBody></Table>
+        <Table><TableHeader><TableRow><TableHead>Дата</TableHead><TableHead>Хто</TableHead><TableHead>Дія</TableHead><TableHead>ID об’єкта</TableHead></TableRow></TableHeader><TableBody>{events.map((event) => <TableRow key={event.id}><TableCell className="whitespace-nowrap">{date(event.createdAt)}</TableCell><TableCell>{event.user?.username ?? "Серверна команда"}</TableCell><TableCell>{event.action === "admin.user.promote-cli" ? "Призначення адміністратора" : event.action === "admin.feedback.status" ? "Зміна статусу звернення" : "Редагування користувача"}</TableCell><TableCell className="break-all">{event.entityId}</TableCell></TableRow>)}</TableBody></Table>
         {!events.length ? <p className="text-sm text-muted-foreground">Змін ще немає.</p> : null}
       </CardContent></Card> : null}
     </div>

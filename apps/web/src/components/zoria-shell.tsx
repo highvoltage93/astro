@@ -7,6 +7,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { cn } from "@/lib/utils";
+import { FeedbackButton } from "./feedback-button";
 
 const navigation = [
   { href: "/", label: "Дешборд", icon: LayoutDashboard },
@@ -48,6 +49,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
             </Link>;
           })}
         </nav>
+        <div className="border-t px-3 py-2"><FeedbackButton /></div>
       </aside>
       <div id="zoria-content" tabIndex={-1} className="min-w-0 outline-none">{children}</div>
     </div>

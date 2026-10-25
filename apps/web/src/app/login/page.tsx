@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getCurrentUser, loginUser, registerUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
+import { REGISTRATION_PASSWORD_HINT, registrationPasswordError } from "@/lib/password-policy";
 
 type AuthMode = "login" | "register";
 
@@ -60,7 +61,10 @@ const validateAuthForm = (form: AuthFormState, mode: AuthMode): AuthFieldErrors 
     errors.username = "Максимальна довжина — 50 символів.";
   }
 
-  if (form.password.length < 4) {
+  if (mode === "register") {
+    const passwordError = registrationPasswordError(form.password);
+    if (passwordError) errors.password = passwordError;
+  } else if (form.password.length < 4) {
     errors.password = "Пароль має містити щонайменше 4 символи.";
   } else if (form.password.length > 128) {
     errors.password = "Максимальна довжина — 128 символів.";
@@ -388,11 +392,11 @@ export default function LoginPage() {
                 <div className="relative">
                   <Input
                     id="auth-password"
-                    aria-describedby={fieldErrors.password ? "auth-password-error" : undefined}
+                    aria-describedby={[mode === "register" ? "auth-password-hint" : "", fieldErrors.password ? "auth-password-error" : ""].filter(Boolean).join(" ") || undefined}
                     aria-invalid={Boolean(fieldErrors.password)}
                     autoComplete={mode === "login" ? "current-password" : "new-password"}
                     className="bg-secondary pr-11"
-                    placeholder="Щонайменше 4 символи"
+                    placeholder={mode === "register" ? "Надійний пароль" : "Щонайменше 4 символи"}
                     type={showPassword ? "text" : "password"}
                     value={form.password}
                     onChange={(event) => updateForm("password", event.target.value)}
@@ -409,6 +413,7 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff /> : <Eye />}
                   </Button>
                 </div>
+                {mode === "register" ? <p className="text-xs leading-5 text-muted-foreground" id="auth-password-hint">{REGISTRATION_PASSWORD_HINT}</p> : null}
                 {fieldErrors.password ? (
                   <p className="text-xs text-destructive" id="auth-password-error">
                     {fieldErrors.password}

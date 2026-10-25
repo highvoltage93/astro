@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { registerAuthRoutes } from "./auth/routes";
 import { registerAdminRoutes } from "./admin/routes";
+import { registerFeedbackRoutes } from "./feedback/routes";
 import { registerBirthProfileRoutes } from "./birth-profiles/routes";
 import { registerChartRoutes } from "./charts/routes";
 import { env } from "./config/env";
@@ -43,6 +44,7 @@ const start = async (): Promise<void> => {
   await registerHealthRoutes(app);
   await registerAuthRoutes(app);
   await registerAdminRoutes(app);
+  await registerFeedbackRoutes(app);
   await registerPlaceRoutes(app);
   await registerBirthProfileRoutes(app);
   await registerChartRoutes(app);

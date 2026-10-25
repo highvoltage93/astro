@@ -57,6 +57,7 @@ model User {
   defaultCalculationProfile CalculationProfile? @relation("DefaultCalculationProfile", fields: [defaultCalculationProfileId], references: [id], onDelete: SetNull)
   aiSessions     AiSession[]
   auditEvents    AuditEvent[]
+  feedback       FeedbackReport[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -264,4 +265,30 @@ model AuditEvent {
   @@index([userId])
   @@index([entity, entityId])
   @@map("audit_events")
+}
+
+enum FeedbackStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+model FeedbackReport {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestId      String
+  authorUsername String
+  authorEmail    String
+  title          String
+  description    String
+  pagePath       String
+  status         FeedbackStatus @default(NEW)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([userId, requestId])
+  @@index([status, createdAt, id])
+  @@index([userId, createdAt])
+  @@map("feedback_reports")
 }

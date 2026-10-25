@@ -3,12 +3,16 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../prisma/client";
 import { recordUserActivity } from "./activity";
+import { registrationPasswordError } from "./password-policy";
 import { createAuthToken, getOptionalAuthUser, hashPassword, verifyPassword } from "./service";
 
 const authSchema = z.object({
   email: z.string().trim().email().max(160),
   username: z.string().trim().min(3).max(50),
-  password: z.string().min(4).max(128)
+  password: z.string().superRefine((password, ctx) => {
+    const message = registrationPasswordError(password);
+    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  })
 });
 
 const loginSchema = z.object({

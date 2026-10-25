@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { getOptionalAuthUser } from "../auth/service";
 import { prisma } from "../prisma/client";
+import { registerAdminFeedbackRoutes } from "../feedback/routes";
 
 const select = {
   id: true, username: true, email: true, role: true, createdAt: true, updatedAt: true,
@@ -29,6 +30,8 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       if (!actor) return reply.code(401).send({ message: "Увійдіть до акаунта." });
       if (actor.role !== "ADMIN") return reply.code(403).send({ message: "Доступ лише для адміністратора." });
     });
+
+    await registerAdminFeedbackRoutes(admin);
 
     admin.get("/users", async (request, reply) => {
       const parsed = querySchema.safeParse(request.query);
