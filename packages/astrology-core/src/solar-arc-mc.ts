@@ -10,9 +10,10 @@ export function solarArcMcHouses(input: {
   latitude: number;
   houseSystem: HouseSystems;
   zodiacOffset?: number;
+  arcDegrees?: number;
 }) {
   const offset = input.zodiacOffset ?? 0;
-  const arc = normalize(input.progressedSun - input.natalSun);
+  const arc = normalize(input.arcDegrees ?? input.progressedSun - input.natalSun);
   const mc = normalize(input.natalMc + arc + offset);
   const radians = Math.PI / 180;
   // Ecliptic MC -> equatorial right ascension, preserving the quadrant.

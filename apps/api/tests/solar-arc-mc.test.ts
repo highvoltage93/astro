@@ -6,6 +6,13 @@ const delta = (a: number, b: number) => ((b - a + 540) % 360) - 180;
 const input = { natalMc: 120, natalSun: 280, progressedSun: 280,
   obliquity: 23.44, latitude: 50.45, houseSystem: "P" as const };
 
+test("uniform MC advances one degree independently of Sun motion for Koch", () => {
+  const first = solarArcMcHouses({ ...input, houseSystem: "K", arcDegrees: 29 });
+  const next = solarArcMcHouses({ ...input, houseSystem: "K", arcDegrees: 30, progressedSun: 312 });
+  assert.ok(Math.abs(delta(first.mc, next.mc) - 1) < 1e-8);
+  assert.equal(next.houses.length, 12);
+});
+
 test("failed polar house calculations are not silently accepted as fallback houses", () => {
   assert.throws(() => solarArcMcHouses({ ...input, latitude: 89 }), /could not be calculated/);
 });

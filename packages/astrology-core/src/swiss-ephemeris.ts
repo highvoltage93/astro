@@ -303,7 +303,7 @@ const FORECAST_DEFAULT_DAYS = 90;
 const FORECAST_MAX_DAYS = 366;
 const FORECAST_EXACT_TRANSIT_BODY_KEYS = [...BODY_DEFINITIONS.map((body) => body.key), "south-node"];
 const EXACT_CROSSING_EPSILON = 0.00001;
-const SECONDARY_PROGRESSION_YEAR_DAYS = 365.2425;
+const SOLAR_ARC_YEAR_DAYS = 365.2425;
 const SECONDARY_PROGRESSION_ASPECT_ORB = 1;
 const SECONDARY_PROGRESSION_MAX_EXACT_YEARS = 120;
 const SECONDARY_PROGRESSION_ASPECT_ORBS: Record<AspectType, number> = {
@@ -2263,6 +2263,7 @@ const findSecondaryProgressionExactDate = ({
 };
 
 const buildSecondaryProgressionAspect = ({
+  yearLengthDays,
   aspect,
   birthDateTime,
   flags,
@@ -2272,6 +2273,7 @@ const buildSecondaryProgressionAspect = ({
   targetDateTime,
   warnings
 }: {
+  yearLengthDays: number;
   aspect: ProgressionAspect;
   birthDateTime: DateTime;
   flags: number;
@@ -2291,10 +2293,10 @@ const buildSecondaryProgressionAspect = ({
   });
   const exactAt = exactProgressedDate
     ? birthDateTime.plus({
-        days: exactProgressedDate.diff(birthDateTime, "days").days * SECONDARY_PROGRESSION_YEAR_DAYS
+        days: exactProgressedDate.diff(birthDateTime, "days").days * yearLengthDays
       })
     : null;
-  const yearsToExact = exactAt ? exactAt.diff(targetDateTime, "days").days / SECONDARY_PROGRESSION_YEAR_DAYS : null;
+  const yearsToExact = exactAt ? exactAt.diff(targetDateTime, "days").days / yearLengthDays : null;
   const estimatedProgressedDays =
     Math.abs(progressedPoint.speed ?? 0) >= 0.0001
       ? transitAspectTargetDelta(aspect, progressedPoint, natalPoint) / (progressedPoint.speed ?? 1)
@@ -2327,8 +2329,11 @@ const buildSecondaryProgressionAspect = ({
 
 const calculateSecondaryProgressionFromNatal = (
   input: SecondaryProgressionInput,
-  birthNatal: ChartResult
+  birthNatal: ChartResult,
+  yearLengthDays = 365
 ): SecondaryProgressionResult => {
+  // Solar-arc directions retain their historical key via the internal override.
+  const SECONDARY_PROGRESSION_YEAR_DAYS = yearLengthDays;
   const location = input.progressionLocation;
   const natal = location ? calculateNatalChart({
     ...input.natal,
@@ -2391,6 +2396,7 @@ const calculateSecondaryProgressionFromNatal = (
     if (!sun) return [];
     try {
       return solarArcMcHouses({ natalMc: natalMc.longitude, natalSun: natalSunPosition.longitude,
+        arcDegrees: yearLengthDays === 365 ? utc.diff(birthDateTime, "days").days : undefined,
         progressedSun: sun.longitude, obliquity, latitude: natal.subject.latitude,
         houseSystem: HOUSE_SYSTEM_CODES[natal.settings.houseSystem], zodiacOffset }).houses;
     } catch (error) {
@@ -2446,6 +2452,7 @@ const calculateSecondaryProgressionFromNatal = (
       }
 
       return buildSecondaryProgressionAspect({
+        yearLengthDays,
         aspect,
         birthDateTime,
         flags,
@@ -2570,7 +2577,7 @@ const calculateSecondaryProgressionFromNatal = (
 
   return {
     method: "secondary-day-for-year",
-    houseMethod: "solar-arc-mc",
+    houseMethod: "uniform-mc-365",
     location,
     birthNatal: location ? birthNatal : undefined,
     yearLengthDays: SECONDARY_PROGRESSION_YEAR_DAYS,
@@ -2731,10 +2738,10 @@ const buildSolarArcDirectionAspect = ({
   });
   const exactAt = exactProgressedDate
     ? birthDateTime.plus({
-        days: exactProgressedDate.diff(birthDateTime, "days").days * SECONDARY_PROGRESSION_YEAR_DAYS
+        days: exactProgressedDate.diff(birthDateTime, "days").days * SOLAR_ARC_YEAR_DAYS
       })
     : null;
-  const yearsToExact = exactAt ? exactAt.diff(targetDateTime, "days").days / SECONDARY_PROGRESSION_YEAR_DAYS : null;
+  const yearsToExact = exactAt ? exactAt.diff(targetDateTime, "days").days / SOLAR_ARC_YEAR_DAYS : null;
   const estimatedYearsToExact =
     Math.abs(progressedSun.speed ?? 0) >= 0.0001
       ? transitAspectTargetDelta(aspect, directedPoint, natalTargetPoint) / (progressedSun.speed ?? 1)
@@ -3191,7 +3198,15 @@ export const calculateForecastPreview = (input: ForecastPreviewInput): ForecastP
     natal
   ) : null;
   const solarArcDirections = method === "all" && secondaryProgression
-    ? calculateSolarArcDirections({ ...secondaryProgression, natal }, input.ephemerisPath) : null;
+    ? calculateSolarArcDirections({ ...calculateSecondaryProgressionFromNatal({
+        natal: input.natal,
+        targetDateTime: input.progressionTargetDateTime ?? toUtcIso(baseDateTime),
+        includeCalendar: false,
+        progressionLocation: input.progressionLocation,
+        zodiac: settings.zodiac,
+        ayanamsa: settings.ayanamsa,
+        ephemerisPath: input.ephemerisPath
+      }, natal, SOLAR_ARC_YEAR_DAYS), natal }, input.ephemerisPath) : null;
   const timelineEvents = buildForecastTimeline({
     natal,
     baseDateTime,
