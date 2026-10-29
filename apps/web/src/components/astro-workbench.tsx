@@ -4180,7 +4180,10 @@ function ExactTransitsTable({ events }: { events: ExactTransitEvent[] }) {
   const visibleEvents = events.filter(filters.matches).sort((a, b) => {
     const key = sort === "source" ? "bodyA" : "bodyB";
     const group = sort === "date" ? 0 : transitFilterPoints.indexOf(a[key]) - transitFilterPoints.indexOf(b[key]);
-    return group || a.exactAt.localeCompare(b.exactAt);
+    if (group) return group;
+    if (a.exactAt === null) return b.exactAt === null ? 0 : 1;
+    if (b.exactAt === null) return -1;
+    return a.exactAt.localeCompare(b.exactAt);
   });
 
   return (
