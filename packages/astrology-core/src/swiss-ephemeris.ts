@@ -1573,7 +1573,7 @@ export const calculateTransitPreview = (input: TransitPreviewInput): TransitPrev
     visiblePointKeys: natal.settings.visiblePointKeys,
     ephemerisPath: input.ephemerisPath
   });
-  const natalPoints = [...natal.angles, ...natal.bodies];
+  const natalPoints = natal.bodies;
   const transitHousePlacements = assignNatalHousesToTransitPoints(transit.bodies, natal.houses);
   const transitToNatalAspects = enrichTransitAspects({
     aspects: calculateAspectsBetween(transit.bodies, natalPoints, undefined, previewPointOrbs),
@@ -2084,7 +2084,7 @@ const calculateExactTransitEvents = ({
   const events: ExactTransitEvent[] = [];
   const eventKeys = new Set<string>();
   const windowEnd = baseDateTime.plus({ days });
-  const natalPoints = [...natal.angles, ...natal.bodies];
+  const natalPoints = natal.bodies;
 
   for (const transitPointKey of FORECAST_EXACT_TRANSIT_BODY_KEYS) {
     const samples = buildTransitLongitudeSamples({

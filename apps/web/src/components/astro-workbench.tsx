@@ -2,6 +2,7 @@
 
 import { EventSearch } from "@/components/event-search";
 import { DateTime } from "luxon";
+import { birthTimezoneOffsetHours, fixedTimezoneFromHours } from "@/lib/birth-timezone";
 import { ReturnPlaceSearch } from "@/components/return-place-search";
 
 import {
@@ -18,6 +19,9 @@ import {
   FolderOpen,
   LogOut,
   MapPin,
+  Maximize,
+  Minimize,
+  Pencil,
   RefreshCw,
   RotateCcw,
   Save,
@@ -710,6 +714,7 @@ const buildPolarityRowsFromSignScores = (
 export function AstroWorkbench() {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(initialForm);
+  const [editingNatal, setEditingNatal] = useState(false);
   const [partnerForm, setPartnerForm] = useState<FormState>(initialPartnerForm);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -1069,6 +1074,7 @@ export function AstroWorkbench() {
   }, [router]);
 
   const loadSavedProfileById = async (profileId: string): Promise<void> => {
+    setEditingNatal(false);
     setLoadingProfileId(profileId);
     setSavedProfilesError(null);
 
@@ -1338,6 +1344,7 @@ export function AstroWorkbench() {
       setArchiveError(null);
       void getSavedForecast(forecastIdFromUrl, authToken).then(({ forecast: record }) => {
         if (!active) return;
+        setEditingNatal(false);
         if (record.schemaVersion !== 1 || record.input.kind !== record.kind || record.result.chartType !== record.kind) {
           throw new Error("Цю версію збереженого прогнозу поки неможливо відкрити.");
         }
@@ -1447,6 +1454,34 @@ export function AstroWorkbench() {
 
   const calculateNatalChart = async (): Promise<void> => {
     await calculateNatalChartFromPayload(buildNatalPayload());
+  };
+
+  const applyNatalEdit = async (next: FormState): Promise<void> => {
+    const capturedInputs = latestPreviewInputs.current.transits;
+    const payload = buildNatalPayloadFromForm(next);
+    const [calculated, interpreted] = await Promise.allSettled([
+      requestNatalPreview(payload), requestNatalInterpretation(payload)
+    ]);
+    if (!capturedInputs.every((value, index) => value === latestPreviewInputs.current.transits[index])) {
+      throw new Error("Відкриту карту або її налаштування змінено. Повтори розрахунок.");
+    }
+    if (calculated.status === "rejected") throw calculated.reason;
+    setForm(next);
+    setChart(calculated.value);
+    setStatus("ready"); setError(null);
+    setInterpretation(interpreted.status === "fulfilled" ? interpreted.value : null);
+    setInterpretationError(interpreted.status === "rejected" ? "Не вдалося завантажити трактовку." : null);
+    setTransitPreview(null); setTransitStatus("idle"); setTransitError(null);
+    clearForecastState();
+    setSynastryPreview(null); setSynastryStatus("idle"); setSynastryError(null);
+    setForecastDrafts({}); setLoadedForecast(null);
+    setSavedProfileId(null); setSaveStatus("idle"); setSaveError(null); setShareStatus("idle");
+    setSolarReturnLatitude(next.latitude); setSolarReturnLongitude(next.longitude);
+    setSolarReturnPlaceName(next.birthplaceName); setSolarReturnTimezone(next.timezone);
+    setProgressionLocation(undefined);
+    const draft: DashboardChartDraft = { ...archiveSubject(next), natal: payload, createdAt: new Date().toISOString() };
+    try { window.localStorage.setItem(DASHBOARD_CHART_DRAFT_STORAGE_KEY, JSON.stringify(draft)); } catch { /* The calculated chart remains usable without local storage. */ }
+    router.replace("/workspace", { scroll: false });
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -1719,12 +1754,13 @@ export function AstroWorkbench() {
 
   return (
     <main className="app-shell-background min-h-screen overflow-x-hidden px-3 py-3 text-foreground sm:px-6 sm:py-5 lg:px-8">
-      <div className="mx-auto max-w-[1500px]">
+      <div className="mx-auto w-full">
         <header className="mb-4 flex flex-col gap-3 sm:mb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase text-primary">ZORIA ASTROPROCESSOR</p>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">Робоча зона</h1>
+              <Button size="icon" variant="secondary" disabled={!chart || status === "loading"} title="Редагувати дані карти" aria-label="Редагувати дані карти" onClick={() => setEditingNatal(true)}><Pencil /></Button>
               <Button
                 size="icon"
                 variant="secondary"
@@ -1793,8 +1829,9 @@ export function AstroWorkbench() {
           onClose={() => setIsSettingsDrawerOpen(false)}
         />
 
+        {editingNatal ? <NatalDataEditor initial={form} onClose={() => setEditingNatal(false)} onApply={applyNatalEdit} /> : null}
         <section className={cn("grid items-start gap-4 xl:h-[calc(100dvh-7.5rem)] xl:min-h-[640px] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:overflow-hidden", (archiveLoading || (archiveError && !chart)) && "hidden")}>
-          <div className="min-w-0 space-y-4 xl:h-full xl:max-w-[780px] xl:overflow-y-auto xl:pr-1">
+          <div className="min-w-0 space-y-4 xl:h-full xl:overflow-y-auto xl:pr-1">
             <Card className="min-w-0">
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 p-4 sm:p-5">
                 <div className="min-w-0 space-y-1">
@@ -2109,6 +2146,75 @@ function HeaderAccountMenu({
       ) : null}
     </div>
   );
+}
+
+function NatalDataEditor({ initial, onApply, onClose }: {
+  initial: FormState; onApply: (next: FormState) => Promise<void>; onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(initial);
+  const [automaticTimezone, setAutomaticTimezone] = useState(initial.timezone);
+  const [locked, setLocked] = useState(true);
+  const [hours, setHours] = useState(String(birthTimezoneOffsetHours(initial.birthDate, initial.birthTime, initial.birthTimeKnown, initial.timezone) ?? ""));
+  const [pendingPlace, setPendingPlace] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [applied, setApplied] = useState(false);
+  useEffect(() => {
+    setDraft(initial);
+    setHours(String(birthTimezoneOffsetHours(initial.birthDate, initial.birthTime, initial.birthTimeKnown, initial.timezone) ?? ""));
+  }, [initial]);
+  const update = (field: keyof FormState, value: string | boolean) => {
+    setDraft(current => ({ ...current, [field]: value })); setApplied(false);
+  };
+  const submitEdit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy || pendingPlace) return;
+    const zone = locked ? fixedTimezoneFromHours(hours) : automaticTimezone;
+    if (!zone || !draft.latitude.trim() || !draft.longitude.trim()) { setError("Вкажи коректні координати й часовий пояс."); return; }
+    setBusy(true); setError(null); setApplied(false);
+    try { await onApply({ ...draft, timezone: zone }); setApplied(true); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Не вдалося перерахувати карту."); }
+    finally { setBusy(false); }
+  };
+  return <section className="mb-4 border-y bg-card/80 p-4" aria-label="Редагування натальних даних">
+    <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Дані карти та релокація</h2><Button size="icon" variant="ghost" disabled={busy} aria-label="Закрити редагування" onClick={onClose}><X /></Button></div>
+    <form onSubmit={submitEdit}><fieldset disabled={busy} className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Field label="Назва карти"><Input required value={draft.displayName} onChange={e => update("displayName", e.target.value)} /></Field>
+      <Field label="Дата народження"><Input required type="date" value={draft.birthDate} onChange={e => update("birthDate", e.target.value)} /></Field>
+      <Field label="Час народження"><Input required={draft.birthTimeKnown} disabled={!draft.birthTimeKnown} type="time" step={1} value={draft.birthTime} onChange={e => update("birthTime", e.target.value)} /></Field>
+      <label className="flex items-center gap-2"><Checkbox checked={draft.birthTimeKnown} onCheckedChange={value => update("birthTimeKnown", value === true)} />Час відомий</label>
+      <div className="min-w-0 sm:col-span-2"><Field label="Місто"><ReturnPlaceSearch label="Місто карти" name={draft.birthplaceName} onPendingChange={setPendingPlace} onSelect={place => {
+        setAutomaticTimezone(place.timezone ?? "");
+        setDraft(current => ({ ...current, birthplaceName: place.displayName, countryCode: place.countryCode ?? "", latitude: String(place.latitude), longitude: String(place.longitude),
+          timezone: place.timezone || current.timezone })); setApplied(false);
+      }} /></Field></div>
+      <Field label="Широта"><Input required type="number" step="any" min={-90} max={90} value={draft.latitude} onChange={e => update("latitude", e.target.value)} /></Field>
+      <Field label="Довгота"><Input required type="number" step="any" min={-180} max={180} value={draft.longitude} onChange={e => update("longitude", e.target.value)} /></Field>
+      <label className="flex items-center gap-2"><Checkbox checked={locked} onCheckedChange={value => {
+        if (value === true) setHours(String(birthTimezoneOffsetHours(draft.birthDate, draft.birthTime, draft.birthTimeKnown, automaticTimezone) ?? ""));
+        setLocked(value === true); setApplied(false);
+      }} />Зафіксувати часовий пояс</label>
+      <Field label="UTC, годин"><Input type="number" min={-12} max={14} step="any" disabled={!locked} value={locked ? hours : birthTimezoneOffsetHours(draft.birthDate, draft.birthTime, draft.birthTimeKnown, automaticTimezone) ?? ""} onChange={e => { setHours(e.target.value); setApplied(false); }} /></Field>
+      <div className="flex items-end gap-2"><Button type="submit" disabled={busy || pendingPlace}><RefreshCw />{busy ? "Розраховую…" : "Застосувати"}</Button>{applied ? <span role="status" className="text-sm">Оновлено</span> : null}</div>
+    </fieldset>{error ? <p role="alert" className="mt-3 text-sm text-destructive">{error}</p> : null}</form>
+  </section>;
+}
+
+function ChartExpandButton() {
+  const button = useRef<HTMLButtonElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    const change = () => setExpanded(document.fullscreenElement === button.current?.parentElement);
+    document.addEventListener("fullscreenchange", change);
+    return () => document.removeEventListener("fullscreenchange", change);
+  }, []);
+  return <Button ref={button} type="button" size="icon" variant="secondary" className="absolute right-1 top-1 z-10 print:hidden"
+    title={error ? "Повноекранний режим недоступний у цьому браузері" : expanded ? "Згорнути карту" : "Карта на весь екран"}
+    aria-label={expanded ? "Згорнути карту" : "Карта на весь екран"} onClick={async () => {
+      try { if (expanded) await document.exitFullscreen(); else await button.current?.parentElement?.requestFullscreen(); }
+      catch { setError(true); }
+    }}>{expanded ? <Minimize /> : <Maximize />}</Button>;
 }
 
 function BirthDataCard({
@@ -2794,7 +2900,7 @@ function ForecastModuleCard({
   const [returnPlacePending, setReturnPlacePending] = useState(false);
   const [progressionPlacePending, setProgressionPlacePending] = useState(false);
   const [progressionPlaceReset, setProgressionPlaceReset] = useState(0);
-  const exactTransits = preview?.exactTransits ?? [];
+  const exactTransits = (preview?.exactTransits ?? []).filter(event => transitFilterPoints.includes(event.bodyB));
   const highPriorityTransits = exactTransits.filter((event) => event.strength === "high").length;
   const methodReady = Boolean(preview && (!preview.method || preview.method === "all" || preview.method === activeForecastView));
   const showReturns = activeForecastView === "solar-return" || activeForecastView === "overview";
@@ -3545,7 +3651,7 @@ function SecondaryProgressionPanel({ progression, onLoadCalendar }: { progressio
   const formulaOperator = (type: string) => type === "conjunction" ? "±" : ["trine", "sextile", "semisextile"].includes(type) ? "+" : "−";
   const calendarDate = (value: string) => DateTime.fromISO(value, { setZone: true }).setZone(displayTimezone).toFormat("dd.MM.yyyy");
   const calendarPoint = (key: string) => key.startsWith("house-") ? houseRomanNumerals[Number(key.slice(6)) - 1] : planetGlyphs[key] ?? key;
-  const calendarFormula = (key: string, formula?: string) => key.startsWith("house-") ? calendarPoint(key) : formula ?? "—";
+  const calendarFormula = (key: string, formula?: string) => key.startsWith("house-") ? key.slice(6) : formula ?? "—";
   const [view, setView] = useState<"aspects" | "calendar">("aspects");
   const [pairFilter, setPairFilter] = useState("all");
   const progressedPoints = new Map((progression.progressedReferencePoints ?? progression.progressed.bodies).map((point) => [point.key, point]));
@@ -3608,8 +3714,8 @@ function SecondaryProgressionPanel({ progression, onLoadCalendar }: { progressio
         </div>
 
         {visibleAspects.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border bg-background">
-            <Table>
+          <div className="rounded-lg border bg-background">
+            <Table className="progression-aspects-table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Прогресія</TableHead>
@@ -3657,7 +3763,7 @@ function SecondaryProgressionPanel({ progression, onLoadCalendar }: { progressio
         <Badge variant="secondary">Точні проходження: {visibleEvents.length}</Badge>
         {!progression.calendar ? <div className="space-y-2"><p role="status" className="text-sm text-muted-foreground">{calendarStatus === "loading" ? "Розраховую календар прогресій…" : "Календар ще не завантажено."}</p>{calendarError ? <p role="alert" className="text-sm text-destructive">{calendarError}</p> : null}<Button variant="outline" disabled={calendarStatus === "loading"} onClick={() => void loadCalendar()}><RefreshCw />{calendarStatus === "error" ? "Повторити" : "Завантажити календар"}</Button></div> : visibleEvents.length === 0 ?
           <p className="text-sm text-muted-foreground">Точних проходжень за цей рік для вибраних пар не знайдено.</p> :
-          <div className="overflow-x-auto rounded-lg border bg-background"><Table>
+          <div className="rounded-lg border bg-background"><Table className="progression-calendar-table">
             <TableHeader><TableRow><TableHead>Прогресія</TableHead><TableHead>Аспект</TableHead><TableHead>Натал</TableHead><TableHead>Початок</TableHead><TableHead>Екзакт</TableHead><TableHead>Формули</TableHead></TableRow></TableHeader>
             <TableBody>{visibleEvents.map((event) => <TableRow key={`${event.bodyA}-${event.type}-${event.bodyB}-${event.exactAt}`}>
               <TableCell className="text-lg" title={referenceLabel(event.bodyA, event.progressedPointLabel)}><span aria-label={referenceLabel(event.bodyA, event.progressedPointLabel)}>{calendarPoint(event.bodyA)}</span></TableCell>
@@ -4042,50 +4148,81 @@ function ReturnPointRow({ label, point }: { label: string; point: ChartPoint | n
   );
 }
 
+const transitFilterPoints = [...primaryPlanetOrder, "chiron", "lilith", "north-node", "south-node"];
+
+function useTransitFilters() {
+  const [source, setSource] = useState("all");
+  const [target, setTarget] = useState("all");
+  const [excludeMoon, setExcludeMoon] = useState(false);
+  const matches = (aspect: { bodyA: string; bodyB: string }) =>
+    transitFilterPoints.includes(aspect.bodyA) && transitFilterPoints.includes(aspect.bodyB) &&
+    (!excludeMoon || aspect.bodyA !== "moon") &&
+    (source === "all" || aspect.bodyA === source) && (target === "all" || aspect.bodyB === target);
+  return { source, setSource, target, setTarget, excludeMoon, setExcludeMoon, matches };
+}
+
+function TransitFilters({ filters }: { filters: ReturnType<typeof useTransitFilters> }) {
+  return <div className="grid gap-3 sm:grid-cols-2">
+    {([ ["Транзитна планета", filters.source, filters.setSource], ["До натальної планети", filters.target, filters.setTarget] ] as const).map(([label, value, change]) =>
+      <Field key={label} label={label}><Select value={value} onValueChange={change}><SelectTrigger aria-label={label}><SelectValue /></SelectTrigger><SelectContent>
+        <SelectItem value="all">Усі планети й точки</SelectItem>
+        {transitFilterPoints.map(key => <SelectItem key={key} value={key}>{planetGlyphs[key]} {pointLabelUk(key)}</SelectItem>)}
+      </SelectContent></Select></Field>
+    )}
+    <label className="flex items-center gap-2 text-sm"><Checkbox checked={filters.excludeMoon} onCheckedChange={value => filters.setExcludeMoon(value === true)} />Без транзитного Місяця</label>
+    <Button type="button" variant="ghost" onClick={() => { filters.setSource("all"); filters.setTarget("all"); filters.setExcludeMoon(false); }}><RotateCcw />Скинути фільтри</Button>
+  </div>;
+}
+
 function ExactTransitsTable({ events }: { events: ExactTransitEvent[] }) {
-  if (events.length === 0) {
-    return <p className="text-sm text-muted-foreground">У вибраному вікні точних major-транзитів не знайдено.</p>;
-  }
+  const filters = useTransitFilters();
+  const [sort, setSort] = useState("date");
+  const visibleEvents = events.filter(filters.matches).sort((a, b) => {
+    const key = sort === "source" ? "bodyA" : "bodyB";
+    const group = sort === "date" ? 0 : transitFilterPoints.indexOf(a[key]) - transitFilterPoints.indexOf(b[key]);
+    return group || a.exactAt.localeCompare(b.exactAt);
+  });
 
   return (
+    <div className="space-y-3">
+    <TransitFilters filters={filters} />
+    <div className="flex flex-wrap items-center justify-between gap-2"><span role="status" className="text-sm text-muted-foreground">Подій: {visibleEvents.length}</span>
+      <Select value={sort} onValueChange={setSort}><SelectTrigger className="w-52" aria-label="Порядок транзитів"><SelectValue /></SelectTrigger><SelectContent>
+        <SelectItem value="date">За датою</SelectItem><SelectItem value="source">За транзитною планетою</SelectItem><SelectItem value="target">За натальною планетою</SelectItem>
+      </SelectContent></Select>
+    </div>
+    {visibleEvents.length === 0 ? <p className="text-sm text-muted-foreground">За обраними фільтрами подій немає.</p> :
     <div className="max-h-[460px] overflow-auto rounded-lg border">
-      <Table>
+      <Table className="transit-calendar-table">
         <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow>
+            <TableHead><span className="sr-only">Транзит</span></TableHead>
+            <TableHead><span className="sr-only">Аспект</span></TableHead>
+            <TableHead><span className="sr-only">Натал</span></TableHead>
             <TableHead>Дата</TableHead>
-            <TableHead>Транзит</TableHead>
-            <TableHead>Аспект</TableHead>
-            <TableHead>Натал</TableHead>
             <TableHead>Дім</TableHead>
-            <TableHead>Сила</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {events.slice(0, 36).map((event) => (
+          {visibleEvents.map((event) => (
             <TableRow key={`exact-${event.bodyA}-${event.type}-${event.bodyB}-${event.exactAt}`}>
-              <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTimeCompact(event.exactAt)}</TableCell>
-              <TableCell className="font-medium">
-                {planetGlyphs[event.bodyA] ?? event.bodyA} {pointLabelUk(event.bodyA, event.transitPointLabel)}
+              <TableCell className="text-lg" title={pointLabelUk(event.bodyA, event.transitPointLabel)} aria-label={pointLabelUk(event.bodyA, event.transitPointLabel)}>
+                {planetGlyphs[event.bodyA] ?? event.bodyA}
               </TableCell>
-              <TableCell className={cn("font-medium", getAspectTextClass(event.type))}>
-                {aspectLabels[event.type] ?? event.type}
+              <TableCell className={cn("text-lg", getAspectTextClass(event.type))} title={aspectLabels[event.type]} aria-label={aspectLabels[event.type]}>
+                {aspectGlyphs[event.type] ?? event.type}
               </TableCell>
-              <TableCell className="font-medium">
-                {planetGlyphs[event.bodyB] ?? event.bodyB} {pointLabelUk(event.bodyB, event.natalPointLabel)}
+              <TableCell className="text-lg" title={pointLabelUk(event.bodyB, event.natalPointLabel)} aria-label={pointLabelUk(event.bodyB, event.natalPointLabel)}>
+                {planetGlyphs[event.bodyB] ?? event.bodyB}
               </TableCell>
+              <TableCell className="text-muted-foreground" title={formatDateTimeCompact(event.exactAt)}>{formatDateTimeCompact(event.exactAt)}</TableCell>
               <TableCell className="text-muted-foreground">{event.natalHouse ?? "n/a"}</TableCell>
-              <TableCell className="text-muted-foreground">
-                {transitStrengthLabelsUk[event.strength] ?? event.strength} · {event.score.toFixed(1)}
-              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-      {events.length > 36 ? (
-        <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          Показано перші 36 подій із {events.length}. Зменш період, щоб сфокусувати консультаційне вікно.
-        </p>
-      ) : null}
+    </div>
+    }
     </div>
   );
 }
@@ -4105,6 +4242,8 @@ function TransitForecastCard({
   onCalculate: () => Promise<void>;
   onTransitDateTimeChange: (value: string) => void;
 }) {
+  const filters = useTransitFilters();
+  const visibleAspects = (preview?.transitToNatalAspects ?? []).filter(filters.matches);
   const moon = preview?.transit.bodies.find((point) => point.key === "moon") ?? null;
   const moonPhase = preview?.moonPhase ?? null;
   const transitHousePlacements = preview?.transitHousePlacements ?? [];
@@ -4171,7 +4310,7 @@ function TransitForecastCard({
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Аспектів</p>
-                <p className="mt-1 text-sm font-medium">{preview.transitToNatalAspects.length} до наталу</p>
+                <p className="mt-1 text-sm font-medium">{visibleAspects.length} до наталу</p>
               </div>
             </div>
 
@@ -4201,54 +4340,19 @@ function TransitForecastCard({
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Найточніші транзити до наталу</h3>
-              {preview.transitToNatalAspects.length > 0 ? (
-                <div className="space-y-1">
-                  {preview.transitToNatalAspects.slice(0, 8).map((aspect) => {
-                    const transitPoint = transitPoints.get(aspect.bodyA);
-                    const natalPoint = natalPoints.get(aspect.bodyB);
-
-                    return (
-                      <div
-                        className="grid gap-2 rounded-lg border px-3 py-2 text-sm"
-                        key={`transit-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="min-w-0">
-                            <span className="font-medium">
-                              {planetGlyphs[aspect.bodyA] ?? aspect.bodyA}{" "}
-                              {pointLabelUk(aspect.bodyA, transitPoint?.label)}
-                            </span>{" "}
-                            {aspectLabels[aspect.type] ?? aspect.type} натальний{" "}
-                            <span className="font-medium">
-                              {planetGlyphs[aspect.bodyB] ?? aspect.bodyB}{" "}
-                              {pointLabelUk(aspect.bodyB, natalPoint?.label)}
-                            </span>
-                          </span>
-                          <span className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">{transitPhaseLabelsUk[aspect.phase] ?? aspect.phase}</Badge>
-                            <Badge variant="outline">{transitStrengthLabelsUk[aspect.strength] ?? aspect.strength}</Badge>
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                          <span>Exact: {formatExactAt(aspect.exactAt)}</span>
-                          <span>
-                            score {aspect.score.toFixed(1)} · orb{" "}
-                            <strong className="text-astro-coral">{aspect.orb.toFixed(2)}°</strong>
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Active:{" "}
-                          {formatActiveWindow({
-                            activeFrom: aspect.activeFrom,
-                            activeUntil: aspect.activeUntil,
-                            durationDays: aspect.durationDays
-                          })}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
+              <h3 className="text-sm font-semibold">Транзити до наталу</h3>
+              <TransitFilters filters={filters} />
+              {visibleAspects.length > 0 ? (
+                <Table className="transit-calendar-table">
+                  <TableHeader><TableRow><TableHead><span className="sr-only">Транзит</span></TableHead><TableHead><span className="sr-only">Аспект</span></TableHead><TableHead><span className="sr-only">Натал</span></TableHead><TableHead>Дата екзакту</TableHead><TableHead>Дім</TableHead></TableRow></TableHeader>
+                  <TableBody>{visibleAspects.map(aspect => <TableRow key={`transit-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`}>
+                    <TableCell className="text-lg" title={pointLabelUk(aspect.bodyA, transitPoints.get(aspect.bodyA)?.label)}>{planetGlyphs[aspect.bodyA] ?? aspect.bodyA}</TableCell>
+                    <TableCell className={cn("text-lg", getAspectTextClass(aspect.type))} title={aspectLabels[aspect.type]}>{aspectGlyphs[aspect.type] ?? aspect.type}</TableCell>
+                    <TableCell className="text-lg" title={pointLabelUk(aspect.bodyB, natalPoints.get(aspect.bodyB)?.label)}>{planetGlyphs[aspect.bodyB] ?? aspect.bodyB}</TableCell>
+                    <TableCell>{formatExactAt(aspect.exactAt)}</TableCell>
+                    <TableCell>{natalPoints.get(aspect.bodyB)?.house ?? "—"}</TableCell>
+                  </TableRow>)}</TableBody>
+                </Table>
               ) : (
                 <p className="text-sm text-muted-foreground">Немає major aspects у поточних орбах.</p>
               )}
@@ -4258,7 +4362,7 @@ function TransitForecastCard({
               <h3 className="text-sm font-semibold">Найближчі 7 днів</h3>
               <div className="space-y-2">
                 {preview.weekAhead.map((day) => {
-                  const strongestAspect = day.strongestAspects[0];
+                  const strongestAspect = day.strongestAspects.find(filters.matches);
                   const transitPoint = strongestAspect ? transitPoints.get(strongestAspect.bodyA) : null;
                   const natalPoint = strongestAspect ? natalPoints.get(strongestAspect.bodyB) : null;
 
@@ -4706,14 +4810,15 @@ function SynastryOverlayWheel({
   const labelsB = solarLayout ? labelLongitudes(preview.subjectB.bodies) : new Map<string, number>();
 
   return (
-    <div className={solarLayout ? "mx-auto w-full min-w-0 max-w-[780px] px-1 sm:px-3" : large ? "min-w-0" : "rounded-lg border bg-muted/20 p-3"}>
+    <div className="chart-viewport relative mx-auto w-full min-w-0">
+      <ChartExpandButton />
       <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
         <Badge variant="secondary">{subjectAName}</Badge>
         <Badge variant="outline">{subjectBName}</Badge>
         <span className="text-muted-foreground">{description}</span>
       </div>
       <svg
-        className={cn("zoria-chart mx-auto aspect-square w-full overflow-visible", large ? "max-w-[780px]" : "max-w-[520px]")}
+        className="zoria-chart mx-auto aspect-square w-full overflow-visible"
         viewBox="-26 -26 372 372"
         role="img"
         aria-label={ariaLabel}
@@ -4783,8 +4888,8 @@ function SynastryOverlayWheel({
                 y1={start.y}
                 x2={end.x}
                 y2={end.y}
-                className="stroke-[var(--chart-house-line)] stroke-[0.9] opacity-60 [stroke-dasharray:2_3]"
-                style={solarLayout ? { strokeWidth: 1.1 * natalUnit } : undefined}
+                className="stroke-[#79572f] stroke-[1.4] [stroke-dasharray:3_3]"
+                style={solarLayout ? { strokeWidth: 1.5 * natalUnit } : undefined}
               />
               <text
                 x={label.x}
@@ -6056,7 +6161,8 @@ export function ChartWheel({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[780px] px-1 sm:px-3">
+    <div className="chart-viewport relative mx-auto w-full">
+      {!printMode ? <ChartExpandButton /> : null}
       <svg
         className={cn("zoria-chart aspect-square w-full overflow-visible", printMode && "pointer-events-none")}
         viewBox="-55 -55 710 710"
@@ -6130,7 +6236,7 @@ export function ChartWheel({
                 x={label.x}
                 y={label.y}
                 className={cn(
-                  "fill-[var(--chart-house)] stroke-[var(--chart-cream)] [paint-order:stroke] [stroke-width:3px] font-bold [dominant-baseline:middle] [text-anchor:middle]",
+                  "fill-[var(--chart-house)] font-bold [dominant-baseline:middle] [text-anchor:middle]",
                   isHighlightedHouse ? "text-[14px]" : "text-[12px]"
                 )}
               >

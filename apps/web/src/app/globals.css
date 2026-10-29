@@ -2,6 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+.chart-viewport:fullscreen {
+  background: hsl(var(--background));
+  padding: 1rem;
+  overflow: auto;
+}
+.chart-viewport:fullscreen > svg {
+  width: min(100%, calc(100dvh - 5rem));
+  max-height: calc(100dvh - 5rem);
+  margin-inline: auto;
+}
+.progression-calendar-table,
+.transit-calendar-table {
+  table-layout: fixed;
+  width: 100%;
+}
+.progression-calendar-table :is(th, td),
+.transit-calendar-table :is(th, td),
+.progression-aspects-table :is(th, td) {
+  padding: 0.375rem 0.25rem;
+}
+.progression-calendar-table :is(th, td):nth-child(-n+3),
+.transit-calendar-table :is(th, td):nth-child(-n+3),
+.progression-aspects-table :is(th, td):nth-child(-n+3) {
+  width: 2rem;
+  text-align: center;
+}
+.progression-calendar-table th:nth-child(-n+3),
+.progression-aspects-table th:nth-child(-n+3) {
+  font-size: 0;
+}
+.progression-calendar-table :is(th, td):nth-child(4),
+.progression-calendar-table :is(th, td):nth-child(5) {
+  width: 5.5rem;
+  white-space: normal;
+}
+.progression-calendar-table :is(th, td):last-child,
+.progression-aspects-table :is(th, td):last-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.transit-calendar-table :is(th, td):last-child {
+  width: 3rem;
+}
+@media (max-width: 480px) {
+  .progression-calendar-table :is(th, td):nth-child(-n+3) { width: 1.5rem; }
+  .progression-calendar-table :is(th, td):nth-child(4),
+  .progression-calendar-table :is(th, td):nth-child(5) {
+    width: 4.5rem;
+    overflow-wrap: anywhere;
+  }
+}
+
 @layer base {
   :root {
     color-scheme: dark;
