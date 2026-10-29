@@ -313,7 +313,7 @@ export type SecondaryProgressionInput = {
 export type ProgressionLocation = { name: string; latitude: number; longitude: number; timezone: string };
 
 export type SecondaryProgressionResult = {
-  houseMethod?: "solar-arc-mc" | "uniform-mc-365";
+  houseMethod?: "solar-arc-mc" | "uniform-mc-365" | "uniform-mc-365-geocentric";
   cuspAspectOrbDegrees?: number;
   location?: ProgressionLocation;
   birthNatal?: ChartResult;

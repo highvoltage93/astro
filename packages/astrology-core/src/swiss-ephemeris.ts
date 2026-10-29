@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import { findProgressionCrossings } from "./progression-crossings";
 import { progressionCalendarWindow } from "./progression-calendar-window";
 import { solarArcMcHouses } from "./solar-arc-mc";
+import { progressionHouseLatitude } from "./progression-latitude";
 import { relocationFormula } from "./relocation-formula";
 import { calculateProgressionAspects, findProgressionIngress, progressionOrbFor, PROGRESSION_ASPECT_ANGLES } from "./progression-aspects";
 import type { ProgressionAspect } from "./types";
@@ -2334,15 +2335,27 @@ const calculateSecondaryProgressionFromNatal = (
 ): SecondaryProgressionResult => {
   // Solar-arc directions retain their historical key via the internal override.
   const SECONDARY_PROGRESSION_YEAR_DAYS = yearLengthDays;
+  const houseLatitude = yearLengthDays === 365 ? progressionHouseLatitude : (latitude: number) => latitude;
+  if (yearLengthDays === 365) {
+    const originalSubject = birthNatal.subject;
+    birthNatal = calculateNatalChart({
+      ...input.natal, latitude: houseLatitude(input.natal.latitude),
+      zodiac: input.zodiac ?? birthNatal.settings.zodiac,
+      ayanamsa: input.ayanamsa ?? birthNatal.settings.ayanamsa,
+      ephemerisPath: input.ephemerisPath
+    });
+    birthNatal = { ...birthNatal, subject: originalSubject };
+  }
   const location = input.progressionLocation;
-  const natal = location ? calculateNatalChart({
+  let natal = location ? calculateNatalChart({
     ...input.natal,
-    latitude: location.latitude,
+    latitude: houseLatitude(location.latitude),
     longitude: location.longitude,
     zodiac: input.zodiac ?? birthNatal.settings.zodiac,
     ayanamsa: input.ayanamsa ?? birthNatal.settings.ayanamsa,
     ephemerisPath: input.ephemerisPath
   }) : birthNatal;
+  if (location) natal = { ...natal, subject: { ...natal.subject, latitude: location.latitude } };
   const targetDateTime = parseTransitDateTime(input.targetDateTime);
   const birthDateTime = DateTime.fromISO(natal.subject.utcDateTime, { setZone: true }).toUTC();
 
@@ -2383,7 +2396,7 @@ const calculateSecondaryProgressionFromNatal = (
   const obliquityResult = hasNatalHouses ? calc(birthJulianDate.jdEt, constants.SE_ECL_NUT, constants.SEFLG_SWIEPH) : null;
   const obliquity = obliquityResult?.data[0];
   const tropicalNatalHouses = hasNatalHouses ? houses_ex2(birthJulianDate.jdUt, 0,
-    natal.subject.latitude, natal.subject.longitude, HOUSE_SYSTEM_CODES[natal.settings.houseSystem]) : null;
+    houseLatitude(natal.subject.latitude), natal.subject.longitude, HOUSE_SYSTEM_CODES[natal.settings.houseSystem]) : null;
   const zodiacOffset = natalMc && tropicalNatalHouses
     ? normalizeLongitude(tropicalNatalHouses.data.points[1] - natalMc.longitude) : 0;
   const cuspLongitudesAt = (utc: DateTime): number[] => {
@@ -2397,7 +2410,7 @@ const calculateSecondaryProgressionFromNatal = (
     try {
       return solarArcMcHouses({ natalMc: natalMc.longitude, natalSun: natalSunPosition.longitude,
         arcDegrees: yearLengthDays === 365 ? utc.diff(birthDateTime, "days").days : undefined,
-        progressedSun: sun.longitude, obliquity, latitude: natal.subject.latitude,
+        progressedSun: sun.longitude, obliquity, latitude: houseLatitude(natal.subject.latitude),
         houseSystem: HOUSE_SYSTEM_CODES[natal.settings.houseSystem], zodiacOffset }).houses;
     } catch (error) {
       addCalculationWarning(warnings, "PROGRESSION_HOUSES_UNAVAILABLE", error instanceof Error ? error.message : "Solar Arc MC house calculation failed");
@@ -2577,7 +2590,7 @@ const calculateSecondaryProgressionFromNatal = (
 
   return {
     method: "secondary-day-for-year",
-    houseMethod: "uniform-mc-365",
+    houseMethod: yearLengthDays === 365 ? "uniform-mc-365-geocentric" : "solar-arc-mc",
     location,
     birthNatal: location ? birthNatal : undefined,
     yearLengthDays: SECONDARY_PROGRESSION_YEAR_DAYS,

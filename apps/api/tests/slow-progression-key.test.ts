@@ -10,7 +10,7 @@ test("Chernihiv slow progression uses a 365-day key and uniform MC", () => {
   });
   assert.equal(Date.parse(result.natal.subject.utcDateTime), Date.parse("1997-06-20T09:00:18Z"));
   assert.equal(result.yearLengthDays, 365);
-  assert.equal(result.houseMethod, "uniform-mc-365");
+  assert.equal(result.houseMethod, "uniform-mc-365-geocentric");
   const birth = Date.parse(result.natal.subject.utcDateTime);
   const target = Date.parse(result.targetDateTime);
   const expected = birth + (target - birth) / 365;

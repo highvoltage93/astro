@@ -3582,7 +3582,7 @@ function SecondaryProgressionPanel({ progression, onLoadCalendar }: { progressio
 
       <ProgressionOverlayWheel progression={progression} />
       <p className="text-sm text-muted-foreground">{progression.location?.name ?? "Місце народження"} · {displayTimezone}</p>
-      <p className="text-xs text-muted-foreground">{progression.houseMethod === "uniform-mc-365" ? "Повільні прогресії: 1 доба = 365 діб; МС: 1° за 365 діб." : "Архівний метод прогресій. Перерахуйте прогноз для ключа 365 діб і рівномірного руху МС."}</p>
+      <p className="text-xs text-muted-foreground">{progression.houseMethod === "uniform-mc-365-geocentric" ? "Повільні прогресії: ключ 365 діб; МС 1° за 365 діб; геоцентрична широта домів." : "Архівний метод прогресій. Перерахуйте прогноз для оновленого розрахунку домів."}</p>
 
       <div className="flex flex-wrap items-center gap-2">
         <div role="tablist" aria-label="Таблиці повільних прогресій" className="flex gap-1">
