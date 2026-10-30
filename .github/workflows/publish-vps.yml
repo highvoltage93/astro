@@ -1,20 +1,51 @@
-name: Publish VPS images
+name: CI and VPS deployment
 
-# Explicitly started by the operator. No tests or deployments run on push.
 on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
-  group: publish-vps-${{ github.ref }}
+  group: vps-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  checks:
+    name: Typecheck and regression tests
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable && corepack prepare pnpm@9.15.4 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @astroprocessor/astrology-core ephemeris:download
+      - run: pnpm --filter @astroprocessor/astrology-core build
+      - run: pnpm --filter @astroprocessor/api prisma:generate
+      - run: pnpm --recursive typecheck
+      - name: Regression tests
+        working-directory: apps/api
+        env:
+          SWISSEPH_EPHE_PATH: ${{ github.workspace }}/ephemeris
+        run: pnpm exec tsx --test tests/*.test.ts
+
+  publish:
+    name: Docker (${{ matrix.service }})
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      packages: write
     strategy:
       max-parallel: 1
       matrix:
@@ -27,8 +58,11 @@ jobs:
             dockerfile: deploy/backup/Dockerfile
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -43,7 +77,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: true
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.image.outputs.prefix }}-${{ matrix.service }}:sha-${{ github.sha }}
           build-args: |
             NEXT_PUBLIC_API_URL=/api
@@ -53,3 +87,62 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=vps-${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=vps-${{ matrix.service }}
+
+  ready:
+    name: Release checks
+    if: always()
+    needs: [checks, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all checks and images
+        env:
+          CHECKS: ${{ needs.checks.result }}
+          IMAGES: ${{ needs.publish.result }}
+        run: test "$CHECKS" = success && test "$IMAGES" = success
+
+  deploy:
+    name: Deploy production
+    needs: ready
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.VPS_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: astro-production
+      cancel-in-progress: false
+    steps:
+      - name: Reject an outdated release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.getBranch({
+              ...context.repo, branch: 'main'
+            });
+            if (data.commit.sha !== context.sha) {
+              core.setFailed('main has moved. Deploy the latest successful main run, not an older rerun.');
+            }
+      - name: Deploy immutable commit tag over restricted SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.VPS_HOST }}
+          DEPLOY_PORT: ${{ secrets.VPS_PORT }}
+          DEPLOY_USER: ${{ secrets.VPS_USER }}
+          DEPLOY_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          REVISION: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : "${DEPLOY_HOST:?}" "${DEPLOY_USER:?}" "${DEPLOY_KEY:?}" "${KNOWN_HOSTS:?}"
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          port="${DEPLOY_PORT:-22}"
+          [[ "$port" =~ ^[0-9]+$ ]]
+          directory=$(mktemp -d)
+          trap 'rm -rf "$directory"' EXIT
+          umask 077
+          printf '%s\n' "$DEPLOY_KEY" > "$directory/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$directory/known_hosts"
+          ssh -T -i "$directory/key" -p "$port" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$directory/known_hosts" -o ConnectTimeout=20 \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=6 \
+            "$DEPLOY_USER@$DEPLOY_HOST" "deploy sha-$REVISION"
