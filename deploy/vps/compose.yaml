@@ -112,7 +112,7 @@ services:
   backup:
     image: ${IMAGE_PREFIX}-backup:${IMAGE_TAG}
     profiles: [ops]
-    env_file: .env.backup
+    env_file: ${BACKUP_ENV_FILE:-.env.backup}
     environment:
       BACKUP_DATABASE_URL: postgresql://astro_backup:${BACKUP_DB_PASSWORD}@postgres:5432/astroprocessor?sslmode=disable
       ALLOW_PRIVATE_DATABASE: "true"
