@@ -40,6 +40,8 @@ export default function AdminPage() {
   const [events, setEvents] = useState<Audit[]>([]);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<Role | "ALL">("ALL");
+  const [password, setPassword] = useState("");
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -59,14 +61,16 @@ export default function AdminPage() {
     const controller = new AbortController();
     setLoading(true); setError("");
     Promise.all([
-      request<UserList>(`/users?search=${encodeURIComponent(query)}&page=${page}`, { signal: controller.signal }),
+      request<UserList>(`/users?${new URLSearchParams({ search: query, page: String(page), ...(roleFilter !== "ALL" ? { role: roleFilter } : {}) })}`, { signal: controller.signal }),
       request<{ events: Audit[] }>("/audit", { signal: controller.signal })
     ]).then(([users, audit]) => {
       if (!controller.signal.aborted) { setList(users); setEvents(audit.events); }
     }).catch((failure: unknown) => { if (!controller.signal.aborted) handleError(failure); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [query, page, revision]);
+  }, [query, page, revision, roleFilter]);
+
+  useEffect(() => { setPassword(""); }, [editing?.id]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -76,7 +80,8 @@ export default function AdminPage() {
     setSaving(true); setError(""); setNotice("");
     try {
       const { username, email, role, updatedAt } = editing;
-      await request(`/users/${encodeURIComponent(editing.id)}`, { method: "PATCH", body: JSON.stringify({ username, email, role, updatedAt }) });
+      await request(`/users/${encodeURIComponent(editing.id)}`, { method: "PATCH", body: JSON.stringify({ username, email, role, updatedAt, ...(password ? { password } : {}) }) });
+      setPassword("");
       setEditing(null); setNotice("Зміни збережено."); setRevision((value) => value + 1);
     } catch (failure) { handleError(failure); }
     finally { setSaving(false); }
@@ -95,27 +100,36 @@ export default function AdminPage() {
       {!loading && !list ? <Button asChild variant="secondary"><a href="/login">Увійти</a></Button> : null}
       {editing ? <Card>
         <CardHeader><CardTitle>Редагування користувача</CardTitle></CardHeader>
-        <CardContent><form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="space-y-5">
+          <dl className="grid grid-cols-1 gap-3 border-b pb-4 sm:grid-cols-3">
+            <div><dt className="text-sm text-muted-foreground">Карти</dt><dd className="text-lg font-semibold">{editing._count.birthProfiles}</dd></div>
+            <div><dt className="text-sm text-muted-foreground">Прогнози</dt><dd className="text-lg font-semibold">{editing._count.savedForecasts}</dd></div>
+            <div><dt className="text-sm text-muted-foreground">Консультації</dt><dd className="text-lg font-semibold">{editing._count.consultations}</dd></div>
+          </dl>
+          <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2"><Label htmlFor="admin-username">Username</Label><Input id="admin-username" required minLength={3} maxLength={50} value={editing.username} disabled={saving} onChange={(e) => setEditing({ ...editing, username: e.target.value })} /></div>
           <div className="space-y-2"><Label htmlFor="admin-email">Email</Label><Input id="admin-email" required type="email" maxLength={160} value={editing.email} disabled={saving} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></div>
           <div className="space-y-2"><Label htmlFor="admin-role">Роль</Label><Select value={editing.role} disabled={saving} onValueChange={(role: Role) => setEditing({ ...editing, role })}><SelectTrigger id="admin-role"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(roles).map(([role, label]) => <SelectItem key={role} value={role}>{label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label htmlFor="admin-password">Новий пароль (необов’язково)</Label><Input id="admin-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={password} disabled={saving} aria-describedby="admin-password-help" onChange={(event) => setPassword(event.target.value)} /><p id="admin-password-help" className="text-xs text-muted-foreground">Від 8 символів: велика й мала літери, цифра та спецсимвол. Порожнє поле залишає пароль без змін.</p></div>
           <div className="flex flex-wrap items-end gap-2"><Button type="submit" disabled={saving}>{saving ? <RefreshCw className="animate-spin" /> : <Save />}Зберегти</Button><Button type="button" variant="secondary" disabled={saving} onClick={() => setEditing(null)}><X />Скасувати</Button></div>
         </form></CardContent>
       </Card> : null}
       {list ? <Card>
         <CardHeader><CardTitle>Користувачі ({list.total})</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); setEditing(null); setPage(1); setQuery(search.trim()); setRevision((value) => value + 1); }}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <form className="flex min-w-0 flex-1 gap-2" onSubmit={(e) => { e.preventDefault(); setEditing(null); setPage(1); setQuery(search.trim()); setRevision((value) => value + 1); }}>
             <Input aria-label="Пошук за username або email" placeholder="Username або email" maxLength={160} value={search} disabled={saving} onChange={(e) => setSearch(e.target.value)} />
             <Button type="submit" size="icon" title="Знайти" aria-label="Знайти" disabled={loading || saving}><Search /></Button>
           </form>
-          <Table><TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Email</TableHead><TableHead>Роль</TableHead><TableHead>Створено</TableHead><TableHead>Останній вхід</TableHead><TableHead title="Останній авторизований запит до API, точність до хвилини">Остання активність</TableHead><TableHead>Карти</TableHead><TableHead>Прогнози</TableHead><TableHead>Консультації</TableHead><TableHead><span className="sr-only">Дії</span></TableHead></TableRow></TableHeader>
+          <div className="space-y-2 sm:w-56"><Label htmlFor="admin-group-filter">Група</Label><Select value={roleFilter} disabled={saving} onValueChange={(value: Role | "ALL") => { setRoleFilter(value); setPage(1); setEditing(null); }}><SelectTrigger id="admin-group-filter"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Усі групи</SelectItem>{Object.entries(roles).map(([role, label]) => <SelectItem key={role} value={role}>{label}</SelectItem>)}</SelectContent></Select></div>
+          </div>
+          <Table><TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Email</TableHead><TableHead>Роль</TableHead><TableHead>Створено</TableHead><TableHead>Останній вхід</TableHead><TableHead title="Останній авторизований запит до API, точність до хвилини">Остання активність</TableHead><TableHead><span className="sr-only">Дії</span></TableHead></TableRow></TableHeader>
             <TableBody>{list.users.map((user) => <TableRow key={user.id}>
               <TableCell>{user.username}</TableCell><TableCell>{user.email}</TableCell><TableCell className="whitespace-nowrap">{roles[user.role]}</TableCell><TableCell className="whitespace-nowrap">{date(user.createdAt)}</TableCell>
               <TableCell className="whitespace-nowrap">{user.lastLoginAt ? date(user.lastLoginAt) : "—"}</TableCell>
               <TableCell className="whitespace-nowrap">{user.lastActiveAt ? date(user.lastActiveAt) : "—"}</TableCell>
-              <TableCell>{user._count.birthProfiles}</TableCell><TableCell>{user._count.savedForecasts}</TableCell><TableCell>{user._count.consultations}</TableCell>
-              <TableCell><Button variant="ghost" size="icon" aria-label={`Редагувати ${user.username}`} title="Редагувати" disabled={loading || saving} onClick={() => { setEditing(user); setError(""); setNotice(""); }}><Pencil /></Button></TableCell>
+              <TableCell><Button variant="ghost" size="icon" aria-label={`Відкрити ${user.username}`} title="Деталі користувача" disabled={loading || saving} onClick={() => { setPassword(""); setEditing(user); setError(""); setNotice(""); }}><Pencil /></Button></TableCell>
             </TableRow>)}</TableBody></Table>
           {!list.users.length ? <p className="text-sm text-muted-foreground">Користувачів не знайдено.</p> : null}
           <div className="flex items-center justify-end gap-3 text-sm"><Button size="icon" variant="secondary" title="Попередня сторінка" aria-label="Попередня сторінка" disabled={page <= 1 || loading || saving} onClick={() => { setEditing(null); setPage(page - 1); }}><ChevronLeft /></Button><span>{list.page} / {Math.max(1, Math.ceil(list.total / list.pageSize))}</span><Button size="icon" variant="secondary" title="Наступна сторінка" aria-label="Наступна сторінка" disabled={page * list.pageSize >= list.total || loading || saving} onClick={() => { setEditing(null); setPage(page + 1); }}><ChevronRight /></Button></div>

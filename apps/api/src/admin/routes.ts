@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { getOptionalAuthUser } from "../auth/service";
+import { getOptionalAuthUser, hashPassword } from "../auth/service";
+import { registrationPasswordError } from "../auth/password-policy";
 import { prisma } from "../prisma/client";
 import { registerAdminFeedbackRoutes } from "../feedback/routes";
 
@@ -13,12 +14,17 @@ const select = {
 
 const querySchema = z.object({
   search: z.string().trim().max(160).default(""),
+  role: z.enum(["USER", "CONSULTANT", "ADMIN"]).optional(),
   page: z.coerce.number().int().min(1).max(100000).default(1)
 });
 const updateSchema = z.object({
   username: z.string().trim().min(3).max(50),
   email: z.string().trim().email().max(160),
   role: z.enum(["USER", "CONSULTANT", "ADMIN"]),
+  password: z.string().superRefine((password, ctx) => {
+    const message = registrationPasswordError(password);
+    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  }).optional(),
   updatedAt: z.string().datetime()
 }).strict();
 
@@ -36,11 +42,12 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
     admin.get("/users", async (request, reply) => {
       const parsed = querySchema.safeParse(request.query);
       if (!parsed.success) return reply.code(400).send({ message: "Некоректні параметри пошуку." });
-      const { search, page } = parsed.data;
+      const { search, page, role } = parsed.data;
       const where: Prisma.UserWhereInput = search ? { OR: [
         { username: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } }
       ] } : {};
+      if (role) where.role = role;
       const [total, users] = await prisma.$transaction([
         prisma.user.count({ where }),
         prisma.user.findMany({ where, select, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (page - 1) * 25, take: 25 })
@@ -50,10 +57,11 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
 
     admin.patch<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
       const parsed = updateSchema.safeParse(request.body);
-      if (!parsed.success) return reply.code(400).send({ message: "Перевірте email, username (3–50 символів) та роль." });
+      if (!parsed.success) return reply.code(400).send({ message: parsed.error.issues.find((issue) => issue.path[0] === "password")?.message ?? "Перевірте email, username (3–50 символів) та роль." });
       const actor = await getOptionalAuthUser(request);
       if (!actor) return reply.code(401).send({ message: "Сесія завершилась." });
-      const { updatedAt, ...data } = parsed.data;
+      const { updatedAt, password, ...data } = parsed.data;
+      const passwordHash = password === undefined ? undefined : hashPassword(password);
       try {
         const result = await prisma.$transaction(async (tx): Promise<
           { status: number; message: string } | { user: Prisma.UserGetPayload<{ select: typeof select }> }
@@ -68,10 +76,10 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
             if (target.id === actor.id) return { status: 400, message: "Не можна зняти власні права адміністратора." } as const;
             if (await tx.user.count({ where: { role: "ADMIN" } }) <= 1) return { status: 400, message: "Потрібно залишити хоча б одного адміністратора." } as const;
           }
-          const user = await tx.user.update({ where: { id: target.id }, data, select });
+          const user = await tx.user.update({ where: { id: target.id }, data: { ...data, ...(passwordHash ? { passwordHash } : {}) }, select });
           await tx.auditEvent.create({ data: {
             userId: actor.id, action: "admin.user.update", entity: "User", entityId: target.id,
-            metadata: { before: { username: target.username, email: target.email, role: target.role }, after: data }
+            metadata: { before: { username: target.username, email: target.email, role: target.role }, after: data, passwordChanged: password !== undefined }
           } });
           return { user };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
