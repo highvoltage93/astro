@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { getCurrentUser, loginUser, registerUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { REGISTRATION_PASSWORD_HINT, registrationPasswordError } from "@/lib/password-policy";
+import { LegalLinks } from "@/components/legal-links";
 
 type AuthMode = "login" | "register";
 
@@ -458,6 +459,7 @@ export default function LoginPage() {
             <p className="border-t pt-4 text-center text-xs leading-5 text-muted-foreground">
               Дані профілю використовуються для доступу до особистої робочої зони та збережених карт.
             </p>
+            <LegalLinks />
           </CardContent>
         </Card>
       </div>

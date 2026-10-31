@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { cn } from "@/lib/utils";
 import { FeedbackButton } from "./feedback-button";
+import { LegalLinks } from "./legal-links";
 
 const navigation = [
   { href: "/", label: "Дешборд", icon: LayoutDashboard },
@@ -22,13 +23,13 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
     let active = true;
     setIsAdmin(false);
     const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-    if (token && pathname !== "/login") {
+    if (token && !["/login", "/terms", "/privacy"].includes(pathname)) {
       void getCurrentUser(token).then(({ user }) => { if (active) setIsAdmin(user.role === "ADMIN"); }).catch(() => { if (active) setIsAdmin(false); });
     }
     return () => { active = false; };
   }, [pathname]);
   const items = isAdmin ? [...navigation, { href: "/admin", label: "Адміністрування", icon: ShieldCheck }] : navigation;
-  if (pathname === "/login" || pathname === "/consultations/print") return <>{children}</>;
+  if (["/login", "/consultations/print", "/terms", "/privacy"].includes(pathname)) return <>{children}</>;
 
   return (
     <div className="zoria-shell-background min-h-screen lg:grid lg:grid-cols-[76px_minmax(0,1fr)] min-[1440px]:grid-cols-[220px_minmax(0,1fr)]">
@@ -51,7 +52,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="border-t px-3 py-2"><FeedbackButton /></div>
       </aside>
-      <div id="zoria-content" tabIndex={-1} className="min-w-0 outline-none">{children}</div>
+      <div id="zoria-content" tabIndex={-1} className="min-w-0 outline-none">{children}<footer className="border-t px-4 py-3"><LegalLinks /></footer></div>
     </div>
   );
 }
