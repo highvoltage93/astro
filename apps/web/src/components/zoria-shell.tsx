@@ -44,7 +44,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
           {items.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return <Link key={href} href={href} title={label} aria-label={label} aria-current={active ? "page" : undefined}
-              className={cn("flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-transparent px-2 py-3 text-xs transition-colors hover:bg-secondary lg:px-3 lg:text-sm min-[1440px]:justify-start", active ? "border-primary/30 bg-primary/10 text-primary" : "text-muted-foreground")}>
+              className={cn("flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border border-transparent px-2 py-3 text-xs transition-colors hover:bg-secondary sm:flex-row sm:gap-2 lg:px-3 lg:text-sm min-[1440px]:justify-start", active ? "border-primary/30 bg-primary/10 text-primary" : "text-muted-foreground")}>
               <Icon aria-hidden="true" className="size-4 shrink-0" /><span className="break-words lg:hidden min-[1440px]:block">{label}</span>
             </Link>;
           })}

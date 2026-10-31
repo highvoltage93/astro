@@ -70,7 +70,10 @@ export default function AdminPage() {
     return () => controller.abort();
   }, [query, page, revision, roleFilter]);
 
-  useEffect(() => { setPassword(""); }, [editing?.id]);
+  useEffect(() => {
+    setPassword("");
+    if (editing?.id) document.getElementById("admin-user-details")?.scrollIntoView({ block: "start" });
+  }, [editing?.id]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -98,7 +101,7 @@ export default function AdminPage() {
       {list ? <AdminFeedback onSaved={() => setRevision((value) => value + 1)} /> : null}
       {loading ? <p role="status" className="text-muted-foreground">Завантаження…</p> : null}
       {!loading && !list ? <Button asChild variant="secondary"><a href="/login">Увійти</a></Button> : null}
-      {editing ? <Card>
+      {editing ? <Card id="admin-user-details" className="scroll-mt-4">
         <CardHeader><CardTitle>Редагування користувача</CardTitle></CardHeader>
         <CardContent className="space-y-5">
           <dl className="grid grid-cols-1 gap-3 border-b pb-4 sm:grid-cols-3">
@@ -124,13 +127,26 @@ export default function AdminPage() {
           </form>
           <div className="space-y-2 sm:w-56"><Label htmlFor="admin-group-filter">Група</Label><Select value={roleFilter} disabled={saving} onValueChange={(value: Role | "ALL") => { setRoleFilter(value); setPage(1); setEditing(null); }}><SelectTrigger id="admin-group-filter"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Усі групи</SelectItem>{Object.entries(roles).map(([role, label]) => <SelectItem key={role} value={role}>{label}</SelectItem>)}</SelectContent></Select></div>
           </div>
-          <Table><TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Email</TableHead><TableHead>Роль</TableHead><TableHead>Створено</TableHead><TableHead>Останній вхід</TableHead><TableHead title="Останній авторизований запит до API, точність до хвилини">Остання активність</TableHead><TableHead><span className="sr-only">Дії</span></TableHead></TableRow></TableHeader>
+          <div className="divide-y md:hidden">
+            {list.users.map((user) => <article key={user.id} className="space-y-3 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0"><h3 className="break-words font-semibold">{user.username}</h3><p className="break-all text-sm text-muted-foreground">{user.email}</p><p className="mt-1 text-sm text-primary">{roles[user.role]}</p></div>
+                <Button variant="secondary" size="icon" aria-label={`Відкрити ${user.username}`} title="Деталі користувача" disabled={loading || saving} onClick={() => { setPassword(""); setEditing(user); setError(""); setNotice(""); }}><Pencil /></Button>
+              </div>
+              <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+                <dt className="text-muted-foreground">Створено</dt><dd>{date(user.createdAt)}</dd>
+                <dt className="text-muted-foreground">Останній вхід</dt><dd>{user.lastLoginAt ? date(user.lastLoginAt) : "—"}</dd>
+                <dt className="text-muted-foreground">Активність</dt><dd>{user.lastActiveAt ? date(user.lastActiveAt) : "—"}</dd>
+              </dl>
+            </article>)}
+          </div>
+          <div className="hidden md:block"><Table><TableHeader><TableRow><TableHead>Username</TableHead><TableHead>Email</TableHead><TableHead>Роль</TableHead><TableHead>Створено</TableHead><TableHead>Останній вхід</TableHead><TableHead title="Останній авторизований запит до API, точність до хвилини">Остання активність</TableHead><TableHead><span className="sr-only">Дії</span></TableHead></TableRow></TableHeader>
             <TableBody>{list.users.map((user) => <TableRow key={user.id}>
               <TableCell>{user.username}</TableCell><TableCell>{user.email}</TableCell><TableCell className="whitespace-nowrap">{roles[user.role]}</TableCell><TableCell className="whitespace-nowrap">{date(user.createdAt)}</TableCell>
               <TableCell className="whitespace-nowrap">{user.lastLoginAt ? date(user.lastLoginAt) : "—"}</TableCell>
               <TableCell className="whitespace-nowrap">{user.lastActiveAt ? date(user.lastActiveAt) : "—"}</TableCell>
               <TableCell><Button variant="ghost" size="icon" aria-label={`Відкрити ${user.username}`} title="Деталі користувача" disabled={loading || saving} onClick={() => { setPassword(""); setEditing(user); setError(""); setNotice(""); }}><Pencil /></Button></TableCell>
-            </TableRow>)}</TableBody></Table>
+            </TableRow>)}</TableBody></Table></div>
           {!list.users.length ? <p className="text-sm text-muted-foreground">Користувачів не знайдено.</p> : null}
           <div className="flex items-center justify-end gap-3 text-sm"><Button size="icon" variant="secondary" title="Попередня сторінка" aria-label="Попередня сторінка" disabled={page <= 1 || loading || saving} onClick={() => { setEditing(null); setPage(page - 1); }}><ChevronLeft /></Button><span>{list.page} / {Math.max(1, Math.ceil(list.total / list.pageSize))}</span><Button size="icon" variant="secondary" title="Наступна сторінка" aria-label="Наступна сторінка" disabled={page * list.pageSize >= list.total || loading || saving} onClick={() => { setEditing(null); setPage(page + 1); }}><ChevronRight /></Button></div>
         </CardContent>

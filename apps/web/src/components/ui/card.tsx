@@ -5,7 +5,7 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
   <div
     ref={ref}
     className={cn(
-      "zoria-card border bg-card text-card-foreground shadow-sm",
+      "zoria-card min-w-0 border bg-card text-card-foreground shadow-sm",
       className
     )}
     {...props}

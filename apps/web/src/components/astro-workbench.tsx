@@ -4102,7 +4102,7 @@ function SolarReturnAspectsTable({ event, natal }: { event: ReturnEvent; natal: 
         <h4 className="text-sm font-semibold">Аспекти соляр–натал</h4>
         <Badge variant="secondary">{event.returnToNatalAspects.length}</Badge>
       </div>
-      <div className="max-h-[620px] overflow-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border sm:max-h-[620px] sm:overflow-auto">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
@@ -4195,7 +4195,7 @@ function ExactTransitsTable({ events }: { events: ExactTransitEvent[] }) {
       </SelectContent></Select>
     </div>
     {visibleEvents.length === 0 ? <p className="text-sm text-muted-foreground">За обраними фільтрами подій немає.</p> :
-    <div className="max-h-[460px] overflow-auto rounded-lg border">
+    <div className="overflow-x-auto rounded-lg border sm:max-h-[460px] sm:overflow-auto">
       <Table className="transit-calendar-table">
         <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow>
@@ -4552,7 +4552,7 @@ function SynastryCard({
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Найточніші міжкартові аспекти</h3>
               {preview.interAspects.length > 0 ? (
-                <div className="max-h-[360px] overflow-auto rounded-lg border">
+                <div className="overflow-x-auto rounded-lg border sm:max-h-[360px] sm:overflow-auto">
                   <Table>
                     <TableHeader className="sticky top-0 z-10 bg-card">
                       <TableRow>
