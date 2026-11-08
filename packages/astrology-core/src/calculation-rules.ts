@@ -1,7 +1,9 @@
 export type RulershipModel = "astroprocessor" | "traditional" | "modern";
+export type LunarNodeType = "true" | "mean";
 
 export type CalculationRules = {
   version: 1;
+  lunarNodeType?: LunarNodeType;
   rulershipModel: RulershipModel;
   containedSignMinDegrees: number | null;
   lilithRulesEighthHouse: boolean;
@@ -37,6 +39,7 @@ const MODERN_DIRECT: Record<string, string[]> = {
 
 export const defaultCalculationRules = (model: RulershipModel = "astroprocessor"): CalculationRules => ({
   version: 1,
+  lunarNodeType: "true",
   rulershipModel: model,
   containedSignMinDegrees: model === "astroprocessor" ? 12.5 : null,
   lilithRulesEighthHouse: model === "astroprocessor",
@@ -45,6 +48,9 @@ export const defaultCalculationRules = (model: RulershipModel = "astroprocessor"
 
 export const resolveCalculationRules = (rules?: CalculationRules): CalculationRules => {
   if (!rules) return defaultCalculationRules();
+  if (rules.lunarNodeType !== undefined && rules.lunarNodeType !== "true" && rules.lunarNodeType !== "mean") {
+    throw new Error("Unsupported lunar node type");
+  }
   if (rules.version !== 1 || !["astroprocessor", "traditional", "modern"].includes(rules.rulershipModel)) {
     throw new Error("Unsupported calculation rules version or rulership model");
   }
@@ -56,7 +62,7 @@ export const resolveCalculationRules = (rules?: CalculationRules): CalculationRu
     rules.tenseHouses.some((house) => !Number.isInteger(house) || house < 1 || house > 12)) {
     throw new Error("Invalid house connection rules");
   }
-  return { ...rules, tenseHouses: [...new Set(rules.tenseHouses)].sort((a, b) => a - b) };
+  return { ...rules, lunarNodeType: rules.lunarNodeType ?? "true", tenseHouses: [...new Set(rules.tenseHouses)].sort((a, b) => a - b) };
 };
 
 export const rulershipTables = (rules: CalculationRules): {

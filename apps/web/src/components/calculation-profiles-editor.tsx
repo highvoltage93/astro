@@ -99,7 +99,7 @@ export function CalculationProfilesEditor({ token, config, reference, busy: appl
           <span>Система управителів</span>
           <Select value={config.calculationRules.rulershipModel} disabled={disabled || loading || !profiles.length} onValueChange={(model) => {
             const builtin = profiles.find((profile) => profile.builtIn && profile.config.calculationRules.rulershipModel === model);
-            if (builtin) onChange({ ...config, calculationRules: structuredClone(builtin.config.calculationRules) });
+            if (builtin) onChange({ ...config, calculationRules: { ...structuredClone(builtin.config.calculationRules), lunarNodeType: config.calculationRules.lunarNodeType ?? "true" } });
           }}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>{Object.entries(rulershipModelLabels).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
@@ -123,6 +123,14 @@ export function CalculationProfilesEditor({ token, config, reference, busy: appl
           </Select>
         </label>
       </div>
+      <label className="block space-y-1 text-sm font-medium">
+        <span>Місячні вузли</span>
+        <Select value={config.calculationRules.lunarNodeType ?? "true"} disabled={disabled} onValueChange={(value: "true" | "mean") =>
+          onChange({ ...config, calculationRules: { ...config.calculationRules, lunarNodeType: value } })}>
+          <SelectTrigger aria-label="Тип місячних вузлів"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="true">Істинний вузол</SelectItem><SelectItem value="mean">Середній вузол</SelectItem></SelectContent>
+        </Select>
+      </label>
       <div className="grid gap-3 sm:grid-cols-[1fr_130px] sm:items-center">
         <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={config.calculationRules.containedSignMinDegrees !== null} disabled={disabled} onCheckedChange={(checked) =>

@@ -34,6 +34,7 @@ type DashboardFormState = {
   longitude: string;
   timezone: string;
   houseSystem: string;
+  lunarNodeType: "true" | "mean";
   zodiac: NatalPreviewPayload["zodiac"];
 };
 
@@ -48,6 +49,7 @@ const initialDashboardForm: DashboardFormState = {
   longitude: "30.5234",
   timezone: "Europe/Kyiv",
   houseSystem: "koch",
+  lunarNodeType: "true",
   zodiac: "tropical"
 };
 
@@ -148,7 +150,7 @@ export function AstroDashboard() {
       profileSelection.current = selectedId;
       setCalculationProfileId(profile?.id ?? "legacy");
       if (initialSelection && profile && !profileSettingsTouched.current) {
-        setForm((current) => ({ ...current, houseSystem: profile.config.houseSystem, zodiac: profile.config.zodiac }));
+        setForm((current) => ({ ...current, houseSystem: profile.config.houseSystem, zodiac: profile.config.zodiac, lunarNodeType: profile.config.calculationRules.lunarNodeType ?? "true" }));
       }
       setProfilesStatus("ready");
     }).catch((requestError: unknown) => {
@@ -203,7 +205,7 @@ export function AstroDashboard() {
     field: Field,
     value: DashboardFormState[Field]
   ): void => {
-    if (field === "houseSystem" || field === "zodiac") profileSettingsTouched.current = true;
+    if (field === "houseSystem" || field === "zodiac" || field === "lunarNodeType") profileSettingsTouched.current = true;
     setForm((current) => ({
       ...current,
       [field]: value
@@ -273,8 +275,8 @@ export function AstroDashboard() {
           longitude: Number(form.longitude),
           houseSystem: form.houseSystem,
           zodiac: form.zodiac,
-          calculationRules: profile?.config.calculationRules ?? legacyCalculationRules(),
-          calculationProfile: profile && form.houseSystem === profile.config.houseSystem && form.zodiac === profile.config.zodiac
+          calculationRules: { ...(profile?.config.calculationRules ?? legacyCalculationRules()), lunarNodeType: form.lunarNodeType },
+          calculationProfile: profile && form.houseSystem === profile.config.houseSystem && form.zodiac === profile.config.zodiac && form.lunarNodeType === (profile.config.calculationRules.lunarNodeType ?? "true")
             ? profileReference(profile) : undefined,
           pointOrbs: profile?.config.pointOrbs,
           visiblePointKeys: profile?.config.visiblePointKeys
@@ -356,6 +358,7 @@ export function AstroDashboard() {
                       setProfilesError(null); setProfilesStatus("ready");
                       setForm((current) => ({ ...current,
                         houseSystem: profile?.config.houseSystem ?? initialDashboardForm.houseSystem,
+                        lunarNodeType: profile?.config.calculationRules.lunarNodeType ?? "true",
                         zodiac: profile?.config.zodiac ?? initialDashboardForm.zodiac
                       }));
                       profileSettingsTouched.current = true;
@@ -515,7 +518,13 @@ export function AstroDashboard() {
                     </SelectContent>
                   </Select>
                 </DashboardField>
-                <div className="flex items-end sm:col-span-2 lg:col-span-1">
+                <DashboardField className="lg:col-span-2" label="Місячні вузли">
+                  <Select value={form.lunarNodeType} onValueChange={(value: "true" | "mean") => updateForm("lunarNodeType", value)}>
+                    <SelectTrigger aria-label="Тип місячних вузлів"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="true">Істинний вузол</SelectItem><SelectItem value="mean">Середній вузол</SelectItem></SelectContent>
+                  </Select>
+                </DashboardField>
+                <div className="flex items-end sm:col-span-2 lg:col-span-3">
                   <Button className="w-full" disabled={calculationStatus === "loading" || profilesStatus !== "ready"} type="submit">
                     {calculationStatus === "loading" ? <RefreshCw className="animate-spin" /> : null}
                     {calculationStatus === "loading" ? "Розраховую" : "Розрахувати"}

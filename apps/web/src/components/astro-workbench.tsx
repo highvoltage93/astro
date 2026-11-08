@@ -1837,6 +1837,7 @@ export function AstroWorkbench() {
                 <div className="min-w-0 space-y-1">
                   <CardDescription className="font-semibold uppercase text-primary">
                     {chart?.settings.houseSystem ?? "koch"}
+                    {chart ? ` · ${chart.settings.calculationRules?.lunarNodeType === "mean" ? "Середній вузол" : "Істинний вузол"}` : ""}
                   </CardDescription>
                   <CardTitle className="truncate">{form.displayName}</CardTitle>
                   {chart && !loadingProfileId ? (

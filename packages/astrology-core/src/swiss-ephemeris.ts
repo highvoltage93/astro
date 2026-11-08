@@ -18,7 +18,7 @@ import {
 } from "sweph";
 import { allowedOrbForPair, calculateAspectsBetween, calculateMajorAspects } from "./aspects";
 import { calculateAspectConfigurations } from "./aspect-configurations";
-import { resolveCalculationRules, rulershipTables, type CalculationRules } from "./calculation-rules";
+import { resolveCalculationRules, rulershipTables, type CalculationRules, type LunarNodeType } from "./calculation-rules";
 import { DEFAULT_POINT_ORBS, MAJOR_ASPECT_ANGLES, ZODIAC_SIGNS } from "./constants";
 import type {
   Ayanamsa,
@@ -131,6 +131,9 @@ const BODY_DEFINITIONS: BodyDefinition[] = [
 ];
 
 const BODY_DEFINITION_BY_KEY = new Map(BODY_DEFINITIONS.map((body) => [body.key, body]));
+
+const bodyIdFor = (body: BodyDefinition, nodeType: LunarNodeType = "true"): number =>
+  body.key === "north-node" && nodeType === "mean" ? constants.SE_MEAN_NODE : body.swephId;
 
 const RETURN_ASPECT_BODY_KEYS = new Set([
   "sun",
@@ -1032,11 +1035,13 @@ const pointLabelForKey = (pointKey: string): string => {
 };
 
 const calculatePointPositionAt = ({
+  nodeType,
   flags,
   pointKey,
   utc,
   warnings
 }: {
+  nodeType?: LunarNodeType;
   flags: number;
   pointKey: string;
   utc: DateTime;
@@ -1050,7 +1055,7 @@ const calculatePointPositionAt = ({
   }
 
   const { jdEt } = buildJulianDate(utc);
-  const result: Calc = calc(jdEt, body.swephId, flags);
+  const result: Calc = calc(jdEt, bodyIdFor(body, nodeType), flags);
 
   if (result.error) {
     const fallback = result.flag >= 0 && result.data?.[0] !== undefined;
@@ -1271,19 +1276,21 @@ const assignNatalHousesToTransitPoints = (points: ChartPoint[], natalHouses: Hou
 };
 
 const calculateBody = ({
+  nodeType,
   body,
   flags,
   houses,
   jdEt,
   warnings
 }: {
+  nodeType?: LunarNodeType;
   body: BodyDefinition;
   flags: number;
   houses: HouseCusp[];
   jdEt: number;
   warnings: CalculationWarning[];
 }): ChartPoint | null => {
-  const result: Calc = calc(jdEt, body.swephId, flags);
+  const result: Calc = calc(jdEt, bodyIdFor(body, nodeType), flags);
 
   if (result.error) {
     const fallback = result.flag >= 0 && result.data?.[0] !== undefined;
@@ -1410,6 +1417,7 @@ export const calculateNatalChart = (input: NatalCalculationInput): ChartResult =
   const bodies = BODY_DEFINITIONS.map((body) =>
     calculateBody({
       body,
+      nodeType: settings.calculationRules.lunarNodeType,
       flags: bodyFlags,
       houses,
       jdEt,
@@ -1504,6 +1512,7 @@ export const calculateTransitChart = (input: TransitCalculationInput): ChartResu
   const bodies = BODY_DEFINITIONS.map((body) =>
     calculateBody({
       body,
+      nodeType: settings.calculationRules.lunarNodeType,
       flags: bodyFlags,
       houses: [],
       jdEt,
@@ -1643,7 +1652,7 @@ export const createEventSearchSession = (input: NatalCalculationInput) => {
     natal, warnings,
     julianUt: (milliseconds: number) => buildJulianDate(DateTime.fromMillis(milliseconds, { zone: "utc" })).jdUt,
     position: (milliseconds: number, pointKey: string) => {
-      const position = calculatePointPositionAt({ flags, pointKey, utc: DateTime.fromMillis(milliseconds, { zone: "utc" }), warnings });
+      const position = calculatePointPositionAt({ nodeType: natal.settings.calculationRules?.lunarNodeType, flags, pointKey, utc: DateTime.fromMillis(milliseconds, { zone: "utc" }), warnings });
       if (!position || !Number.isFinite(position.longitude) || !Number.isFinite(position.speed)) throw new Error(`Позиція ${pointKey} недоступна для пошуку подій.`);
       return { longitude: position.longitude, speed: position.speed! };
     }
@@ -1669,12 +1678,14 @@ const midpointDateTime = (start: DateTime, end: DateTime): DateTime =>
   DateTime.fromMillis((start.toMillis() + end.toMillis()) / 2, { zone: "utc" });
 
 const longitudeDeltaAt = ({
+  nodeType,
   flags,
   pointKey,
   targetLongitude,
   utc,
   warnings
 }: {
+  nodeType?: LunarNodeType;
   flags: number;
   pointKey: string;
   targetLongitude: number;
@@ -1682,6 +1693,7 @@ const longitudeDeltaAt = ({
   warnings: CalculationWarning[];
 }): number | null => {
   const position = calculatePointPositionAt({
+    nodeType,
     flags,
     pointKey,
     utc,
@@ -1692,6 +1704,7 @@ const longitudeDeltaAt = ({
 };
 
 const refineLongitudeCrossing = ({
+  nodeType,
   end,
   flags,
   pointKey,
@@ -1699,6 +1712,7 @@ const refineLongitudeCrossing = ({
   targetLongitude,
   warnings
 }: {
+  nodeType?: LunarNodeType;
   end: DateTime;
   flags: number;
   pointKey: string;
@@ -1708,8 +1722,8 @@ const refineLongitudeCrossing = ({
 }): DateTime | null => {
   let left = start;
   let right = end;
-  let leftDelta = longitudeDeltaAt({ flags, pointKey, targetLongitude, utc: left, warnings });
-  let rightDelta = longitudeDeltaAt({ flags, pointKey, targetLongitude, utc: right, warnings });
+  let leftDelta = longitudeDeltaAt({ nodeType, flags, pointKey, targetLongitude, utc: left, warnings });
+  let rightDelta = longitudeDeltaAt({ nodeType, flags, pointKey, targetLongitude, utc: right, warnings });
 
   if (leftDelta === null || rightDelta === null) {
     return null;
@@ -1729,7 +1743,7 @@ const refineLongitudeCrossing = ({
 
   for (let index = 0; index < 42; index += 1) {
     const mid = midpointDateTime(left, right);
-    const midDelta = longitudeDeltaAt({ flags, pointKey, targetLongitude, utc: mid, warnings });
+    const midDelta = longitudeDeltaAt({ nodeType, flags, pointKey, targetLongitude, utc: mid, warnings });
 
     if (midDelta === null) {
       return null;
@@ -1953,6 +1967,7 @@ const aspectTargetLongitudes = (natalLongitude: number, exactAngle: number): num
 };
 
 const buildTransitLongitudeSamples = ({
+  nodeType,
   end,
   flags,
   pointKey,
@@ -1960,6 +1975,7 @@ const buildTransitLongitudeSamples = ({
   stepHours,
   warnings
 }: {
+  nodeType?: LunarNodeType;
   end: DateTime;
   flags: number;
   pointKey: string;
@@ -1972,6 +1988,7 @@ const buildTransitLongitudeSamples = ({
 
   while (cursor.toMillis() <= end.toMillis()) {
     const position = calculatePointPositionAt({
+      nodeType,
       flags,
       pointKey,
       utc: cursor,
@@ -1994,6 +2011,7 @@ const buildTransitLongitudeSamples = ({
 
   if (lastSample && lastSample.utc.toMillis() < end.toMillis()) {
     const position = calculatePointPositionAt({
+      nodeType,
       flags,
       pointKey,
       utc: end,
@@ -2012,6 +2030,7 @@ const buildTransitLongitudeSamples = ({
 };
 
 const buildExactTransitEvent = ({
+  nodeType,
   baseDateTime,
   exactAngle,
   exactAt,
@@ -2022,6 +2041,7 @@ const buildExactTransitEvent = ({
   type,
   warnings
 }: {
+  nodeType?: LunarNodeType;
   baseDateTime: DateTime;
   exactAngle: number;
   exactAt: DateTime;
@@ -2034,6 +2054,7 @@ const buildExactTransitEvent = ({
 }): ExactTransitEvent => {
   const allowedOrb = allowedOrbForExactTransitPair(type, transitPointKey, natalPoint.key, pointOrbs);
   const exactPosition = calculatePointPositionAt({
+    nodeType,
     flags,
     pointKey: transitPointKey,
     utc: exactAt,
@@ -2089,6 +2110,7 @@ const calculateExactTransitEvents = ({
   for (const transitPointKey of FORECAST_EXACT_TRANSIT_BODY_KEYS) {
     const samples = buildTransitLongitudeSamples({
       end: windowEnd,
+      nodeType: natal.settings.calculationRules?.lunarNodeType,
       flags,
       pointKey: transitPointKey,
       start: baseDateTime,
@@ -2127,6 +2149,7 @@ const calculateExactTransitEvents = ({
                   ? right.utc
                   : refineLongitudeCrossing({
                       end: right.utc,
+                      nodeType: natal.settings.calculationRules?.lunarNodeType,
                       flags,
                       pointKey: transitPointKey,
                       start: left.utc,
@@ -2151,6 +2174,7 @@ const calculateExactTransitEvents = ({
             eventKeys.add(eventKey);
             events.push(
               buildExactTransitEvent({
+                nodeType: natal.settings.calculationRules?.lunarNodeType,
                 baseDateTime,
                 exactAngle,
                 exactAt,
@@ -2177,6 +2201,7 @@ const calculateExactTransitEvents = ({
 };
 
 const findSecondaryProgressionExactDate = ({
+  nodeType,
   aspect,
   flags,
   natalPoint,
@@ -2184,6 +2209,7 @@ const findSecondaryProgressionExactDate = ({
   progressedPoint,
   warnings
 }: {
+  nodeType?: LunarNodeType;
   aspect: ProgressionAspect;
   flags: number;
   natalPoint: ChartPoint;
@@ -2213,6 +2239,7 @@ const findSecondaryProgressionExactDate = ({
     const marginDays = progressedPoint.key === "moon" ? 0.35 : Math.min(5, Math.max(1, Math.abs(estimatedProgressedDays) * 0.15));
     const samples = buildTransitLongitudeSamples({
       end: estimatedDate.plus({ days: marginDays }),
+      nodeType,
       flags,
       pointKey: progressedPoint.key,
       start: estimatedDate.minus({ days: marginDays }),
@@ -2243,6 +2270,7 @@ const findSecondaryProgressionExactDate = ({
             ? right.utc
             : refineLongitudeCrossing({
                 end: right.utc,
+                nodeType,
                 flags,
                 pointKey: progressedPoint.key,
                 start: left.utc,
@@ -2264,6 +2292,7 @@ const findSecondaryProgressionExactDate = ({
 };
 
 const buildSecondaryProgressionAspect = ({
+  nodeType,
   yearLengthDays,
   aspect,
   birthDateTime,
@@ -2274,6 +2303,7 @@ const buildSecondaryProgressionAspect = ({
   targetDateTime,
   warnings
 }: {
+  nodeType?: LunarNodeType;
   yearLengthDays: number;
   aspect: ProgressionAspect;
   birthDateTime: DateTime;
@@ -2285,6 +2315,7 @@ const buildSecondaryProgressionAspect = ({
   warnings: CalculationWarning[];
 }): SecondaryProgressionAspect => {
   const exactProgressedDate = findSecondaryProgressionExactDate({
+    nodeType,
     aspect,
     flags,
     natalPoint,
@@ -2465,6 +2496,7 @@ const calculateSecondaryProgressionFromNatal = (
       }
 
       return buildSecondaryProgressionAspect({
+        nodeType: natal.settings.calculationRules?.lunarNodeType,
         yearLengthDays,
         aspect,
         birthDateTime,
@@ -2494,7 +2526,7 @@ const calculateSecondaryProgressionFromNatal = (
       if (cachedCuspTime !== time) { cachedCusps = cuspPointsAt(utc); cachedCuspTime = time; }
       return cachedCusps.find((point) => point.key === key)?.longitude ?? null;
     }
-    return calculatePointPositionAt({ flags, pointKey: key, utc, warnings })?.longitude ?? null;
+    return calculatePointPositionAt({ nodeType: natal.settings.calculationRules?.lunarNodeType, flags, pointKey: key, utc, warnings })?.longitude ?? null;
   };
   const sampleTimes: number[] = [];
   for (let time = calendarStart; time < calendarEnd; time += 6 * 3600000) sampleTimes.push(time);
@@ -2549,7 +2581,7 @@ const calculateSecondaryProgressionFromNatal = (
               point.key.startsWith("house-") ? 6 * 3600000 : 86400000,
               (moment) => longitudeAt(point.key, moment));
             const eventPosition = point.key.startsWith("house-") ? null :
-              calculatePointPositionAt({ flags, pointKey: point.key, utc: epochAt(time), warnings });
+              calculatePointPositionAt({ nodeType: natal.settings.calculationRules?.lunarNodeType, flags, pointKey: point.key, utc: epochAt(time), warnings });
             const eventPoint = eventPosition ? { ...point, longitude: eventPosition.longitude, speed: eventPosition.speed,
               house: findHouse(eventPosition.longitude, natal.houses) } : point;
             const eventRulers = calculateHouseRulers(natal.houses,

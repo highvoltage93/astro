@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const calculationRulesSchema = z.object({
   version: z.literal(1),
+  lunarNodeType: z.enum(["true", "mean"]).optional(),
   rulershipModel: z.enum(["astroprocessor", "traditional", "modern"]),
   containedSignMinDegrees: z.number().min(0).max(30).nullable(),
   lilithRulesEighthHouse: z.boolean(),

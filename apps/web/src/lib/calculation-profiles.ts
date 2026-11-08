@@ -1,5 +1,6 @@
 export type CalculationRules = {
   version: 1;
+  lunarNodeType?: "true" | "mean";
   rulershipModel: "astroprocessor" | "traditional" | "modern";
   containedSignMinDegrees: number | null;
   lilithRulesEighthHouse: boolean;
@@ -20,7 +21,7 @@ export type CalculationProfile = {
 export type CalculationProfilesResponse = { profiles: CalculationProfile[]; defaultProfileId: string | null };
 
 export const legacyCalculationRules = (): CalculationRules => ({
-  version: 1, rulershipModel: "astroprocessor", containedSignMinDegrees: 12.5,
+  version: 1, lunarNodeType: "true", rulershipModel: "astroprocessor", containedSignMinDegrees: 12.5,
   lilithRulesEighthHouse: true, tenseHouses: [6, 8, 12]
 });
 export const rulershipModelLabels: Record<CalculationRules["rulershipModel"], string> = {
@@ -35,6 +36,7 @@ export const sameProfileConfig = (a: CalculationProfileConfig, b: CalculationPro
   return a.houseSystem === b.houseSystem && a.zodiac === b.zodiac &&
     sameRecord(a.pointOrbs, b.pointOrbs) && sameRecord(a.visiblePointKeys, b.visiblePointKeys) &&
     a.calculationRules.version === b.calculationRules.version &&
+    (a.calculationRules.lunarNodeType ?? "true") === (b.calculationRules.lunarNodeType ?? "true") &&
     a.calculationRules.rulershipModel === b.calculationRules.rulershipModel &&
     a.calculationRules.containedSignMinDegrees === b.calculationRules.containedSignMinDegrees &&
     a.calculationRules.lilithRulesEighthHouse === b.calculationRules.lilithRulesEighthHouse &&
