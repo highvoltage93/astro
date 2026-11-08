@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, LayoutDashboard, Orbit, ShieldCheck } from "lucide-react";
+import { FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -13,7 +13,8 @@ import { LegalLinks } from "./legal-links";
 const navigation = [
   { href: "/", label: "Дешборд", icon: LayoutDashboard },
   { href: "/workspace", label: "Робоча зона", icon: Orbit },
-  { href: "/consultations", label: "Консультації", icon: FileText }
+  { href: "/consultations", label: "Консультації", icon: FileText },
+  { href: "/knowledge", label: "Спостереження", icon: NotebookPen }
 ];
 
 export function ZoriaShell({ children }: { children: ReactNode }) {
@@ -41,7 +42,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
           <Orbit aria-hidden="true" className="size-7 shrink-0 text-primary" />
           <span className="min-w-0 lg:hidden min-[1440px]:block"><span className="zoria-brand block text-[28px] leading-none text-primary">ZORIA</span><span className="mt-1 block text-[10px] text-muted-foreground">ASTROPROCESSOR</span></span>
         </Link>
-        <nav aria-label="Головна навігація" className={cn("grid gap-1 px-2 pb-2 lg:grid-cols-1 lg:gap-2 lg:px-3", isAdmin ? "grid-cols-2" : "grid-cols-3")}>
+        <nav aria-label="Головна навігація" className={cn("grid grid-cols-2 gap-1 px-2 pb-2 lg:grid-cols-1 lg:gap-2 lg:px-3", isAdmin ? "sm:grid-cols-3" : "sm:grid-cols-4")}>
           {items.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return <Link key={href} href={href} title={label} aria-label={label} aria-current={active ? "page" : undefined}

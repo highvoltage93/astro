@@ -58,6 +58,7 @@ model User {
   aiSessions     AiSession[]
   auditEvents    AuditEvent[]
   feedback       FeedbackReport[]
+  knowledgeNotes KnowledgeNote[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -81,6 +82,7 @@ model BirthProfile {
   source          String                 @default("user")
   visibility      BirthProfileVisibility @default(PRIVATE)
   calculations    ChartCalculation[]
+  knowledgeNotes  KnowledgeNote[]
   aiSessions      AiSession[]
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
@@ -265,6 +267,43 @@ model AuditEvent {
   @@index([userId])
   @@index([entity, entityId])
   @@map("audit_events")
+}
+
+model KnowledgeNote {
+  id              String   @id
+  ownerUserId     String
+  owner           User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  title           String
+  body            String
+  tags            String[] @default([])
+  conditionsJson  Json
+  sourceProfileId String?
+  sourceProfile   BirthProfile? @relation(fields: [sourceProfileId], references: [id], onDelete: SetNull)
+  sourceLabel     String?
+  archived        Boolean  @default(false)
+  revision        Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  history         KnowledgeNoteRevision[]
+
+  @@index([ownerUserId, archived, createdAt, id])
+  @@index([sourceProfileId])
+  @@map("knowledge_notes")
+}
+
+model KnowledgeNoteRevision {
+  noteId         String
+  note           KnowledgeNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  revision       Int
+  title          String
+  body           String
+  tags           String[]
+  conditionsJson Json
+  archived       Boolean
+  savedAt        DateTime @default(now())
+
+  @@id([noteId, revision])
+  @@map("knowledge_note_revisions")
 }
 
 enum FeedbackStatus {

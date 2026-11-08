@@ -1,6 +1,7 @@
 "use client";
 
 import { EventSearch } from "@/components/event-search";
+import { KnowledgeMatches } from "@/components/knowledge-matches";
 import { DateTime } from "luxon";
 import { birthTimezoneOffsetHours, fixedTimezoneFromHours } from "@/lib/birth-timezone";
 import { ReturnPlaceSearch } from "@/components/return-place-search";
@@ -21,6 +22,7 @@ import {
   MapPin,
   Maximize,
   Minimize,
+  NotebookPen,
   Pencil,
   RefreshCw,
   RotateCcw,
@@ -1758,7 +1760,7 @@ export function AstroWorkbench() {
         <header className="mb-4 flex flex-col gap-3 sm:mb-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase text-primary">ZORIA ASTROPROCESSOR</p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-normal sm:text-3xl">Робоча зона</h1>
               <Button size="icon" variant="secondary" disabled={!chart || status === "loading"} title="Редагувати дані карти" aria-label="Редагувати дані карти" onClick={() => setEditingNatal(true)}><Pencil /></Button>
               <Button
@@ -1771,6 +1773,15 @@ export function AstroWorkbench() {
               >
                 <Settings2 />
               </Button>
+              {chart && savedProfileId && isCurrentProfileOwned && status !== "loading" ? (
+                <Button asChild size="icon" variant="secondary">
+                  <a href={`/knowledge?source=${encodeURIComponent(savedProfileId)}`} target="_blank" rel="noopener noreferrer"
+                    title="Нове спостереження" aria-label="Створити спостереження з цієї карти у новій вкладці">
+                    <NotebookPen />
+                  </a>
+                </Button>
+              ) : null}
+              {chart && authToken && status === "ready" && orbApplyStatus !== "loading" ? <KnowledgeMatches chart={chart} token={authToken} /> : null}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
