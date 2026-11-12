@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { createForecastRequestId } from "@/lib/forecast-archive";
+import { knowledgeSeedDraft } from "@/lib/knowledge-note-seed";
 import { planetLabelsUk, signLabelsUk, aspectLabels } from "@/lib/astrology-labels";
 import { emptyKnowledgeDraft, knowledgeConditionText as conditionText, knowledgeRequest, KnowledgeError, noteDraft,
   type KnowledgeDraft, type KnowledgeHistory, type KnowledgeHistoryEntry, type KnowledgeNote, type KnowledgeSummary, type NoteCondition } from "@/lib/knowledge-notes";
@@ -30,9 +31,10 @@ function Choice({ label, value, options, onChange }: { label: string; value: str
 }
 type Editor = { id: string; record: KnowledgeNote | null; draft: KnowledgeDraft; sourceProfileId: string | null };
 
-export function KnowledgeNotesPage({ source, noteId }: { source?: string; noteId?: string }) {
+export function KnowledgeNotesPage({ source, noteId, seed }: { source?: string; noteId?: string; seed?: string }) {
   const router = useRouter();
-  const loginPath = `/login?next=${encodeURIComponent(noteId ? `/knowledge?note=${encodeURIComponent(noteId)}` : source ? `/knowledge?source=${encodeURIComponent(source)}` : "/knowledge")}`;
+  const editorParams = new URLSearchParams(noteId ? { note: noteId } : { ...(source ? { source } : {}), ...(seed !== undefined ? { seed } : {}) });
+  const loginPath = `/login?next=${encodeURIComponent(`/knowledge${editorParams.size ? `?${editorParams}` : ""}`)}`;
   const [notes, setNotes] = useState<KnowledgeSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -76,6 +78,10 @@ export function KnowledgeNotesPage({ source, noteId }: { source?: string; noteId
         .then(({ note }) => { if (!controller.signal.aborted) show(note); })
         .catch((failure: unknown) => { if (!controller.signal.aborted) failed(failure); })
         .finally(() => { if (!controller.signal.aborted) setBusy(false); });
+    } else if (seed !== undefined) {
+      const draft = knowledgeSeedDraft(seed);
+      if (draft) create(source ?? null, draft);
+      else setError("Умови з посилання некоректні. Створіть спостереження вручну або відкрийте його з карти ще раз.");
     } else if (source) create(source);
     const changed = (event: StorageEvent) => {
       if (event.key === AUTH_TOKEN_STORAGE_KEY || event.key === null) {
@@ -84,7 +90,7 @@ export function KnowledgeNotesPage({ source, noteId }: { source?: string; noteId
     };
     window.addEventListener("storage", changed);
     return () => { controller.abort(); window.removeEventListener("storage", changed); };
-  }, [source, noteId, router, loginPath]);
+  }, [source, noteId, seed, router, loginPath]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -140,6 +146,7 @@ export function KnowledgeNotesPage({ source, noteId }: { source?: string; noteId
         method: editor.record ? "PUT" : "POST", body: JSON.stringify(payload)
       });
       show(response.note); setNotice("Спостереження збережено."); setCursor(null); setRefresh((value) => value + 1);
+      if (!editor.record) router.replace(`/knowledge?note=${response.note.id}`, { scroll: false });
     } catch (failure) { failed(failure); } finally { setBusy(false); }
   }
   async function remove() {

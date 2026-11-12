@@ -2,6 +2,7 @@
 
 import { EventSearch } from "@/components/event-search";
 import { KnowledgeMatches } from "@/components/knowledge-matches";
+import { aspectKnowledgeSeed, pointKnowledgeSeed, knowledgeSeedHref, type KnowledgeSourceContext } from "@/lib/knowledge-note-seed";
 import { DateTime } from "luxon";
 import { birthTimezoneOffsetHours, fixedTimezoneFromHours } from "@/lib/birth-timezone";
 import { ReturnPlaceSearch } from "@/components/return-place-search";
@@ -781,6 +782,9 @@ export function AstroWorkbench() {
   const [partnerPlaceError, setPartnerPlaceError] = useState<string | null>(null);
   const [savedProfileId, setSavedProfileId] = useState<string | null>(null);
   const [isCurrentProfileOwned, setIsCurrentProfileOwned] = useState(false);
+  const observationContext: KnowledgeSourceContext | undefined = chart?.chartType === "natal" && chart.engine.status === "swiss-ephemeris" && status === "ready" && orbApplyStatus !== "loading"
+    ? { birthTimeKnown: chart.subject.birthTimeKnown, ...(isCurrentProfileOwned && savedProfileId ? { sourceProfileId: savedProfileId } : {}) }
+    : undefined;
 
   const previewInputs = {
     transits: [form, pointOrbs, calculationRules, transitDateTime],
@@ -1897,7 +1901,7 @@ export function AstroWorkbench() {
                 </div>
               </CardHeader>
               <CardContent className="px-2 pb-4 sm:px-5 sm:pb-5">
-                <ChartWheel chart={chart} visiblePointKeys={visiblePointKeys} />
+                <ChartWheel chart={chart} visiblePointKeys={visiblePointKeys} observationContext={observationContext} />
                 <div className="mt-3 grid gap-2 min-[420px]:grid-cols-3 sm:mt-5">
                   <StatusBadge status={chart?.engine.status ?? "idle"} />
                   <Badge variant="secondary" className="justify-center py-2">
@@ -2032,7 +2036,7 @@ export function AstroWorkbench() {
               <Button role="tab" aria-selected={rightPanel === "consultation"} variant={rightPanel === "consultation" ? "secondary" : "ghost"} onClick={() => { setRightPanel("consultation"); setConsultationOpened(true); }}><BookOpenText />Консультація</Button>
             </div>
             <div hidden={rightPanel !== "tables"} className="min-h-0 flex-1">
-              <ProfessionalDataCard aspects={visibleAspects} chart={chart} placements={visiblePlacements} />
+              <ProfessionalDataCard aspects={visibleAspects} chart={chart} placements={visiblePlacements} observationContext={observationContext} />
             </div>
             {consultationOpened && authToken && authUser ? <div hidden={rightPanel !== "consultation"} className="min-h-0 flex-1 overflow-y-auto border-t bg-background/90 p-3 sm:p-5">
               <ConsultationPanel key={savedProfileId ?? "unsaved"} token={authToken} userId={authUser.id} sourceProfileId={isCurrentProfileOwned ? savedProfileId : null} sourceName={form.displayName} />
@@ -5022,11 +5026,13 @@ function SynastryOverlayWheel({
 function ProfessionalDataCard({
   aspects,
   chart,
-  placements
+  placements,
+  observationContext
 }: {
   aspects: Aspect[];
   chart: ChartResult | null;
   placements: ChartPoint[];
+  observationContext?: KnowledgeSourceContext;
 }) {
   const [activeTab, setActiveTab] = useState<ProfessionalDataTab>("placements");
 
@@ -5063,12 +5069,12 @@ function ProfessionalDataCard({
 
         <div className="space-y-5 xl:mt-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1" role="tabpanel">
           {activeTab === "signature" ? <SyntheticSignatureCard chart={chart} /> : null}
-          {activeTab === "placements" ? <PlacementsTable placements={placements} /> : null}
+          {activeTab === "placements" ? <PlacementsTable placements={placements} observationContext={observationContext} /> : null}
           {activeTab === "rulerships" ? <PlanetRulershipsTable chart={chart} /> : null}
           {activeTab === "dignities" ? <DignitiesTable chart={chart} /> : null}
           {activeTab === "houses" ? <HousesTable chart={chart} /> : null}
           {activeTab === "connections" ? <HouseConnectionsTable chart={chart} /> : null}
-          {activeTab === "aspects" ? <AspectsTable aspects={aspects} points={placements} /> : null}
+          {activeTab === "aspects" ? <AspectsTable aspects={aspects} points={placements} observationContext={observationContext} /> : null}
           {activeTab === "configurations" ? <AspectConfigurationsPanel chart={chart} /> : null}
 
           {chart?.warnings.map((warning) => (
@@ -5225,7 +5231,12 @@ function SyntheticScoreGroup({
   );
 }
 
-function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
+function ObservationLink({ href, label }: { href?: string; label: string }) {
+  if (!href) return null;
+  return <Button asChild size="icon" variant="ghost"><a href={href} target="_blank" rel="noopener noreferrer" title={`Нове спостереження: ${label}`} aria-label={`Створити спостереження: ${label} (нова вкладка)`}><NotebookPen /></a></Button>;
+}
+
+function PlacementsTable({ placements, observationContext }: { placements: ChartPoint[]; observationContext?: KnowledgeSourceContext }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">Положення</h3>
@@ -5237,6 +5248,7 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
               <TableHead>Позиція</TableHead>
               <TableHead>Дім</TableHead>
               <TableHead>Рух</TableHead>
+              {observationContext ? <TableHead className="w-11"><span className="sr-only">Спостереження</span></TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -5254,11 +5266,12 @@ function PlacementsTable({ placements }: { placements: ChartPoint[] }) {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{placement.house ?? "n/a"}</TableCell>
                   <TableCell className="text-muted-foreground">{formatMotion(placement)}</TableCell>
+                  {observationContext ? <TableCell className="p-0"><ObservationLink href={knowledgeSeedHref(pointKnowledgeSeed(placement, observationContext.birthTimeKnown), observationContext.sourceProfileId)} label={pointLabelUk(placement.key, placement.label)} /></TableCell> : null}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={observationContext ? 5 : 4} className="text-muted-foreground">
                   Очікує дані карти
                 </TableCell>
               </TableRow>
@@ -5743,7 +5756,7 @@ function formatHouseConnectionTitle(connection: HouseConnection): string {
     .join("\n");
 }
 
-function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoint[] }) {
+function AspectsTable({ aspects, points, observationContext }: { aspects: Aspect[]; points: ChartPoint[]; observationContext?: KnowledgeSourceContext }) {
   const planetAspectKeys = new Set(primaryPlanetOrder);
   const matrixPoints = points.filter((point) => planetAspectKeys.has(point.key));
   const pointsByKey = new Map(points.map((point) => [point.key, point]));
@@ -5789,6 +5802,7 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
                 </th>
                 {matrixPoints.map((columnPoint, columnIndex) => {
                   const aspect = rowIndex > columnIndex ? aspectMap.get(`${rowPoint.key}-${columnPoint.key}`) : undefined;
+                  const observationHref = aspect && observationContext ? knowledgeSeedHref(aspectKnowledgeSeed(aspect), observationContext.sourceProfileId) : undefined;
 
                   return (
                     <td
@@ -5800,7 +5814,10 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
                       title={aspect ? formatAspectTitle(aspect, pointsByKey) : undefined}
                     >
                       {aspect ? (
-                        <span className="inline-grid gap-0.5">
+                        observationHref ? <a href={observationHref} target="_blank" rel="noopener noreferrer" className="inline-grid min-h-7 w-full items-center gap-0.5 rounded-sm focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Створити спостереження: ${formatAspectTitle(aspect, pointsByKey)} (нова вкладка)`}>
+                          <span className="text-sm font-bold leading-none">{aspectGlyphs[aspect.type] ?? aspect.type}</span>
+                          <span className="text-[10px] leading-none">{aspect.orb.toFixed(1)}°</span>
+                        </a> : <span className="inline-grid gap-0.5">
                           <span className="text-sm font-bold leading-none">{aspectGlyphs[aspect.type] ?? aspect.type}</span>
                           <span className="text-[10px] leading-none">{aspect.orb.toFixed(1)}°</span>
                         </span>
@@ -5826,6 +5843,7 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
               <TableHead>Аспект</TableHead>
               <TableHead>Планета B</TableHead>
               <TableHead>Орб</TableHead>
+              {observationContext ? <TableHead className="w-11"><span className="sr-only">Спостереження</span></TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -5846,12 +5864,13 @@ function AspectsTable({ aspects, points }: { aspects: Aspect[]; points: ChartPoi
                       {planetGlyphs[aspect.bodyB] ?? aspect.bodyB} {pointLabelUk(aspect.bodyB, pointB?.label)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{aspect.orb.toFixed(2)}°</TableCell>
+                    {observationContext ? <TableCell><ObservationLink href={knowledgeSeedHref(aspectKnowledgeSeed(aspect), observationContext.sourceProfileId)} label={formatAspectTitle(aspect, pointsByKey)} /></TableCell> : null}
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-muted-foreground">
+                <TableCell colSpan={observationContext ? 5 : 4} className="text-muted-foreground">
                   Немає аспектів між планетами у поточних фільтрах.
                 </TableCell>
               </TableRow>
@@ -6095,12 +6114,14 @@ export function ChartWheel({
   chart,
   visiblePointKeys,
   printMode = false,
-  label = "Колесо натальної карти"
+  label = "Колесо натальної карти",
+  observationContext
 }: {
   chart: WheelChart | null;
   visiblePointKeys: VisiblePointSettings;
   printMode?: boolean;
   label?: string;
+  observationContext?: KnowledgeSourceContext;
 }) {
   const markerId = `angle-arrowhead-${useId().replace(/:/g, "")}`;
   const [hoveredPointKey, setHoveredPointKey] = useState<string | null>(null);
@@ -6275,9 +6296,10 @@ export function ChartWheel({
             const a = toXY(pointA.longitude, aspectRadius);
             const b = toXY(pointB.longitude, aspectRadius);
             const isRelated = !activePointKey || aspect.bodyA === activePointKey || aspect.bodyB === activePointKey;
+            const observationHref = !printMode && observationContext ? knowledgeSeedHref(aspectKnowledgeSeed(aspect), observationContext.sourceProfileId) : undefined;
 
-            return (
-              <g className="cursor-help" key={`${aspect.bodyA}-${aspect.bodyB}-${aspect.type}`}>
+            const content = (
+              <g className={observationHref ? "cursor-pointer" : "cursor-help"} key={`${aspect.bodyA}-${aspect.bodyB}-${aspect.type}`}>
                 <line
                   x1={a.x}
                   y1={a.y}
@@ -6286,7 +6308,7 @@ export function ChartWheel({
                   className="stroke-transparent stroke-[12]"
                   style={{ pointerEvents: "stroke" }}
                 >
-                  <title>{formatAspectTitle(aspect, pointsByKey)}</title>
+                  <title>{`${formatAspectTitle(aspect, pointsByKey)}${observationHref ? "\nСтворити спостереження у новій вкладці" : ""}`}</title>
                 </line>
                 <line
                   x1={a.x}
@@ -6301,6 +6323,7 @@ export function ChartWheel({
                 />
               </g>
             );
+            return observationHref ? <a key={`${aspect.bodyA}-${aspect.bodyB}-${aspect.type}`} href={observationHref} target="_blank" rel="noopener noreferrer" tabIndex={0} aria-label={`Створити спостереження: ${formatAspectTitle(aspect, pointsByKey)} (нова вкладка)`} onClick={(event) => event.stopPropagation()}>{content}</a> : content;
           })}
 
         {angleMarkers.map((anglePoint) => {
@@ -6443,6 +6466,7 @@ export function ChartWheel({
             )}
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
+            {activePoint && observationContext ? <ObservationLink href={knowledgeSeedHref(pointKnowledgeSeed(activePoint, observationContext.birthTimeKnown), observationContext.sourceProfileId)} label={pointLabelUk(activePoint.key, activePoint.label)} /> : null}
             <Badge variant="outline" className="border-[var(--aspect-harmonious)]/50 text-[var(--aspect-harmonious)]">
               Гармонійні
             </Badge>
