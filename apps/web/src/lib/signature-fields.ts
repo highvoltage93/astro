@@ -1,6 +1,6 @@
-// Same weights as SYNTHETIC_POINT_WEIGHTS in the calculation engine.
+// Same body weights as SYNTHETIC_POINT_WEIGHTS; house partitions exclude ASC.
 export const signatureFieldWeights: Readonly<Record<string, number>> = {
-  sun: 2, moon: 2, mercury: 1.5, venus: 1.5, mars: 1.5, asc: 1.5,
+  sun: 2, moon: 2, mercury: 1.5, venus: 1.5, mars: 1.5,
   jupiter: 1, saturn: 1, uranus: 1, neptune: 1, pluto: 1,
   "north-node": 0.5, "south-node": 0.5
 };

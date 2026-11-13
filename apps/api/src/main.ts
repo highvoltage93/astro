@@ -15,6 +15,7 @@ import { registerCalculationProfileRoutes } from "./calculation-profiles/routes"
 import { registerConsultationRoutes } from "./consultations/routes";
 import { registerConsultationTemplateRoutes } from "./consultation-templates/routes";
 import { registerKnowledgeNoteRoutes } from "./knowledge-notes/routes";
+import { registerAstroEventRoutes } from "./astro-events/routes";
 
 const app = Fastify({
   logger: {
@@ -54,6 +55,7 @@ const start = async (): Promise<void> => {
   await registerConsultationRoutes(app);
   await registerConsultationTemplateRoutes(app);
   await registerKnowledgeNoteRoutes(app);
+  await registerAstroEventRoutes(app);
   await registerInterpretationRoutes(app);
 
   app.addHook("onClose", async () => {

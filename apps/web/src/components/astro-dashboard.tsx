@@ -22,6 +22,7 @@ import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import type { AuthUser, NatalPreviewPayload, PlaceSearchResult, SavedBirthProfile } from "@/lib/chart-types";
 import { cn } from "@/lib/utils";
 import { birthTimezoneOffsetHours, fixedTimezoneFromHours } from "@/lib/birth-timezone";
+import { BirthDateInput, BirthTimeInput } from "@/components/birth-inputs";
 
 type DashboardFormState = {
   displayName: string;
@@ -268,7 +269,7 @@ export function AstroDashboard() {
           birthplaceName: form.birthplaceName,
           countryCode: form.countryCode || undefined,
           birthDate: form.birthDate,
-          birthTime: form.birthTime,
+          birthTime: form.birthTimeKnown ? form.birthTime : form.birthTime || "12:00:00",
           birthTimeKnown: form.birthTimeKnown,
           timezone: fixedTimezone ?? form.timezone,
           latitude: Number(form.latitude),
@@ -386,15 +387,13 @@ export function AstroDashboard() {
                   <Input value={form.displayName} onChange={(event) => updateForm("displayName", event.target.value)} />
                 </DashboardField>
                 <DashboardField className="sm:col-span-1 lg:col-span-2" label="Дата">
-                  <Input type="date" value={form.birthDate} onChange={(event) => updateForm("birthDate", event.target.value)} />
+                  <BirthDateInput value={form.birthDate} onValueChange={(value) => updateForm("birthDate", value)} />
                 </DashboardField>
                 <DashboardField className="sm:col-span-1 lg:col-span-2" label="Час">
-                  <Input
+                  <BirthTimeInput
                     disabled={!form.birthTimeKnown}
-                    step={1}
-                    type="time"
                     value={form.birthTime}
-                    onChange={(event) => updateForm("birthTime", event.target.value)}
+                    onValueChange={(value) => updateForm("birthTime", value)}
                   />
                 </DashboardField>
                 <DashboardField className="sm:col-span-2 lg:col-span-3" label="Місце">

@@ -2,6 +2,8 @@
 
 import { EventSearch } from "@/components/event-search";
 import { KnowledgeMatches } from "@/components/knowledge-matches";
+import { BirthDateInput, BirthTimeInput } from "@/components/birth-inputs";
+import { parseBirthDateText, parseBirthTimeText } from "@/lib/birth-input";
 import { aspectKnowledgeSeed, pointKnowledgeSeed, knowledgeSeedHref, type KnowledgeSourceContext } from "@/lib/knowledge-note-seed";
 import { DateTime } from "luxon";
 import { birthTimezoneOffsetHours, fixedTimezoneFromHours } from "@/lib/birth-timezone";
@@ -1011,7 +1013,7 @@ export function AstroWorkbench() {
     pointOrbSettings: PointOrbSettings = pointOrbs
   ): NatalPreviewPayload => ({
     birthDate: source.birthDate,
-    birthTime: source.birthTime,
+    birthTime: source.birthTimeKnown ? source.birthTime : source.birthTime || "12:00:00",
     birthTimeKnown: source.birthTimeKnown,
     timezone: source.timezone,
     latitude: Number(source.latitude),
@@ -2196,8 +2198,8 @@ function NatalDataEditor({ initial, onApply, onClose }: {
     <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Дані карти та релокація</h2><Button size="icon" variant="ghost" disabled={busy} aria-label="Закрити редагування" onClick={onClose}><X /></Button></div>
     <form onSubmit={submitEdit}><fieldset disabled={busy} className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Field label="Назва карти"><Input required value={draft.displayName} onChange={e => update("displayName", e.target.value)} /></Field>
-      <Field label="Дата народження"><Input required type="date" value={draft.birthDate} onChange={e => update("birthDate", e.target.value)} /></Field>
-      <Field label="Час народження"><Input required={draft.birthTimeKnown} disabled={!draft.birthTimeKnown} type="time" step={1} value={draft.birthTime} onChange={e => update("birthTime", e.target.value)} /></Field>
+      <Field label="Дата народження"><BirthDateInput value={draft.birthDate} onValueChange={value => update("birthDate", value)} /></Field>
+      <Field label="Час народження"><BirthTimeInput required={draft.birthTimeKnown} disabled={!draft.birthTimeKnown} value={draft.birthTime} onValueChange={value => update("birthTime", value)} /></Field>
       <label className="flex items-center gap-2"><Checkbox checked={draft.birthTimeKnown} onCheckedChange={value => update("birthTimeKnown", value === true)} />Час відомий</label>
       <div className="min-w-0 sm:col-span-2"><Field label="Місто"><ReturnPlaceSearch label="Місто карти" name={draft.birthplaceName} onPendingChange={setPendingPlace} onSelect={place => {
         setAutomaticTimezone(place.timezone ?? "");
@@ -2277,19 +2279,16 @@ function BirthDataCard({
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
             <Field label="Дата">
-              <Input
-                type="date"
+              <BirthDateInput
                 value={form.birthDate}
-                onChange={(event) => onUpdate("birthDate", event.target.value)}
+                onValueChange={(value) => onUpdate("birthDate", value)}
               />
             </Field>
             <Field label="Час">
-              <Input
-                type="time"
-                step={1}
+              <BirthTimeInput
                 disabled={!form.birthTimeKnown}
                 value={form.birthTime}
-                onChange={(event) => onUpdate("birthTime", event.target.value)}
+                onValueChange={(value) => onUpdate("birthTime", value)}
               />
             </Field>
           </div>
@@ -4490,15 +4489,13 @@ function SynastryCard({
             <Input value={form.timezone} onChange={(event) => onUpdate("timezone", event.target.value)} />
           </Field>
           <Field label="Дата">
-            <Input type="date" value={form.birthDate} onChange={(event) => onUpdate("birthDate", event.target.value)} />
+            <BirthDateInput value={form.birthDate} onValueChange={(value) => onUpdate("birthDate", value)} />
           </Field>
           <Field label="Час">
-            <Input
-              type="time"
-              step={1}
+            <BirthTimeInput
               disabled={!form.birthTimeKnown}
               value={form.birthTime}
-              onChange={(event) => onUpdate("birthTime", event.target.value)}
+              onValueChange={(value) => onUpdate("birthTime", value)}
             />
           </Field>
         </div>
@@ -4536,7 +4533,7 @@ function SynastryCard({
           </Field>
         </div>
 
-        <Button type="button" disabled={status === "loading"} onClick={onCalculate}>
+        <Button type="button" disabled={status === "loading" || !parseBirthDateText(form.birthDate) || (form.birthTimeKnown && !parseBirthTimeText(form.birthTime))} onClick={onCalculate}>
           <Activity />
           {status === "loading" ? "Рахую" : "Порахувати синастрію"}
         </Button>

@@ -15,14 +15,26 @@ test("every house belongs to exactly one field in each partition", () => {
   }
 });
 
-test("weights include the ascendant and both nodes, but not Lilith or Chiron", () => {
+test("field weights include both nodes but exclude ASC, Lilith, Chiron and other angles", () => {
   const points = Object.keys(signatureFieldWeights).map((key) => ({ key, house: 1 }));
-  const result = calculateSignatureFields([...points, { key: "lilith", house: 7 }, { key: "chiron", house: 8 }, { key: "mc", house: 10 }]);
-  assert.equal(result.total, 16);
-  assert.equal(result.dayNight[0]?.score, 16);
+  const result = calculateSignatureFields([...points, { key: "asc", house: 1 }, { key: "lilith", house: 7 }, { key: "chiron", house: 8 }, { key: "mc", house: 10 }]);
+  assert.equal(result.total, 14.5);
+  assert.equal(result.dayNight[0]?.score, 14.5);
   assert.equal(result.dayNight[1]?.score, 0);
-  assert.equal(calculateSignatureFields([{ key: "asc", house: 1 }]).total, 1.5);
+  assert.equal(calculateSignatureFields([{ key: "asc", house: 1 }]).total, 0);
   assert.equal(calculateSignatureFields([{ key: "north-node", house: 3 }, { key: "south-node", house: 9 }]).total, 1);
+});
+
+test("ASC never changes any partition, percentage denominator or unassigned weight", () => {
+  const points = [{ key: "sun", house: 2 }, { key: "moon", house: 8 }, { key: "mercury" }];
+  const expected = calculateSignatureFields(points);
+  for (const house of [undefined, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
+    assert.deepEqual(calculateSignatureFields([...points, { key: "asc", house }]), expected);
+    assert.deepEqual(calculateSignatureFields([{ key: "asc", house }]), calculateSignatureFields([]));
+  }
+  for (const rows of [expected.dayNight, expected.eastWest, expected.quadrants]) {
+    assert.equal(rows.reduce((total, row) => total + row.score, 0), expected.total);
+  }
 });
 
 test("missing houses are excluded without inventing placements and duplicates are not counted twice", () => {
