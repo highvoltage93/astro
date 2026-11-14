@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { registerAuthRoutes } from "./auth/routes";
 import { registerAdminRoutes } from "./admin/routes";
+import { registerAstrologerRankingRoutes } from "./admin/astrologer-ranking";
 import { registerFeedbackRoutes } from "./feedback/routes";
 import { registerBirthProfileRoutes } from "./birth-profiles/routes";
 import { registerChartRoutes } from "./charts/routes";
@@ -15,6 +16,7 @@ import { registerCalculationProfileRoutes } from "./calculation-profiles/routes"
 import { registerConsultationRoutes } from "./consultations/routes";
 import { registerConsultationTemplateRoutes } from "./consultation-templates/routes";
 import { registerKnowledgeNoteRoutes } from "./knowledge-notes/routes";
+import { registerKnowledgeSharingRoutes } from "./knowledge-notes/sharing-routes";
 import { registerAstroEventRoutes } from "./astro-events/routes";
 
 const app = Fastify({
@@ -46,6 +48,7 @@ const start = async (): Promise<void> => {
   await registerHealthRoutes(app);
   await registerAuthRoutes(app);
   await registerAdminRoutes(app);
+  await registerAstrologerRankingRoutes(app);
   await registerFeedbackRoutes(app);
   await registerPlaceRoutes(app);
   await registerBirthProfileRoutes(app);
@@ -55,6 +58,7 @@ const start = async (): Promise<void> => {
   await registerConsultationRoutes(app);
   await registerConsultationTemplateRoutes(app);
   await registerKnowledgeNoteRoutes(app);
+  await registerKnowledgeSharingRoutes(app);
   await registerAstroEventRoutes(app);
   await registerInterpretationRoutes(app);
 

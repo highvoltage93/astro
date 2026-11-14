@@ -155,6 +155,21 @@ test("stale edits and deletions conflict; foreign edits return not found", async
   assert.equal((await update()).statusCode, 404);
 });
 
+test("archiving a private note withdraws its public snapshot in the same transaction", async (t) => {
+  let withdrawn = false;
+  const app = await createApp(t, { $transaction: transaction({
+    knowledgeNote: { update: async () => ({ ...record, archived: true, revision: 2 }) },
+    knowledgeNoteRevision: { create: async () => ({}) },
+    knowledgePublication: { updateMany: async (args: { where: unknown; data: unknown }) => {
+      assert.deepEqual(args.where, { noteId: id, published: true });
+      assert.deepEqual(args.data, { published: false, revision: { increment: 1 } });
+      withdrawn = true; return { count: 1 };
+    } }
+  }) });
+  const response = await app.inject({ method: "PUT", url: `/knowledge-notes/${id}`, headers, payload: { revision: 1, draft: { ...draft, archived: true } } });
+  assert.equal(response.statusCode, 200); assert.equal(withdrawn, true);
+});
+
 test("history pages keep owner scope, revision ordering, and bounded page sizes", async (t) => {
   const app = await createApp(t, {
     knowledgeNote: { findFirst: async () => ({ id }) },

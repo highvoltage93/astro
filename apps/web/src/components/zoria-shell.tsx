@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck } from "lucide-react";
+import { CalendarDays, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -30,7 +30,10 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
     }
     return () => { active = false; };
   }, [pathname]);
-  const items = isAdmin ? [...navigation, { href: "/admin", label: "Адміністрування", icon: ShieldCheck }] : navigation;
+  const items = isAdmin ? [...navigation,
+    { href: "/admin/astrologers", label: "Топ астрологів", icon: Trophy },
+    { href: "/admin", label: "Адміністрування", icon: ShieldCheck }
+  ] : navigation;
   if (["/login", "/consultations/print", "/terms", "/privacy"].includes(pathname)) return <>{children}</>;
 
   return (

@@ -13,8 +13,13 @@ export type KnowledgeSummary = { id: string; title: string; tags: string[]; arch
 export type KnowledgeNote = KnowledgeSummary & KnowledgeDraft & { sourceProfileId: string | null; sourceLabel: string | null };
 export type KnowledgeHistoryEntry = KnowledgeDraft & { revision: number; savedAt: string };
 export type KnowledgeHistory = { history: { revision: number; title: string; savedAt: string }[]; nextBefore: number | null };
-export type KnowledgeMatch = KnowledgeSummary & Pick<KnowledgeDraft, "conditions">;
+export type KnowledgeMatch = KnowledgeSummary & Pick<KnowledgeDraft, "conditions"> & { origin?: "shared"; authorUsername?: string };
 export type KnowledgeMatchesPage = { matches: KnowledgeMatch[]; nextCursor: string | null };
+export type SharedKnowledgeAccess = { enabled: boolean; expiresAt: string | null };
+export type SharedKnowledgeNote = KnowledgeMatch & { body: string; activated: boolean; updateAvailable: boolean };
+export type SharedKnowledgeSummary = Omit<SharedKnowledgeNote, "body">;
+export type SharedKnowledgeMatchesPage = KnowledgeMatchesPage & { access: SharedKnowledgeAccess };
+export type KnowledgePublication = { noteId: string; title: string; body: string; tags: string[]; revision: number; sourceRevision: number; published: boolean; updatedAt: string };
 export const knowledgeChartFacts = (chart: ChartResult) => ({
   chartType: chart.chartType,
   birthTimeKnown: chart.subject.birthTimeKnown,
@@ -36,10 +41,10 @@ export const noteDraft = (note: KnowledgeDraft): KnowledgeDraft => ({ title: not
 export class KnowledgeError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
-export async function knowledgeRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function knowledgeApiRequest<T>(base: string, path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
   if (!token) throw new KnowledgeError("Увійдіть до акаунта.", 401);
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/knowledge-notes${path}`, {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}${base}${path}`, {
     ...options, cache: "no-store", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
   });
   const body = await response.json().catch(() => null);
@@ -47,3 +52,5 @@ export async function knowledgeRequest<T>(path: string, options: RequestInit = {
   if (!response.ok) throw new KnowledgeError(body?.message ?? "Не вдалося виконати запит. Ваш текст залишився у формі.", response.status);
   return body as T;
 }
+export const knowledgeRequest = <T,>(path: string, options: RequestInit = {}) => knowledgeApiRequest<T>("/knowledge-notes", path, options);
+export const knowledgeLibraryRequest = <T,>(path: string, options: RequestInit = {}) => knowledgeApiRequest<T>("/knowledge-library", path, options);

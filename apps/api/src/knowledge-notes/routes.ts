@@ -123,10 +123,16 @@ export async function registerKnowledgeNoteRoutes(app: FastifyInstance, {
           const updated = await tx.knowledgeNote.update({ where: { id: params.data.id, ownerUserId: user.id, revision },
             data: { ...fields, conditionsJson: conditions, revision: { increment: 1 } } });
           await tx.knowledgeNoteRevision.create({ data: historyData(updated) });
+          if (updated.archived) await tx.knowledgePublication.updateMany({
+            where: { noteId: updated.id, published: true }, data: { published: false, revision: { increment: 1 } }
+          });
           return updated;
-        });
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         return { note: view(record) };
       } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+          return reply.code(409).send({ message: "Нотатка або публікація змінилася одночасно. Перечитайте запис і повторіть збереження." });
+        }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
           const current = await db.knowledgeNote.findFirst({ where: { id: params.data.id, ownerUserId: user.id }, select: { id: true } });
           return reply.code(current ? 409 : 404).send({ message: current ? "Запис уже змінено. Ваш текст залишився у формі; відкрийте актуальну версію або збережіть як новий." : "Спостереження недоступне." });

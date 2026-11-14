@@ -8,7 +8,7 @@ import { registerAdminFeedbackRoutes } from "../feedback/routes";
 
 const select = {
   id: true, username: true, email: true, role: true, createdAt: true, updatedAt: true,
-  lastLoginAt: true, lastActiveAt: true,
+  lastLoginAt: true, lastActiveAt: true, sharedKnowledgeUntil: true,
   _count: { select: { birthProfiles: true, savedForecasts: true, consultations: true } }
 } satisfies Prisma.UserSelect;
 
@@ -21,6 +21,7 @@ const updateSchema = z.object({
   username: z.string().trim().min(3).max(50),
   email: z.string().trim().email().max(160),
   role: z.enum(["USER", "CONSULTANT", "ADMIN"]),
+  sharedKnowledgeUntil: z.string().datetime({ offset: true }).nullable().optional(),
   password: z.string().superRefine((password, ctx) => {
     const message = registrationPasswordError(password);
     if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
@@ -79,7 +80,7 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
           const user = await tx.user.update({ where: { id: target.id }, data: { ...data, ...(passwordHash ? { passwordHash } : {}) }, select });
           await tx.auditEvent.create({ data: {
             userId: actor.id, action: "admin.user.update", entity: "User", entityId: target.id,
-            metadata: { before: { username: target.username, email: target.email, role: target.role }, after: data, passwordChanged: password !== undefined }
+            metadata: { before: { username: target.username, email: target.email, role: target.role, sharedKnowledgeUntil: target.sharedKnowledgeUntil?.toISOString() ?? null }, after: data, passwordChanged: password !== undefined }
           } });
           return { user };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

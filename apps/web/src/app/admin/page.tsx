@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { DateTime } from "luxon";
 import { ChevronLeft, ChevronRight, Pencil, RefreshCw, Save, Search, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import { AdminFeedback } from "@/components/admin-feedback";
 
 type Role = "USER" | "CONSULTANT" | "ADMIN";
 type User = { id: string; username: string; email: string; role: Role; createdAt: string; updatedAt: string;
-  lastLoginAt: string | null; lastActiveAt: string | null;
+  lastLoginAt: string | null; lastActiveAt: string | null; sharedKnowledgeUntil: string | null;
   _count: { birthProfiles: number; savedForecasts: number; consultations: number } };
 type UserList = { users: User[]; total: number; page: number; pageSize: number };
 type Audit = { id: string; action: string; entityId: string | null; createdAt: string; user: { username: string } | null };
@@ -42,6 +43,7 @@ export default function AdminPage() {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "ALL">("ALL");
   const [password, setPassword] = useState("");
+  const [sharedUntil, setSharedUntil] = useState("");
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -72,18 +74,22 @@ export default function AdminPage() {
 
   useEffect(() => {
     setPassword("");
+    setSharedUntil(editing?.sharedKnowledgeUntil ? DateTime.fromISO(editing.sharedKnowledgeUntil).setZone("Europe/Kyiv").toFormat("yyyy-MM-dd'T'HH:mm:ss") : "");
     if (editing?.id) document.getElementById("admin-user-details")?.scrollIntoView({ block: "start" });
   }, [editing?.id]);
 
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!editing || saving) return;
+    const expiry = sharedUntil ? DateTime.fromISO(sharedUntil, { zone: "Europe/Kyiv" }) : null;
+    if (expiry && !expiry.isValid) { setError("Перевірте дату завершення доступу до спостережень."); return; }
     const original = list?.users.find((user) => user.id === editing.id);
     if (original && original.role !== editing.role && !window.confirm(`Змінити роль ${editing.username} на «${roles[editing.role]}»?`)) return;
     setSaving(true); setError(""); setNotice("");
     try {
       const { username, email, role, updatedAt } = editing;
-      await request(`/users/${encodeURIComponent(editing.id)}`, { method: "PATCH", body: JSON.stringify({ username, email, role, updatedAt, ...(password ? { password } : {}) }) });
+      await request(`/users/${encodeURIComponent(editing.id)}`, { method: "PATCH", body: JSON.stringify({ username, email, role, updatedAt,
+        sharedKnowledgeUntil: expiry?.toUTC().toISO() ?? null, ...(password ? { password } : {}) }) });
       setPassword("");
       setEditing(null); setNotice("Зміни збережено."); setRevision((value) => value + 1);
     } catch (failure) { handleError(failure); }
@@ -113,6 +119,10 @@ export default function AdminPage() {
           <div className="space-y-2"><Label htmlFor="admin-username">Username</Label><Input id="admin-username" required minLength={3} maxLength={50} value={editing.username} disabled={saving} onChange={(e) => setEditing({ ...editing, username: e.target.value })} /></div>
           <div className="space-y-2"><Label htmlFor="admin-email">Email</Label><Input id="admin-email" required type="email" maxLength={160} value={editing.email} disabled={saving} onChange={(e) => setEditing({ ...editing, email: e.target.value })} /></div>
           <div className="space-y-2"><Label htmlFor="admin-role">Роль</Label><Select value={editing.role} disabled={saving} onValueChange={(role: Role) => setEditing({ ...editing, role })}><SelectTrigger id="admin-role"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(roles).map(([role, label]) => <SelectItem key={role} value={role}>{label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label htmlFor="admin-shared-until">Спостереження інших: доступ до (час Києва)</Label>
+            <Input id="admin-shared-until" type="datetime-local" step={1} value={sharedUntil} disabled={saving} onChange={(event) => setSharedUntil(event.target.value)} />
+            <Button type="button" variant="outline" size="sm" disabled={saving || !sharedUntil} onClick={() => setSharedUntil("")}>Скасувати доступ</Button>
+          </div>
           <div className="space-y-2"><Label htmlFor="admin-password">Новий пароль (необов’язково)</Label><Input id="admin-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={password} disabled={saving} aria-describedby="admin-password-help" onChange={(event) => setPassword(event.target.value)} /><p id="admin-password-help" className="text-xs text-muted-foreground">Від 8 символів: велика й мала літери, цифра та спецсимвол. Порожнє поле залишає пароль без змін.</p></div>
           <div className="flex flex-wrap items-end gap-2"><Button type="submit" disabled={saving}>{saving ? <RefreshCw className="animate-spin" /> : <Save />}Зберегти</Button><Button type="button" variant="secondary" disabled={saving} onClick={() => setEditing(null)}><X />Скасувати</Button></div>
         </form></CardContent>

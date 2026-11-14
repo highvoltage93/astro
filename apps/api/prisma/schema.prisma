@@ -59,6 +59,8 @@ model User {
   auditEvents    AuditEvent[]
   feedback       FeedbackReport[]
   knowledgeNotes KnowledgeNote[]
+  sharedKnowledgeUntil DateTime?
+  knowledgeActivations KnowledgeActivation[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -285,6 +287,7 @@ model KnowledgeNote {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   history         KnowledgeNoteRevision[]
+  publication     KnowledgePublication?
 
   @@index([ownerUserId, archived, createdAt, id])
   @@index([sourceProfileId])
@@ -304,6 +307,38 @@ model KnowledgeNoteRevision {
 
   @@id([noteId, revision])
   @@map("knowledge_note_revisions")
+}
+
+model KnowledgePublication {
+  noteId          String   @id
+  note            KnowledgeNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  title           String
+  body            String
+  tags            String[] @default([])
+  conditionsJson  Json
+  sourceRevision  Int
+  revision        Int      @default(1)
+  published       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  activations     KnowledgeActivation[]
+
+  @@index([published, noteId])
+  @@map("knowledge_publications")
+}
+
+model KnowledgeActivation {
+  userId          String
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publicationId   String
+  publication     KnowledgePublication @relation(fields: [publicationId], references: [noteId], onDelete: Cascade)
+  acceptedRevision Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@id([userId, publicationId])
+  @@index([publicationId])
+  @@map("knowledge_activations")
 }
 
 enum FeedbackStatus {

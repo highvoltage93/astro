@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { KnowledgePublicationEditor } from "@/components/knowledge-publication";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { createForecastRequestId } from "@/lib/forecast-archive";
@@ -173,6 +174,11 @@ export function KnowledgeNotesPage({ source, noteId, seed }: { source?: string; 
     <div className="mx-auto max-w-5xl space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm text-muted-foreground">Особиста база знань</p><h1 className="text-2xl font-semibold">Мої спостереження</h1></div>
         <Button disabled={busy} onClick={() => { if (canLeave()) create(); }}><Plus />Нове спостереження</Button></header>
+      <nav aria-label="Розділи спостережень" className="flex flex-wrap gap-2 border-b pb-3">
+        <Button asChild variant="secondary"><Link href="/knowledge" aria-current="page">Мої</Link></Button>
+        <Button asChild variant="ghost"><Link href="/knowledge/library">Каталог астрологів</Link></Button>
+        <Button asChild variant="ghost"><Link href="/knowledge/library?view=active">Активовані</Link></Button>
+      </nav>
       {error ? <p role="alert" className="break-words text-destructive">{error}</p> : null}
       {notice ? <p role="status" className="text-primary">{notice}</p> : null}
       {editor ? <section id="knowledge-editor" className="scroll-mt-4 space-y-4 border-y bg-background/90 py-5">
@@ -204,6 +210,7 @@ export function KnowledgeNotesPage({ source, noteId, seed }: { source?: string; 
             <span role="status" className="self-center text-sm text-muted-foreground">{dirty ? "Незбережені зміни" : editor.record ? `Збережено ${date(editor.record.updatedAt)}` : "Чернетка"}</span>
           </div>
         </fieldset></form>
+        {editor.record ? <KnowledgePublicationEditor key={`${editor.record.id}:${editor.record.revision}`} note={editor.record} disabled={busy || dirty} /> : null}
         {history ? <section className="space-y-3 border-t pt-4"><h3 className="font-semibold">Редакції</h3>
           <div className="flex flex-wrap gap-2">{history.history.map((item) => <Button key={item.revision} disabled={busy} variant="outline" onClick={() => void readRevision(item.revision)}>v{item.revision} · {date(item.savedAt)}</Button>)}</div>
           {history.nextBefore ? <Button variant="secondary" disabled={busy} onClick={() => void loadHistory(history.nextBefore!)}><ChevronRight />Старіші редакції</Button> : null}
