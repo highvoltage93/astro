@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Check, ChevronRight, LockKeyhole, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { KnowledgeAuthorActivation } from "@/components/knowledge-author-activation";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -39,7 +40,7 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
       const nextQuery = query.trim();
       const nextAuthor = filters.authorId ? "" : author.trim().replace(/^@/, "");
       if (nextQuery !== filters.query || nextAuthor !== filters.author) {
-        setCursor(null);
+        setCursor(null); setSelectedId("");
         setFilters((current) => ({ ...current, query: nextQuery, author: nextAuthor }));
       }
     }, 350);
@@ -81,9 +82,6 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
     return () => controller.abort();
   }, [selectedId, access?.enabled, attempt]);
   useEffect(() => {
-    if (selectedId && access?.enabled) document.getElementById("shared-knowledge-detail")?.scrollIntoView({ block: "start" });
-  }, [selectedId, access?.enabled]);
-  useEffect(() => {
     const changed = (event: StorageEvent) => {
       if (event.key === AUTH_TOKEN_STORAGE_KEY || event.key === null) { revoke(); router.replace(loginPath); }
     };
@@ -108,6 +106,33 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
     } catch (failure) { failed(failure, true); }
     finally { setBusy(false); }
   }
+  function renderObservation(id: string, item?: SharedKnowledgeSummary) {
+    const currentNote = selectedId === id && note?.id === id ? note : null;
+    return <Collapsible key={id} open={selectedId === id} disabled={busy}
+      onOpenChange={(open) => { setSelectedId(open ? id : ""); setNotice(""); setDetailError(""); }}>
+      <CollapsibleTrigger className="group flex min-h-14 w-full items-start justify-between gap-3 py-4 text-left hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60">
+        <span className="min-w-0"><span className="block break-words font-semibold">{item?.title ?? currentNote?.title ?? "Спостереження за посиланням"}</span>
+          {item ? <><span className="mt-1 block break-words text-sm text-muted-foreground">{item.authorUsername} · v{item.revision} · {item.tags.join(" · ")}</span><span className="mt-1 block text-sm text-primary">{item.updateAvailable ? "Очікує прийняття оновлення" : item.activated ? "Активовано" : ""}</span></> : null}
+        </span><ChevronRight aria-hidden="true" className="size-5 shrink-0 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="min-w-0">
+        <div className="space-y-3 border-t pb-5 pt-3">
+          {selectedId === id && (reading || (!currentNote && !detailError)) ? <p role="status">Завантаження тексту…</p> : null}
+          {selectedId === id && detailError ? <div className="space-y-2"><p role="alert" className="text-destructive">{detailError}</p><Button variant="outline" disabled={busy || reading} onClick={reload}><RefreshCw />Повторити</Button></div> : null}
+          {currentNote ? <>
+            <p className="text-sm text-primary">Автор: {currentNote.authorUsername} · v{currentNote.revision}</p>
+            <p className="whitespace-pre-wrap break-words leading-7">{currentNote.body}</p>
+            <ul className="space-y-1 text-sm text-muted-foreground">{currentNote.conditions.items.map((condition, index) => <li key={index}>{knowledgeConditionText(condition)}</li>)}</ul>
+            {currentNote.updateAvailable ? <p className="text-sm text-primary">Нова редакція. Підказки призупинено до прийняття оновлення.</p> : null}
+            <div className="flex flex-wrap gap-2">
+              {!currentNote.activated || currentNote.updateAvailable ? <Button disabled={busy || reading} onClick={() => void activate(true)}><Check />{currentNote.updateAvailable ? "Прийняти оновлення" : "Активувати"}</Button> : <span className="self-center text-sm text-primary">Активовано</span>}
+              {currentNote.activated ? <Button variant="outline" disabled={busy || reading} onClick={() => void activate(false)}><X />Вимкнути</Button> : null}
+            </div>
+          </> : null}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>;
+  }
   return <main className="app-shell-background min-h-screen px-3 py-5 sm:px-6">
     <div className="mx-auto max-w-5xl space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold">Спостереження астрологів</h1><Button variant="outline" disabled={loading || busy} onClick={reload}><RefreshCw />Оновити</Button></header>
@@ -123,37 +148,23 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
       {access?.enabled ? <>
         {access.administrator ? <div className="flex flex-wrap items-center gap-3"><span className="text-sm text-muted-foreground">Адміністратор · безстроковий доступ</span><Button asChild variant="outline"><Link href={`/admin/observations${filters.authorId ? `?authorId=${encodeURIComponent(filters.authorId)}` : ""}`}>Усі спостереження, включно з приватними</Link></Button></div>
           : <p className="text-sm text-muted-foreground">Доступ до {access.expiresAt ? new Date(access.expiresAt).toLocaleString("uk-UA") : "—"}</p>}
-        <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => { event.preventDefault(); setCursor(null); setFilters((current) => ({ ...current, query: query.trim(), author: current.authorId ? "" : author.trim().replace(/^@/, "") })); }}>
+        <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => { event.preventDefault(); setSelectedId(""); setCursor(null); setFilters((current) => ({ ...current, query: query.trim(), author: current.authorId ? "" : author.trim().replace(/^@/, "") })); }}>
           <Input aria-label="Автор, назва або тег" placeholder="Автор, назва або тег" value={query} maxLength={160} onChange={(event) => setQuery(event.target.value)} />
           <div className="flex min-w-0 gap-2"><Input aria-label="Username автора" placeholder="Username автора" disabled={!!filters.authorId}
             value={filters.authorId ? authorName || "Обраний автор" : author} maxLength={50} onChange={(event) => setAuthor(event.target.value)} />
-            {filters.authorId ? <Button type="button" size="icon" variant="outline" title="Усі автори" aria-label="Прибрати фільтр автора" onClick={() => { setCursor(null); setAuthor(""); setFilters((current) => ({ query: current.query, author: "" })); }}><X /></Button> : null}
+            {filters.authorId ? <Button type="button" size="icon" variant="outline" title="Усі автори" aria-label="Прибрати фільтр автора" onClick={() => { setSelectedId(""); setCursor(null); setAuthor(""); setFilters((current) => ({ query: current.query, author: "" })); }}><X /></Button> : null}
           </div>
           <Button type="submit" disabled={loading || busy} aria-label="Пошук"><Search />Знайти</Button>
         </form>
         {filters.authorId && !activeOnly ? <KnowledgeAuthorActivation key={filters.authorId} authorId={filters.authorId} authorName={authorName || "обраного автора"} onActivated={reload} /> : null}
-        {selectedId ? <section id="shared-knowledge-detail" className="scroll-mt-4 space-y-3 border-y py-5">
-          <div className="flex items-start justify-between gap-3"><h2 className="min-w-0 break-words text-lg font-semibold">{note?.title ?? "Публікація"}</h2><Button size="icon" variant="ghost" title="Закрити" aria-label="Закрити публікацію" onClick={() => setSelectedId("")}><X /></Button></div>
-          {reading ? <p role="status">Завантаження тексту…</p> : null}
-          {detailError ? <p role="alert" className="text-destructive">{detailError}</p> : null}
-          {note ? <>
-            <p className="text-sm text-primary">Автор: {note.authorUsername} · v{note.revision}</p>
-            <p className="whitespace-pre-wrap break-words leading-7">{note.body}</p>
-            <ul className="space-y-1 text-sm text-muted-foreground">{note.conditions.items.map((item, index) => <li key={index}>{knowledgeConditionText(item)}</li>)}</ul>
-            {note.updateAvailable ? <p className="text-sm text-primary">Нова редакція. Підказки призупинено до прийняття оновлення.</p> : null}
-            <div className="flex flex-wrap gap-2">
-              {!note.activated || note.updateAvailable ? <Button disabled={busy || reading} onClick={() => void activate(true)}><Check />{note.updateAvailable ? "Прийняти оновлення" : "Активувати"}</Button> : <span className="self-center text-sm text-primary">Активовано</span>}
-              {note.activated ? <Button variant="outline" disabled={busy} onClick={() => void activate(false)}><X />Вимкнути</Button> : null}
-            </div>
-          </> : null}
-        </section> : null}
-        <section className="divide-y">{page?.notes.map((item) => <button type="button" key={item.id} disabled={busy} className="flex w-full items-start justify-between gap-3 py-4 text-left hover:bg-accent" onClick={() => { setSelectedId(item.id); setNotice(""); }}>
-          <span className="min-w-0"><span className="block break-words font-semibold">{item.title}</span><span className="mt-1 block break-words text-sm text-muted-foreground">{item.authorUsername} · v{item.revision} · {item.tags.join(" · ")}</span><span className="mt-1 block text-sm text-primary">{item.updateAvailable ? "Очікує прийняття оновлення" : item.activated ? "Активовано" : ""}</span></span><ChevronRight className="size-5 shrink-0" />
-        </button>)}</section>
+        <section className="divide-y">
+          {noteId && selectedId === noteId && !page?.notes.some((item) => item.id === noteId) ? renderObservation(noteId) : null}
+          {page?.notes.map((item) => renderObservation(item.id, item))}
+        </section>
         {!loading && page && !page.notes.length ? <p className="text-muted-foreground">{activeOnly
           ? "Активованих спостережень за цим запитом немає."
           : "Опублікованих спостережень за цим запитом немає. Автор має опублікувати їх зі своїх нотаток; приватні й архівні записи недоступні."}</p> : null}
-        <div className="flex flex-wrap gap-2">{cursor ? <Button variant="outline" disabled={loading} onClick={() => setCursor(null)}>На початок</Button> : null}{page?.nextCursor ? <Button variant="outline" disabled={loading} onClick={() => setCursor(page?.nextCursor ?? null)}><ChevronRight />Наступні</Button> : null}</div>
+        <div className="flex flex-wrap gap-2">{cursor ? <Button variant="outline" disabled={loading} onClick={() => { setSelectedId(""); setCursor(null); }}>На початок</Button> : null}{page?.nextCursor ? <Button variant="outline" disabled={loading} onClick={() => { setSelectedId(""); setCursor(page?.nextCursor ?? null); }}><ChevronRight />Наступні</Button> : null}</div>
       </> : null}
     </div>
   </main>;
