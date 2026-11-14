@@ -4,7 +4,7 @@ import { getOptionalAuthUser } from "../auth/service";
 import { prisma } from "../prisma/client";
 import { matchingConditions } from "./matching";
 import { matchNotesSchema, noteConditionsSchema, noteIdSchema } from "./schemas";
-import { libraryQuerySchema, publicationRevisionSchema, publicationSchema, sharedKnowledgeAccess } from "./sharing";
+import { authorActivationSchema, libraryQuerySchema, publicationRevisionSchema, publicationSchema, sharedKnowledgeAccess } from "./sharing";
 
 export type KnowledgeSharingDependencies = {
   authenticate: (request: FastifyRequest) => Promise<{ id: string } | null>;
@@ -105,13 +105,35 @@ export async function registerKnowledgeSharingRoutes(app: FastifyInstance, {
       const records = await db.knowledgePublication.findMany({ where: { AND: [availableTo(user.id),
         ...(cursor ? [{ noteId: { gt: cursor } }] : []),
         ...(view === "active" ? [{ activations: { some: { userId: user.id } } }] : []),
-        ...(author ? [{ note: { owner: { username: { contains: author, mode: "insensitive" as const } } } }] : []),
+        ...(author ? [{ note: { owner: { username: { contains: author.replace(/^@/, ""), mode: "insensitive" as const } } } }] : []),
         ...(authorId ? [{ note: { ownerUserId: authorId } }] : []),
-        ...(query ? [{ OR: [{ title: { contains: query, mode: "insensitive" as const } }, { tags: { has: query } }] }] : [])
+        ...(query ? [{ OR: [{ title: { contains: query, mode: "insensitive" as const } }, { tags: { has: query } },
+          { note: { owner: { username: { contains: query.replace(/^@/, ""), mode: "insensitive" as const } } } }] }] : [])
       ] }, select: { ...publicSelect, activations: { where: { userId: user.id }, select: { acceptedRevision: true } } }, orderBy: { noteId: "asc" }, take: limit + 1 });
       return { access, notes: records.slice(0, limit).map((record) => ({ ...publicationView(record),
         activated: !!record.activations.length, updateAvailable: !!record.activations.length && record.activations[0]!.acceptedRevision !== record.revision })),
         nextCursor: records.length > limit ? records[limit - 1]!.noteId : null };
+    });
+
+    routes.post("/knowledge-library/author-activation", async (request, reply) => {
+      const user = await authenticate(request);
+      if (!user) return reply.code(401).send({ message: "Увійдіть до акаунта." });
+      const parsed = authorActivationSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ message: "Некоректний автор." });
+      const result = await db.$transaction(async (tx) => {
+        if (!(await accessFor(tx, user.id)).enabled) return { status: 403, message: accessMessage };
+        // Only new activations: changed revisions still require individual acceptance.
+        const publications = await tx.knowledgePublication.findMany({ where: { AND: [availableTo(user.id),
+          { note: { ownerUserId: parsed.data.authorId } }, { activations: { none: { userId: user.id } } }
+        ] }, select: { noteId: true, revision: true }, orderBy: { noteId: "asc" }, take: 500 });
+        if (!publications.length) return { activated: 0 };
+        const created = await tx.knowledgeActivation.createMany({ data: publications.map((publication) => ({
+          userId: user.id, publicationId: publication.noteId, acceptedRevision: publication.revision
+        })), skipDuplicates: true });
+        return { activated: created.count };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      if ("status" in result) return reply.code(result.status!).send({ message: result.message });
+      return result;
     });
 
     routes.get("/knowledge-library/:id", async (request, reply) => {

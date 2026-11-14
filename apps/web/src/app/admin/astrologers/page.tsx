@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
+import { KnowledgeAuthorActivation } from "@/components/knowledge-author-activation";
 
 type Sort = "rank" | "username" | "score" | "charts" | "forecasts" | "consultations" | "observations" | "publishedObservations";
 type Row = { id: string; username: string; rank: number; score: number; charts: number; forecasts: number;
@@ -102,7 +103,10 @@ export default function AstrologersPage() {
               <TableCell className="tabular-nums">{astrologer.consultations}</TableCell>
               <TableCell className="tabular-nums">{astrologer.observations}</TableCell>
               <TableCell className="tabular-nums">{astrologer.publishedObservations}</TableCell>
-              <TableCell>{astrologer.publishedObservations ? <Button asChild variant="outline" size="sm"><Link href={`/knowledge/library?${new URLSearchParams({ authorId: astrologer.id, authorName: astrologer.username })}`}><BookOpenText />Переглянути</Link></Button> : <span className="text-muted-foreground">Немає публікацій</span>}</TableCell>
+              <TableCell>{astrologer.publishedObservations ? <div className="space-y-2">
+                <Button asChild variant="outline" size="sm"><Link href={`/knowledge/library?${new URLSearchParams({ authorId: astrologer.id, authorName: astrologer.username })}`}><BookOpenText />Переглянути</Link></Button>
+                <KnowledgeAuthorActivation authorId={astrologer.id} authorName={astrologer.username} />
+              </div> : <span className="text-muted-foreground">Немає публікацій</span>}</TableCell>
             </TableRow>)}</TableBody>
           </Table>
           {!data.astrologers.length ? <p className="py-4 text-muted-foreground">Астрологів не знайдено.</p> : null}

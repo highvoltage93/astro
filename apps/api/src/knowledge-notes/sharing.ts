@@ -23,3 +23,5 @@ export const libraryQuerySchema = z.object({
 }).strict();
 
 export const publicationRevisionSchema = z.object({ revision: z.number().int().positive() }).strict();
+
+export const authorActivationSchema = z.object({ authorId: z.string().cuid() }).strict();

@@ -32,7 +32,7 @@ test("sharing endpoints require authentication before accessing any data", async
   const app = await createApp(t);
   for (const [method, url] of [
     ["GET", "/knowledge-library/access"], ["GET", "/knowledge-library"], ["GET", `/knowledge-library/${id}`],
-    ["POST", "/knowledge-library/matches"], ["PUT", `/knowledge-library/${id}/activation`], ["DELETE", `/knowledge-library/${id}/activation`],
+    ["POST", "/knowledge-library/matches"], ["POST", "/knowledge-library/author-activation"], ["PUT", `/knowledge-library/${id}/activation`], ["DELETE", `/knowledge-library/${id}/activation`],
     ["GET", `/knowledge-notes/${id}/publication`], ["PUT", `/knowledge-notes/${id}/publication`], ["DELETE", `/knowledge-notes/${id}/publication`]
   ] as const) assert.equal((await app.inject({ method, url })).statusCode, 401);
 });
@@ -108,6 +108,56 @@ test("ranking author links filter by exact owner ID while preserving publication
     } }
   });
   assert.equal((await app.inject({ method: "GET", url: `/knowledge-library?authorId=${authorId}`, headers })).statusCode, 200);
+});
+
+test("general search also finds author usernames without case sensitivity", async (t) => {
+  const app = await createApp(t, {
+    user: { findUnique: async () => ({ sharedKnowledgeUntil: until() }) },
+    knowledgePublication: { findMany: async (args: { where: { AND: unknown[] } }) => {
+      assert.deepEqual(args.where.AND[1], { OR: [
+        { title: { contains: "@Author", mode: "insensitive" } }, { tags: { has: "@Author" } },
+        { note: { owner: { username: { contains: "Author", mode: "insensitive" } } } }
+      ] });
+      return [{ ...record, activations: [] }];
+    } }
+  });
+  const response = await app.inject({ method: "GET", url: "/knowledge-library?query=%40Author", headers });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().notes[0].authorUsername, "author");
+});
+
+test("author activation grants only new available publications and keeps existing revisions", async (t) => {
+  const authorId = "cmf8exampleauthor000000001";
+  let enabled = false;
+  let writes = 0;
+  const tx = {
+    user: { findUnique: async () => ({ sharedKnowledgeUntil: enabled ? until() : null }) },
+    knowledgePublication: { findMany: async (args: { where: unknown; take: number }) => {
+      assert.equal(enabled, true);
+      assert.deepEqual(args.where, { AND: [
+        { published: true, note: { archived: false, ownerUserId: { not: "reader" } } },
+        { note: { ownerUserId: authorId } }, { activations: { none: { userId: "reader" } } }
+      ] });
+      assert.equal(args.take, 500);
+      return writes ? [] : [{ noteId: id, revision: 2 }];
+    } },
+    knowledgeActivation: { createMany: async (args: unknown) => {
+      assert.deepEqual(args, { data: [{ userId: "reader", publicationId: id, acceptedRevision: 2 }], skipDuplicates: true });
+      writes++;
+      return { count: 1 };
+    } }
+  };
+  const app = await createApp(t, { $transaction: transaction(tx) });
+  const send = () => app.inject({ method: "POST", url: "/knowledge-library/author-activation", headers, payload: { authorId } });
+  assert.equal((await send()).statusCode, 403);
+  assert.equal(writes, 0);
+  enabled = true;
+  const response = await send();
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json(), { activated: 1 });
+  assert.deepEqual((await send()).json(), { activated: 0 });
+  assert.equal(writes, 1);
+  assert.equal((await app.inject({ method: "POST", url: "/knowledge-library/author-activation", headers, payload: { authorId: "invalid" } })).statusCode, 400);
 });
 
 test("activation checks entitlement and revision inside one transaction", async (t) => {

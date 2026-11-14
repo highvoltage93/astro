@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Check, ChevronRight, LockKeyhole, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { KnowledgeAuthorActivation } from "@/components/knowledge-author-activation";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { KnowledgeError, knowledgeConditionText, knowledgeLibraryRequest,
   type SharedKnowledgeAccess, type SharedKnowledgeNote, type SharedKnowledgeSummary } from "@/lib/knowledge-notes";
@@ -33,6 +34,17 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
   const [detailError, setDetailError] = useState("");
   const [notice, setNotice] = useState("");
   const reload = () => setAttempt((value) => value + 1);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const nextQuery = query.trim();
+      const nextAuthor = filters.authorId ? "" : author.trim().replace(/^@/, "");
+      if (nextQuery !== filters.query || nextAuthor !== filters.author) {
+        setCursor(null);
+        setFilters((current) => ({ ...current, query: nextQuery, author: nextAuthor }));
+      }
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [query, author, filters]);
   const revoke = () => { setAccess((current) => ({ enabled: false, expiresAt: current?.expiresAt ?? null })); setPage(null); setNote(null); };
   function failed(failure: unknown, detail = false) {
     if (failure instanceof KnowledgeError && failure.status === 401) {
@@ -110,14 +122,15 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
       {access && !access.enabled ? <section className="space-y-3 border-y py-6"><LockKeyhole className="text-primary" /><h2 className="text-lg font-semibold">Доступ до каталогу не активний</h2><p className="text-muted-foreground">Безкоштовний доступ: власні спостереження. Доступ до спостережень інших астрологів під час бети надає адміністратор до визначеної дати.</p><Button asChild variant="outline"><Link href="/knowledge">Мої спостереження</Link></Button></section> : null}
       {access?.enabled ? <>
         <p className="text-sm text-muted-foreground">Доступ до {access.expiresAt ? new Date(access.expiresAt).toLocaleString("uk-UA") : "—"}</p>
-        <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => { event.preventDefault(); setCursor(null); setFilters((current) => ({ ...current, query: query.trim(), author: current.authorId ? "" : author.trim() })); }}>
-          <Input aria-label="Назва або тег" placeholder="Назва або тег" value={query} maxLength={160} onChange={(event) => setQuery(event.target.value)} />
+        <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => { event.preventDefault(); setCursor(null); setFilters((current) => ({ ...current, query: query.trim(), author: current.authorId ? "" : author.trim().replace(/^@/, "") })); }}>
+          <Input aria-label="Автор, назва або тег" placeholder="Автор, назва або тег" value={query} maxLength={160} onChange={(event) => setQuery(event.target.value)} />
           <div className="flex min-w-0 gap-2"><Input aria-label="Username автора" placeholder="Username автора" disabled={!!filters.authorId}
             value={filters.authorId ? authorName || "Обраний автор" : author} maxLength={50} onChange={(event) => setAuthor(event.target.value)} />
-            {filters.authorId ? <Button type="button" size="icon" variant="outline" title="Усі автори" aria-label="Прибрати фільтр автора" onClick={() => { setCursor(null); setFilters((current) => ({ query: current.query, author: "" })); }}><X /></Button> : null}
+            {filters.authorId ? <Button type="button" size="icon" variant="outline" title="Усі автори" aria-label="Прибрати фільтр автора" onClick={() => { setCursor(null); setAuthor(""); setFilters((current) => ({ query: current.query, author: "" })); }}><X /></Button> : null}
           </div>
           <Button type="submit" disabled={loading || busy} aria-label="Пошук"><Search />Знайти</Button>
         </form>
+        {filters.authorId && !activeOnly ? <KnowledgeAuthorActivation key={filters.authorId} authorId={filters.authorId} authorName={authorName || "обраного автора"} onActivated={reload} /> : null}
         {selectedId ? <section id="shared-knowledge-detail" className="scroll-mt-4 space-y-3 border-y py-5">
           <div className="flex items-start justify-between gap-3"><h2 className="min-w-0 break-words text-lg font-semibold">{note?.title ?? "Публікація"}</h2><Button size="icon" variant="ghost" title="Закрити" aria-label="Закрити публікацію" onClick={() => setSelectedId("")}><X /></Button></div>
           {reading ? <p role="status">Завантаження тексту…</p> : null}
@@ -136,7 +149,9 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
         <section className="divide-y">{page?.notes.map((item) => <button type="button" key={item.id} disabled={busy} className="flex w-full items-start justify-between gap-3 py-4 text-left hover:bg-accent" onClick={() => { setSelectedId(item.id); setNotice(""); }}>
           <span className="min-w-0"><span className="block break-words font-semibold">{item.title}</span><span className="mt-1 block break-words text-sm text-muted-foreground">{item.authorUsername} · v{item.revision} · {item.tags.join(" · ")}</span><span className="mt-1 block text-sm text-primary">{item.updateAvailable ? "Очікує прийняття оновлення" : item.activated ? "Активовано" : ""}</span></span><ChevronRight className="size-5 shrink-0" />
         </button>)}</section>
-        {!loading && page && !page.notes.length ? <p className="text-muted-foreground">Спостережень не знайдено.</p> : null}
+        {!loading && page && !page.notes.length ? <p className="text-muted-foreground">{activeOnly
+          ? "Активованих спостережень за цим запитом немає."
+          : "Опублікованих спостережень за цим запитом немає. Автор має опублікувати їх зі своїх нотаток; приватні й архівні записи недоступні."}</p> : null}
         <div className="flex flex-wrap gap-2">{cursor ? <Button variant="outline" disabled={loading} onClick={() => setCursor(null)}>На початок</Button> : null}{page?.nextCursor ? <Button variant="outline" disabled={loading} onClick={() => setCursor(page?.nextCursor ?? null)}><ChevronRight />Наступні</Button> : null}</div>
       </> : null}
     </div>
