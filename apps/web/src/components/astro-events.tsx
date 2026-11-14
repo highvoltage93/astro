@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { DateTime } from "luxon";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Loader2, Moon, Orbit, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BetaBadge } from "@/components/ui/beta-badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReturnPlaceSearch } from "@/components/return-place-search";
@@ -122,7 +123,7 @@ export function AstroEventsPage() {
   if (!token) return <main className="p-6"><p role="status">Перевіряю доступ…</p></main>;
   return <main className="app-shell-background min-h-screen px-3 py-5 sm:px-6 lg:px-8">
     <div className="mx-auto max-w-6xl space-y-5">
-      <header className="flex items-center gap-3"><Orbit className="size-6 text-primary" /><h1 className="text-2xl font-semibold">Астроподії</h1></header>
+      <header className="flex items-center gap-3"><Orbit className="size-6 shrink-0 text-primary" /><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">Астроподії<BetaBadge /></h1></header>
       <Tabs items={groups} value={group} onChange={setGroup} label="Розділи астроподій" />
       {group === "moon" ? <Tabs items={moonTabs} value={moonTab} onChange={setMoonTab} label="Рух Місяця" /> : null}
       <section id="astro-events-panel" role="tabpanel" aria-label={group === "moon" ? moonTabs.find((tab) => tab.key === moonTab)?.label : groups.find((tab) => tab.key === group)?.label} className="space-y-5">

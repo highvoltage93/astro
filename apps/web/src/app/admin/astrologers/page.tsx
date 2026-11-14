@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, BookOpenText, ChevronLeft, ChevronRight, RefreshCw, Search, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BetaBadge } from "@/components/ui/beta-badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -75,7 +76,7 @@ export default function AstrologersPage() {
   return <main className="app-shell-background min-h-screen px-3 py-5 sm:px-6">
     <div className="mx-auto max-w-7xl space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <div><h1 className="flex items-center gap-2 text-2xl font-semibold"><Trophy className="shrink-0 text-primary" />Топ астрологів</h1><p className="mt-1 text-sm text-muted-foreground">Рейтинг активності · доступ лише для адміністратора</p></div>
+        <div><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold"><Trophy className="shrink-0 text-primary" />Топ астрологів<BetaBadge /></h1><p className="mt-1 text-sm text-muted-foreground">Рейтинг активності · доступ лише для адміністратора</p></div>
         <Button variant="outline" disabled={loading} onClick={() => setAttempt((value) => value + 1)}><RefreshCw className={loading ? "animate-spin" : ""} />Оновити</Button>
       </header>
       {error ? <p role="alert" className="break-words text-destructive">{error}</p> : null}

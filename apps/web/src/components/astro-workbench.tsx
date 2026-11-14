@@ -2,6 +2,7 @@
 
 import { EventSearch } from "@/components/event-search";
 import { KnowledgeMatches } from "@/components/knowledge-matches";
+import { BetaBadge } from "@/components/ui/beta-badge";
 import { BirthDateInput, BirthTimeInput } from "@/components/birth-inputs";
 import { parseBirthDateText, parseBirthTimeText } from "@/lib/birth-input";
 import { aspectKnowledgeSeed, pointKnowledgeSeed, knowledgeSeedHref, type KnowledgeSourceContext } from "@/lib/knowledge-note-seed";
@@ -1780,12 +1781,15 @@ export function AstroWorkbench() {
                 <Settings2 />
               </Button>
               {chart && savedProfileId && isCurrentProfileOwned && status !== "loading" ? (
+                <span className="inline-flex items-center gap-1.5">
                 <Button asChild size="icon" variant="secondary">
                   <a href={`/knowledge?source=${encodeURIComponent(savedProfileId)}`} target="_blank" rel="noopener noreferrer"
-                    title="Нове спостереження" aria-label="Створити спостереження з цієї карти у новій вкладці">
+                    title="Нове спостереження · Beta" aria-label="Створити спостереження з цієї карти у новій вкладці · Beta">
                     <NotebookPen />
                   </a>
                 </Button>
+                <BetaBadge />
+                </span>
               ) : null}
               {chart && authToken && status === "ready" && orbApplyStatus !== "loading" ? <KnowledgeMatches chart={chart} token={authToken} /> : null}
             </div>
@@ -5228,9 +5232,9 @@ function SyntheticScoreGroup({
   );
 }
 
-function ObservationLink({ href, label }: { href?: string; label: string }) {
+function ObservationLink({ href, label, showBeta = false }: { href?: string; label: string; showBeta?: boolean }) {
   if (!href) return null;
-  return <Button asChild size="icon" variant="ghost"><a href={href} target="_blank" rel="noopener noreferrer" title={`Нове спостереження: ${label}`} aria-label={`Створити спостереження: ${label} (нова вкладка)`}><NotebookPen /></a></Button>;
+  return <span className="inline-flex items-center gap-1.5"><Button asChild size="icon" variant="ghost"><a href={href} target="_blank" rel="noopener noreferrer" title={`Нове спостереження: ${label} · Beta`} aria-label={`Створити спостереження: ${label} (нова вкладка) · Beta`}><NotebookPen /></a></Button>{showBeta ? <BetaBadge /> : null}</span>;
 }
 
 function PlacementsTable({ placements, observationContext }: { placements: ChartPoint[]; observationContext?: KnowledgeSourceContext }) {
@@ -5245,7 +5249,7 @@ function PlacementsTable({ placements, observationContext }: { placements: Chart
               <TableHead>Позиція</TableHead>
               <TableHead>Дім</TableHead>
               <TableHead>Рух</TableHead>
-              {observationContext ? <TableHead className="w-11"><span className="sr-only">Спостереження</span></TableHead> : null}
+              {observationContext ? <TableHead className="w-11 px-1" title="Спостереження · Beta"><span className="sr-only">Спостереження</span><BetaBadge /></TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -5840,7 +5844,7 @@ function AspectsTable({ aspects, points, observationContext }: { aspects: Aspect
               <TableHead>Аспект</TableHead>
               <TableHead>Планета B</TableHead>
               <TableHead>Орб</TableHead>
-              {observationContext ? <TableHead className="w-11"><span className="sr-only">Спостереження</span></TableHead> : null}
+              {observationContext ? <TableHead className="w-11 px-1" title="Спостереження · Beta"><span className="sr-only">Спостереження</span><BetaBadge /></TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -6463,7 +6467,7 @@ export function ChartWheel({
             )}
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
-            {activePoint && observationContext ? <ObservationLink href={knowledgeSeedHref(pointKnowledgeSeed(activePoint, observationContext.birthTimeKnown), observationContext.sourceProfileId)} label={pointLabelUk(activePoint.key, activePoint.label)} /> : null}
+            {activePoint && observationContext ? <ObservationLink showBeta href={knowledgeSeedHref(pointKnowledgeSeed(activePoint, observationContext.birthTimeKnown), observationContext.sourceProfileId)} label={pointLabelUk(activePoint.key, activePoint.label)} /> : null}
             <Badge variant="outline" className="border-[var(--aspect-harmonious)]/50 text-[var(--aspect-harmonious)]">
               Гармонійні
             </Badge>

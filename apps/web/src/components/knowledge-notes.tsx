@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Archive, ChevronRight, Copy, History, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BetaBadge } from "@/components/ui/beta-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -172,8 +173,8 @@ export function KnowledgeNotesPage({ source, noteId, seed }: { source?: string; 
 
   return <main className="app-shell-background min-h-screen px-3 py-5 sm:px-6">
     <div className="mx-auto max-w-5xl space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm text-muted-foreground">Особиста база знань</p><h1 className="text-2xl font-semibold">Мої спостереження</h1></div>
-        <Button disabled={busy} onClick={() => { if (canLeave()) create(); }}><Plus />Нове спостереження</Button></header>
+      <header className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm text-muted-foreground">Особиста база знань</p><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">Мої спостереження<BetaBadge /></h1></div>
+        <Button disabled={busy} onClick={() => { if (canLeave()) create(); }}><Plus />Нове спостереження<BetaBadge className="border-primary-foreground/30 bg-none text-inherit" /></Button></header>
       <nav aria-label="Розділи спостережень" className="flex flex-wrap gap-2 border-b pb-3">
         <Button asChild variant="secondary"><Link href="/knowledge" aria-current="page">Мої</Link></Button>
         <Button asChild variant="ghost"><Link href="/knowledge/library">Каталог астрологів</Link></Button>

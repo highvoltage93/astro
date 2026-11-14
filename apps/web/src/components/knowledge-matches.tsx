@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BookOpenText, ChevronDown, ExternalLink, Loader2, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BetaBadge } from "@/components/ui/beta-badge";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import type { ChartResult } from "@/lib/chart-types";
 import { knowledgeChartFacts, knowledgeConditionText, knowledgeRequest, knowledgeLibraryRequest, KnowledgeError,
@@ -76,7 +77,7 @@ function MatchesDrawer({ children, onClose }: { children: ReactNode; onClose: ()
   return <div className="fixed inset-0 z-50">
     <button className="absolute inset-0 bg-background/70 backdrop-blur-sm" tabIndex={-1} aria-label="Закрити спостереження" onClick={onClose} />
     <aside ref={panel} role="dialog" aria-modal="true" aria-labelledby="knowledge-matches-title" className="absolute right-0 top-0 flex h-dvh w-full max-w-[680px] flex-col border-l bg-background shadow-xl">
-      <header className="flex items-center justify-between gap-3 border-b p-4"><h2 id="knowledge-matches-title" className="text-lg font-semibold">Збіги зі спостереженнями</h2><Button ref={closeButton} size="icon" variant="ghost" title="Закрити" aria-label="Закрити спостереження" onClick={onClose}><X /></Button></header>
+      <header className="flex items-center justify-between gap-3 border-b p-4"><h2 id="knowledge-matches-title" className="flex min-w-0 flex-wrap items-center gap-2 text-lg font-semibold">Збіги зі спостереженнями<BetaBadge /></h2><Button ref={closeButton} size="icon" className="shrink-0" variant="ghost" title="Закрити" aria-label="Закрити спостереження" onClick={onClose}><X /></Button></header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
     </aside>
   </div>;
@@ -165,7 +166,7 @@ function ChartMatches({ facts, token }: { facts: string; token: string }) {
   const total = matches.length + sharedMatches.length;
   return <>
     <Button variant="secondary" title="Власні та активовані спостереження для цієї карти" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}>
-      {busy || sharedBusy ? <Loader2 className="animate-spin" /> : <BookOpenText />}Спостереження
+      {busy || sharedBusy ? <Loader2 className="animate-spin" /> : <BookOpenText />}Спостереження<BetaBadge />
       <span className="min-w-5 tabular-nums">{(busy || sharedBusy) && !total ? "…" : error ? "!" : `${total}${nextCursor || sharedNextCursor ? "+" : ""}`}</span>
     </Button>
     {open ? <MatchesDrawer onClose={() => setOpen(false)}>

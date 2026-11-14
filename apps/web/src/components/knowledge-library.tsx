@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Check, ChevronRight, LockKeyhole, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BetaBadge } from "@/components/ui/beta-badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { KnowledgeAuthorActivation } from "@/components/knowledge-author-activation";
@@ -135,7 +136,7 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
   }
   return <main className="app-shell-background min-h-screen px-3 py-5 sm:px-6">
     <div className="mx-auto max-w-5xl space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold">Спостереження астрологів</h1><Button variant="outline" disabled={loading || busy} onClick={reload}><RefreshCw />Оновити</Button></header>
+      <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">Спостереження астрологів<BetaBadge /></h1><Button variant="outline" disabled={loading || busy} onClick={reload}><RefreshCw />Оновити</Button></header>
       <nav aria-label="Розділи спостережень" className="flex flex-wrap gap-2 border-b pb-3">
         <Button asChild variant="ghost"><Link href="/knowledge">Мої</Link></Button>
         <Button asChild variant={activeOnly ? "ghost" : "secondary"}><Link href="/knowledge/library" aria-current={!activeOnly ? "page" : undefined}>Каталог астрологів</Link></Button>

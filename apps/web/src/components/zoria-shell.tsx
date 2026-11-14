@@ -9,6 +9,7 @@ import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { cn } from "@/lib/utils";
 import { FeedbackButton } from "./feedback-button";
 import { LegalLinks } from "./legal-links";
+import { BetaBadge } from "./ui/beta-badge";
 
 const navigation = [
   { href: "/", label: "Дешборд", icon: LayoutDashboard },
@@ -50,9 +51,10 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
         <nav aria-label="Головна навігація" className="grid grid-cols-2 gap-1 px-2 pb-2 sm:grid-cols-3 lg:grid-cols-1 lg:gap-2 lg:px-3">
           {items.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
-            return <Link key={href} href={href} title={label} aria-label={label} aria-current={active ? "page" : undefined}
-              className={cn("flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border border-transparent px-2 py-3 text-xs transition-colors hover:bg-secondary sm:flex-row sm:gap-2 lg:px-3 lg:text-sm min-[1440px]:justify-start", active ? "border-primary/30 bg-primary/10 text-primary" : "text-muted-foreground")}>
-              <Icon aria-hidden="true" className="size-4 shrink-0" /><span className="break-words lg:hidden min-[1440px]:block">{label}</span>
+            const beta = ["/knowledge", "/astro-events", "/admin/astrologers", "/admin/observations"].includes(href);
+            return <Link key={href} href={href} title={`${label}${beta ? " · Beta" : ""}`} aria-label={`${label}${beta ? " · Beta" : ""}`} aria-current={active ? "page" : undefined}
+              className={cn("flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border border-transparent px-2 py-3 text-xs transition-colors hover:bg-secondary sm:flex-row sm:gap-2 lg:flex-col lg:px-1 lg:text-sm min-[1440px]:flex-row min-[1440px]:justify-start min-[1440px]:px-3", active ? "border-primary/30 bg-primary/10 text-primary" : "text-muted-foreground")}>
+              <Icon aria-hidden="true" className="size-4 shrink-0" /><span className={cn("min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-1 min-[1440px]:justify-start", beta ? "flex" : "flex lg:hidden min-[1440px]:flex")}><span className="min-w-0 break-words lg:hidden min-[1440px]:block">{label}</span>{beta ? <BetaBadge /> : null}</span>
             </Link>;
           })}
         </nav>

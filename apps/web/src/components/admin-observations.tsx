@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BetaBadge } from "@/components/ui/beta-badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -73,7 +74,7 @@ export function AdminObservations({ authorId }: { authorId?: string }) {
     return () => { window.removeEventListener("focus", focus); window.removeEventListener("storage", changed); };
   }, []);
   return <main className="app-shell-background min-h-screen px-3 py-5 sm:px-6"><div className="mx-auto max-w-6xl space-y-5">
-    <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-semibold">Усі спостереження</h1><p className="text-sm text-muted-foreground">Адміністративний перегляд · лише читання</p></div><Button variant="outline" disabled={loading} onClick={() => setAttempt((value) => value + 1)}><RefreshCw />Оновити</Button></header>
+    <header className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold">Усі спостереження<BetaBadge /></h1><p className="text-sm text-muted-foreground">Адміністративний перегляд · лише читання</p></div><Button variant="outline" disabled={loading} onClick={() => setAttempt((value) => value + 1)}><RefreshCw />Оновити</Button></header>
     <nav className="flex flex-wrap gap-2"><Button asChild variant="outline"><Link href="/knowledge/library">Публічний каталог</Link></Button>{authorId ? <Button asChild variant="outline"><Link href="/admin/observations">Усі автори</Link></Button> : null}</nav>
     <form className="flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(search.trim()); setCursor(null); setAttempt((value) => value + 1); }}>
       <Input className="min-w-0 flex-1 basis-56" aria-label="Автор, назва або тег" placeholder="Автор, назва або тег" value={search} maxLength={160} onChange={(event) => setSearch(event.target.value)} />

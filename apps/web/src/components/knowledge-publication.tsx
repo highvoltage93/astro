@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Copy, EyeOff, RefreshCw, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BetaBadge } from "@/components/ui/beta-badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { knowledgeConditionText, knowledgeRequest, type KnowledgeNote, type KnowledgePublication } from "@/lib/knowledge-notes";
@@ -59,7 +60,7 @@ export function KnowledgePublicationEditor({ note, disabled }: { note: Knowledge
     finally { setBusy(false); }
   }
   return <section className="space-y-3 border-t pt-4">
-    <h3 className="font-semibold">Публікація для спільноти</h3>
+    <h3 className="flex flex-wrap items-center gap-2 font-semibold">Публікація для спільноти<BetaBadge /></h3>
     <p className="text-sm text-muted-foreground">{loading ? "Завантаження…" : publication?.published ? `Опубліковано · v${publication.revision}` : "Приватне спостереження"}</p>
     {disabled ? <p className="text-sm text-muted-foreground">Є незбережені зміни нотатки</p> : null}
     {error ? <div role="alert" className="space-y-2"><p className="text-sm text-destructive">{error}</p><Button variant="outline" disabled={blocked} onClick={() => setReload((value) => value + 1)}><RefreshCw />Перечитати публікацію</Button></div> : null}
