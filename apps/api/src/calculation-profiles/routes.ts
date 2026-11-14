@@ -12,9 +12,9 @@ const builtins = ([
   ["traditional", "Традиційні управителі"],
   ["modern", "Сучасні управителі"]
 ] as Array<[RulershipModel, string]>).map(([model, name]) => ({
-  id: `builtin:${model}:2`, name, revision: 2, schemaVersion: 1, builtIn: true,
+  id: `builtin:${model}:3`, name, revision: 3, schemaVersion: 1, builtIn: true,
   config: {
-    calculationRules: defaultCalculationRules(model), houseSystem: "koch", zodiac: "tropical", pointOrbs,
+    calculationRules: { ...defaultCalculationRules(model), lunarNodeType: "mean" }, houseSystem: "koch", zodiac: "tropical", pointOrbs,
     visiblePointKeys: Object.fromEntries([...Object.keys(pointOrbs), "desc", "ic"].map((key) => [key, true]))
   }
 }));
@@ -49,9 +49,14 @@ export const registerCalculationProfileRoutes = async (
     if (!user) return reply.code(401).send({ message: "Потрібно увійти в обліковий запис." });
     const parsed = saveCalculationProfileSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ message: "Перевір назву й налаштування профілю.", issues: parsed.error.flatten() });
-    const record = await db.calculationProfile.create({
+    const create = (client: Pick<Prisma.TransactionClient, "calculationProfile">) => client.calculationProfile.create({
       data: { ownerUserId: user.id, name: parsed.data.name, configJson: toJson(parsed.data.config) }
     });
+    const record = parsed.data.makeDefault ? await db.$transaction(async (tx) => {
+      const saved = await create(tx);
+      await tx.user.update({ where: { id: user.id }, data: { defaultCalculationProfileId: saved.id } });
+      return saved;
+    }) : await create(db);
     return reply.code(201).send({ profile: view(record) });
   });
 
@@ -62,10 +67,15 @@ export const registerCalculationProfileRoutes = async (
     const parsed = updateCalculationProfileSchema.safeParse(request.body);
     if (!params.success || !parsed.success) return reply.code(400).send({ message: "Некоректний профіль розрахунку." });
     try {
-      const record = await db.calculationProfile.update({
+      const update = (client: Pick<Prisma.TransactionClient, "calculationProfile">) => client.calculationProfile.update({
         where: { id: params.data.id, ownerUserId: user.id, revision: parsed.data.revision },
         data: { name: parsed.data.name, configJson: toJson(parsed.data.config), revision: { increment: 1 } }
       });
+      const record = parsed.data.makeDefault ? await db.$transaction(async (tx) => {
+        const saved = await update(tx);
+        await tx.user.update({ where: { id: user.id }, data: { defaultCalculationProfileId: saved.id } });
+        return saved;
+      }) : await update(db);
       return { profile: view(record) };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

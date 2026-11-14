@@ -24,6 +24,10 @@ export const legacyCalculationRules = (): CalculationRules => ({
   version: 1, lunarNodeType: "true", rulershipModel: "astroprocessor", containedSignMinDegrees: 12.5,
   lilithRulesEighthHouse: true, tenseHouses: [6, 8, 12]
 });
+// Archived cards without an explicit node type retain the historical true node.
+export const newCalculationRules = (): CalculationRules => ({
+  ...legacyCalculationRules(), lunarNodeType: "mean"
+});
 export const rulershipModelLabels: Record<CalculationRules["rulershipModel"], string> = {
   astroprocessor: "ZORIA ASTROPROCESSOR: поточні правила", traditional: "Традиційні управителі", modern: "Сучасні управителі"
 };

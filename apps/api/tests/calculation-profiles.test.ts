@@ -7,7 +7,7 @@ import { registerCalculationProfileRoutes, type CalculationProfileDependencies }
 import { calculationProfileConfigSchema, updateCalculationProfileSchema } from "../src/calculation-profiles/schemas";
 import { natalPreviewSchema } from "../src/charts/schemas";
 import { savedForecastInputSchema } from "../src/saved-forecasts/schemas";
-import { sameProfileConfig } from "../../web/src/lib/calculation-profiles";
+import { legacyCalculationRules, newCalculationRules, sameProfileConfig } from "../../web/src/lib/calculation-profiles";
 
 const config = {
   calculationRules: defaultCalculationRules("modern"), houseSystem: "koch", zodiac: "tropical" as const,
@@ -50,6 +50,68 @@ test("catalog reads only the current user's profiles", async (t) => {
   assert.equal(response.headers["cache-control"], "private, no-store");
   assert.equal(response.json().profiles.length, 3);
   assert.ok(response.json().profiles.every((profile: { builtIn: boolean }) => profile.builtIn));
+  assert.ok(response.json().profiles.every((profile: { revision: number; config: typeof config }) =>
+    profile.revision === 3 && profile.config.calculationRules.lunarNodeType === "mean"));
+});
+
+test("new UI defaults use the mean node without changing legacy snapshots", () => {
+  assert.equal(newCalculationRules().lunarNodeType, "mean");
+  assert.equal(legacyCalculationRules().lunarNodeType, "true");
+  const { lunarNodeType: _node, ...oldRules } = legacyCalculationRules();
+  assert.equal(sameProfileConfig({ ...config, calculationRules: oldRules }, {
+    ...config, calculationRules: legacyCalculationRules()
+  }), true);
+  assert.equal(sameProfileConfig({ ...config, calculationRules: oldRules }, {
+    ...config, calculationRules: newCalculationRules()
+  }), false);
+});
+
+test("saving account defaults creates or updates the complete snapshot in one transaction", async (t) => {
+  const updates: unknown[] = [];
+  let transactions = 0;
+  const tx = {
+    calculationProfile: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        assert.equal(data.ownerUserId, "owner");
+        assert.deepEqual(data.configJson, config);
+        return { ...data, id: "defaults", revision: 1, schemaVersion: 1 };
+      },
+      update: async ({ where, data }: { where: unknown; data: Record<string, unknown> }) => {
+        assert.deepEqual(where, { id: "defaults", ownerUserId: "owner", revision: 1 });
+        assert.deepEqual(data.configJson, config);
+        assert.deepEqual(data.revision, { increment: 1 });
+        return { ...data, id: "defaults", revision: 2, schemaVersion: 1 };
+      }
+    },
+    user: { update: async (args: unknown) => { updates.push(args); return {}; } }
+  };
+  const app = await createApp(t, {
+    calculationProfile: { create: unexpected, update: unexpected },
+    $transaction: async (action: (transaction: typeof tx) => Promise<unknown>) => { transactions++; return action(tx); }
+  });
+  for (const method of ["POST", "PUT"] as const) {
+    const response = await app.inject({ method, url: `/calculation-profiles${method === "PUT" ? "/defaults" : ""}`, headers,
+      payload: { name: "Defaults", config, makeDefault: true, ...(method === "PUT" ? { revision: 1 } : {}) } });
+    assert.equal(response.statusCode, method === "POST" ? 201 : 200);
+    assert.equal(response.json().profile.id, "defaults");
+  }
+  assert.equal(transactions, 2);
+  assert.deepEqual(updates, Array.from({ length: 2 }, () => ({
+    where: { id: "owner" }, data: { defaultCalculationProfileId: "defaults" }
+  })));
+});
+
+test("a conflicting default profile update does not change the account default", async (t) => {
+  const tx = {
+    calculationProfile: { update: async () => {
+      throw new Prisma.PrismaClientKnownRequestError("Conflict", { code: "P2025", clientVersion: "5.18.0" });
+    } },
+    user: { update: unexpected }
+  };
+  const app = await createApp(t, { $transaction: async (action: (transaction: typeof tx) => Promise<unknown>) => action(tx) });
+  const response = await app.inject({ method: "PUT", url: "/calculation-profiles/foreign", headers,
+    payload: { name: "Defaults", config, revision: 1, makeDefault: true } });
+  assert.equal(response.statusCode, 409);
 });
 
 test("creation binds ownership server-side and revisions are optimistic", async (t) => {

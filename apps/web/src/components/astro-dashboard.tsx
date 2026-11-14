@@ -50,7 +50,7 @@ const initialDashboardForm: DashboardFormState = {
   longitude: "30.5234",
   timezone: "Europe/Kyiv",
   houseSystem: "koch",
-  lunarNodeType: "true",
+  lunarNodeType: "mean",
   zodiac: "tropical"
 };
 
@@ -359,7 +359,7 @@ export function AstroDashboard() {
                       setProfilesError(null); setProfilesStatus("ready");
                       setForm((current) => ({ ...current,
                         houseSystem: profile?.config.houseSystem ?? initialDashboardForm.houseSystem,
-                        lunarNodeType: profile?.config.calculationRules.lunarNodeType ?? "true",
+                        lunarNodeType: profile ? profile.config.calculationRules.lunarNodeType ?? "true" : "mean",
                         zodiac: profile?.config.zodiac ?? initialDashboardForm.zodiac
                       }));
                       profileSettingsTouched.current = true;

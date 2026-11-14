@@ -26,7 +26,8 @@ export const calculationProfileConfigSchema = z.object({
 
 export const saveCalculationProfileSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  config: calculationProfileConfigSchema
+  config: calculationProfileConfigSchema,
+  makeDefault: z.boolean().optional()
 }).strict();
 
 export const updateCalculationProfileSchema = saveCalculationProfileSchema.extend({

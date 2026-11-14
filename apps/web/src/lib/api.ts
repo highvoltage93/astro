@@ -44,7 +44,7 @@ export const listCalculationProfiles = async (token: string): Promise<Calculatio
   profileResponse(await fetch(`${API_URL}/calculation-profiles`, { headers: authHeaders(token), cache: "no-store" }));
 
 export const saveCalculationProfile = async (
-  token: string, payload: { name: string; config: CalculationProfileConfig }, existing?: { id: string; revision: number }
+  token: string, payload: { name: string; config: CalculationProfileConfig; makeDefault?: boolean }, existing?: { id: string; revision: number }
 ): Promise<{ profile: CalculationProfile }> => profileResponse(await fetch(
   `${API_URL}/calculation-profiles${existing ? `/${encodeURIComponent(existing.id)}` : ""}`, {
     method: existing ? "PUT" : "POST", headers: jsonHeaders(token),

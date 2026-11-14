@@ -52,7 +52,7 @@ import { ForecastSaveControl, SavedForecastsDrawer } from "@/components/forecast
 import { CalculationProfilesEditor } from "@/components/calculation-profiles-editor";
 import { ConsultationPanel } from "@/components/consultations";
 import { planetLabelsUk, signLabelsUk, aspectLabels } from "@/lib/astrology-labels";
-import { legacyCalculationRules, rulershipModelLabels } from "@/lib/calculation-profiles";
+import { legacyCalculationRules, newCalculationRules, rulershipModelLabels } from "@/lib/calculation-profiles";
 import { calculateSignatureFields } from "@/lib/signature-fields";
 import type { CalculationProfileConfig, CalculationProfileReference, CalculationRules } from "@/lib/calculation-profiles";
 import type { ForecastArchiveDraft, ForecastSubject, SavedForecast } from "@/lib/forecast-archive";
@@ -733,7 +733,7 @@ export function AstroWorkbench() {
   const [archiveLoadAttempt, setArchiveLoadAttempt] = useState(0);
   const [forecastDrafts, setForecastDrafts] = useState<Partial<Record<WorkspaceTab, ForecastArchiveDraft>>>({});
   const [pointOrbs, setPointOrbs] = useState<PointOrbSettings>(defaultPointOrbs);
-  const [calculationRules, setCalculationRules] = useState<CalculationRules>(legacyCalculationRules);
+  const [calculationRules, setCalculationRules] = useState<CalculationRules>(newCalculationRules);
   const [calculationProfile, setCalculationProfile] = useState<CalculationProfileReference | undefined>();
   const settingsRequestInFlight = useRef(false);
   const [visiblePointKeys, setVisiblePointKeys] = useState<VisiblePointSettings>(defaultVisiblePointKeys);
@@ -898,7 +898,7 @@ export function AstroWorkbench() {
     setForm(initialForm);
     setPartnerForm(initialPartnerForm);
     setPointOrbs(defaultPointOrbs);
-    setCalculationRules(legacyCalculationRules());
+    setCalculationRules(newCalculationRules());
     setCalculationProfile(undefined);
     setVisiblePointKeys(defaultVisiblePointKeys);
     setChart(null);

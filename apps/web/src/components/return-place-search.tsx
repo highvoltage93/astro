@@ -45,12 +45,27 @@ export function ReturnPlaceSearch({ name, onSelect, onPendingChange, label = "М
     return () => { window.clearTimeout(timeout); controller.abort(); };
   }, [query, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    // Safari can blur the input without focusing a clicked suggestion.
+    // Dismiss on an outside interaction, not on that intermediate blur.
+    const dismissOutside = (event: Event) => {
+      if (!(event.target instanceof Node) || !container.current || container.current.contains(event.target)) return;
+      request.current?.abort();
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", dismissOutside, true);
+    document.addEventListener("focusin", dismissOutside, true);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside, true);
+      document.removeEventListener("focusin", dismissOutside, true);
+    };
+  }, [open]);
+
   const close = () => { request.current?.abort(); setOpen(false); };
   return (
-    <div ref={container} className="relative min-w-0" onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) close();
-    }} onKeyDown={(event) => {
-      if (event.key === "Escape") { event.preventDefault(); close(); container.current?.querySelector("input")?.focus(); }
+    <div ref={container} className="relative min-w-0" onKeyDown={(event) => {
+      if (event.key === "Escape") { event.preventDefault(); container.current?.querySelector("input")?.focus(); close(); }
     }}>
       <Input aria-label={label} autoComplete="off" placeholder={label} value={query}
         onFocus={() => { if (query !== name) { setError(null); setOpen(true); } }}

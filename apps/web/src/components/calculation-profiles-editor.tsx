@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, RefreshCw, Save, Star, Trash2 } from "lucide-react";
+import { Check, Copy, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ export function CalculationProfilesEditor({ token, config, reference, busy: appl
   const [selectedId, setSelectedId] = useState("current");
   const [name, setName] = useState(reference?.name ?? "Мій профіль");
   const [loading, setLoading] = useState(true);
+  const [profilesReady, setProfilesReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -29,6 +30,8 @@ export function CalculationProfilesEditor({ token, config, reference, busy: appl
   const [threshold, setThreshold] = useState(String(config.calculationRules.containedSignMinDegrees ?? 12.5));
   const inFlight = useRef(false);
   const selected = profiles.find((profile) => profile.id === selectedId);
+  const defaultProfile = profiles.find((profile) => profile.id === defaultId);
+  const defaultHasChanges = !!defaultProfile && !sameProfileConfig(config, defaultProfile.config);
   const matchesSelected = selected && name.trim() === selected.name && sameProfileConfig(config, selected.config);
   const disabled = busy || applying;
   const invalidThreshold = config.calculationRules.containedSignMinDegrees !== null &&
@@ -40,10 +43,11 @@ export function CalculationProfilesEditor({ token, config, reference, busy: appl
 
   useEffect(() => {
     let active = true;
-    setLoading(true); setError(null);
+    setLoading(true); setProfilesReady(false); setError(null);
     void listCalculationProfiles(token).then((response) => {
       if (!active) return;
       setProfiles(response.profiles); setDefaultId(response.defaultProfileId);
+      setProfilesReady(true);
     }).catch((requestError: unknown) => {
       if (active) setError(requestError instanceof Error ? requestError.message : "Не вдалося завантажити профілі.");
     }).finally(() => { if (active) setLoading(false); });
@@ -64,6 +68,21 @@ export function CalculationProfilesEditor({ token, config, reference, busy: appl
     setProfiles((current) => [...current.filter((profile) => profile.id !== response.profile.id), response.profile]);
     setSelectedId(response.profile.id); setName(response.profile.name);
     setMessage(`Профіль збережено, редакція ${response.profile.revision}.`);
+  });
+
+  const saveDefaults = () => execute(async () => {
+    if (!profilesReady || invalidThreshold) return;
+    if (defaultId && (!defaultProfile || defaultProfile.schemaVersion !== 1 || defaultProfile.builtIn)) {
+      throw new Error("Основний профіль недоступний. Оновіть список профілів.");
+    }
+    const response = await saveCalculationProfile(token, {
+      name: defaultProfile?.name ?? (name.trim() || "Мої типові налаштування"),
+      config, makeDefault: true
+    }, defaultProfile);
+    setProfiles((current) => [...current.filter((profile) => profile.id !== response.profile.id), response.profile]);
+    setDefaultId(response.profile.id);
+    setSelectedId(response.profile.id); setName(response.profile.name);
+    setMessage("Типові налаштування збережено в акаунті для всіх нових карт.");
   });
 
   return (
@@ -172,6 +191,24 @@ export function CalculationProfilesEditor({ token, config, reference, busy: appl
       {invalidThreshold ? <p role="alert" className="text-sm text-destructive">Поріг має бути від 0 до 30 градусів.</p> : null}
       {error || applyError ? <p role="alert" className="text-sm text-destructive">{error ?? applyError}</p> : null}
       {message ? <p role="status" className="text-sm text-primary">{message}</p> : null}
+      <div className="space-y-3 border-y py-3">
+        <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+          <Checkbox role="switch" checked={!!defaultId}
+            disabled={disabled || loading || !profilesReady || (!defaultId && invalidThreshold)}
+            onCheckedChange={(checked) => {
+              if (checked === true) { void saveDefaults(); return; }
+              void execute(async () => {
+                const response = await setDefaultCalculationProfile(token, null);
+                setDefaultId(response.defaultProfileId);
+                setMessage("Типові налаштування вимкнено. Збережені карти та профілі залишилися без змін.");
+              });
+            }} />
+          Використовувати за замовчуванням для всіх інших карт
+        </label>
+        {defaultId ? <p className="text-xs text-muted-foreground">Основний профіль: {defaultProfile?.name ?? "недоступний"}{defaultHasChanges ? " · є незбережені типові налаштування" : ""}</p> : null}
+        {defaultHasChanges ? <Button variant="outline" disabled={disabled || loading || !profilesReady || invalidThreshold}
+          onClick={() => void saveDefaults()}><Save />Зберегти типові налаштування</Button> : null}
+      </div>
       <div className="flex flex-wrap gap-2">
         <Button disabled={disabled || invalidThreshold} onClick={() => void execute(async () => {
           const applied = await onApply(config, matchesSelected && selected ? profileReference(selected) : undefined);
@@ -180,11 +217,6 @@ export function CalculationProfilesEditor({ token, config, reference, busy: appl
         <Button variant="secondary" disabled={disabled || invalidThreshold || !name.trim()} onClick={() => void save(false)}><Copy />Зберегти як новий</Button>
         {selected && !selected.builtIn ? <>
           <Button variant="outline" disabled={disabled || invalidThreshold || !name.trim() || !!matchesSelected} onClick={() => void save(true)}><Save />Оновити профіль</Button>
-          <Button variant="outline" disabled={disabled || !matchesSelected} onClick={() => void execute(async () => {
-            const response = await setDefaultCalculationProfile(token, defaultId === selected.id ? null : selected.id);
-            setDefaultId(response.defaultProfileId);
-            setMessage(response.defaultProfileId ? "Основний профіль для нових карт збережено." : "Повернуто базові налаштування для нових карт.");
-          })}><Star />{defaultId === selected.id ? "Скасувати основний" : "Для нових карт"}</Button>
           <Button variant="ghost" className="text-destructive" size="icon" title="Видалити профіль" aria-label="Видалити профіль" disabled={disabled} onClick={() => {
             if (!window.confirm(`Видалити профіль «${selected.name}»? Збережені карти залишаться без змін.`)) return;
             void execute(async () => {
