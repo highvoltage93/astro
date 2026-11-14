@@ -43,10 +43,20 @@ test("access expires at the exact boundary and missing access is free", () => {
   assert.equal(sharedKnowledgeAccess(new Date(now.getTime() + 1), now).enabled, true);
 });
 
+test("administrators have unlimited catalog access based on their current database role", async (t) => {
+  let role = "ADMIN";
+  const app = await createApp(t, { user: { findUnique: async () => ({ role, sharedKnowledgeUntil: null }) } });
+  const send = () => app.inject({ method: "GET", url: "/knowledge-library/access", headers });
+  assert.deepEqual((await send()).json(), { enabled: true, expiresAt: null, administrator: true });
+  assert.equal(sharedKnowledgeAccess(new Date(0), new Date(), "ADMIN").enabled, true);
+  role = "USER";
+  assert.deepEqual((await send()).json(), { enabled: false, expiresAt: null });
+});
+
 test("free users cannot read shared text or activate notes; shared matches stay empty", async (t) => {
   const user = { findUnique: async (args: { where: unknown; select: unknown }) => {
     assert.deepEqual(args.where, { id: "reader" });
-    assert.deepEqual(args.select, { sharedKnowledgeUntil: true });
+    assert.deepEqual(args.select, { sharedKnowledgeUntil: true, role: true });
     return { sharedKnowledgeUntil: null };
   } };
   const db = { user, knowledgePublication: { findFirst: unexpected, findMany: unexpected }, knowledgeActivation: { findMany: unexpected, upsert: unexpected } };

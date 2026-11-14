@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import { registerAuthRoutes } from "./auth/routes";
 import { registerAdminRoutes } from "./admin/routes";
 import { registerAstrologerRankingRoutes } from "./admin/astrologer-ranking";
+import { registerAdminKnowledgeRoutes } from "./admin/knowledge";
 import { registerFeedbackRoutes } from "./feedback/routes";
 import { registerBirthProfileRoutes } from "./birth-profiles/routes";
 import { registerChartRoutes } from "./charts/routes";
@@ -49,6 +50,7 @@ const start = async (): Promise<void> => {
   await registerAuthRoutes(app);
   await registerAdminRoutes(app);
   await registerAstrologerRankingRoutes(app);
+  await registerAdminKnowledgeRoutes(app);
   await registerFeedbackRoutes(app);
   await registerPlaceRoutes(app);
   await registerBirthProfileRoutes(app);

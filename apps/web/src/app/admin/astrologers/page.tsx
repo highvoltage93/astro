@@ -103,10 +103,10 @@ export default function AstrologersPage() {
               <TableCell className="tabular-nums">{astrologer.consultations}</TableCell>
               <TableCell className="tabular-nums">{astrologer.observations}</TableCell>
               <TableCell className="tabular-nums">{astrologer.publishedObservations}</TableCell>
-              <TableCell>{astrologer.publishedObservations ? <div className="space-y-2">
+              <TableCell><div className="space-y-2"><Button asChild variant="outline" size="sm"><Link href={`/admin/observations?${new URLSearchParams({ authorId: astrologer.id })}`}><BookOpenText />Усі спостереження</Link></Button>{astrologer.publishedObservations ? <div className="space-y-2">
                 <Button asChild variant="outline" size="sm"><Link href={`/knowledge/library?${new URLSearchParams({ authorId: astrologer.id, authorName: astrologer.username })}`}><BookOpenText />Переглянути</Link></Button>
                 <KnowledgeAuthorActivation authorId={astrologer.id} authorName={astrologer.username} />
-              </div> : <span className="text-muted-foreground">Немає публікацій</span>}</TableCell>
+              </div> : <span className="block text-muted-foreground">Немає публікацій</span>}</div></TableCell>
             </TableRow>)}</TableBody>
           </Table>
           {!data.astrologers.length ? <p className="py-4 text-muted-foreground">Астрологів не знайдено.</p> : null}

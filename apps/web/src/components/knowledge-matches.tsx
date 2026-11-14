@@ -138,7 +138,8 @@ function ChartMatches({ facts, token }: { facts: string; token: string }) {
         method: "POST", signal: controller.signal, body: JSON.stringify({ chart: JSON.parse(facts), ...(sharedCursor ? { cursor: sharedCursor } : {}) })
       }).then((page) => {
         if (controller.signal.aborted) return;
-        if (!page.access.enabled || !page.access.expiresAt || Date.parse(page.access.expiresAt) <= Date.now()) {
+        if (!page.access.enabled || (!page.access.expiresAt && !page.access.administrator)
+          || (page.access.expiresAt && Date.parse(page.access.expiresAt) <= Date.now())) {
           setSharedMatches([]); setSharedNextCursor(null); setSharedExpiresAt(null); return;
         }
         setSharedMatches((previous) => sharedCursor ? [...previous.filter((item) => !page.matches.some((next) => next.id === item.id)), ...page.matches] : page.matches);

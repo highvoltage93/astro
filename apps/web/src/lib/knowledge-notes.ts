@@ -15,7 +15,7 @@ export type KnowledgeHistoryEntry = KnowledgeDraft & { revision: number; savedAt
 export type KnowledgeHistory = { history: { revision: number; title: string; savedAt: string }[]; nextBefore: number | null };
 export type KnowledgeMatch = KnowledgeSummary & Pick<KnowledgeDraft, "conditions"> & { origin?: "shared"; authorUsername?: string };
 export type KnowledgeMatchesPage = { matches: KnowledgeMatch[]; nextCursor: string | null };
-export type SharedKnowledgeAccess = { enabled: boolean; expiresAt: string | null };
+export type SharedKnowledgeAccess = { enabled: boolean; expiresAt: string | null; administrator?: boolean };
 export type SharedKnowledgeNote = KnowledgeMatch & { body: string; activated: boolean; updateAvailable: boolean };
 export type SharedKnowledgeSummary = Omit<SharedKnowledgeNote, "body">;
 export type SharedKnowledgeMatchesPage = KnowledgeMatchesPage & { access: SharedKnowledgeAccess };
@@ -54,3 +54,4 @@ async function knowledgeApiRequest<T>(base: string, path: string, options: Reque
 }
 export const knowledgeRequest = <T,>(path: string, options: RequestInit = {}) => knowledgeApiRequest<T>("/knowledge-notes", path, options);
 export const knowledgeLibraryRequest = <T,>(path: string, options: RequestInit = {}) => knowledgeApiRequest<T>("/knowledge-library", path, options);
+export const adminKnowledgeRequest = <T,>(path: string, options: RequestInit = {}) => knowledgeApiRequest<T>("/admin/knowledge-notes", path, options);

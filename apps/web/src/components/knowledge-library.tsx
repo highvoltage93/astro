@@ -121,7 +121,8 @@ export function KnowledgeLibrary({ activeOnly, noteId, authorId, authorName }: {
       {loading ? <p role="status" className="text-muted-foreground">Завантаження…</p> : null}
       {access && !access.enabled ? <section className="space-y-3 border-y py-6"><LockKeyhole className="text-primary" /><h2 className="text-lg font-semibold">Доступ до каталогу не активний</h2><p className="text-muted-foreground">Безкоштовний доступ: власні спостереження. Доступ до спостережень інших астрологів під час бети надає адміністратор до визначеної дати.</p><Button asChild variant="outline"><Link href="/knowledge">Мої спостереження</Link></Button></section> : null}
       {access?.enabled ? <>
-        <p className="text-sm text-muted-foreground">Доступ до {access.expiresAt ? new Date(access.expiresAt).toLocaleString("uk-UA") : "—"}</p>
+        {access.administrator ? <div className="flex flex-wrap items-center gap-3"><span className="text-sm text-muted-foreground">Адміністратор · безстроковий доступ</span><Button asChild variant="outline"><Link href={`/admin/observations${filters.authorId ? `?authorId=${encodeURIComponent(filters.authorId)}` : ""}`}>Усі спостереження, включно з приватними</Link></Button></div>
+          : <p className="text-sm text-muted-foreground">Доступ до {access.expiresAt ? new Date(access.expiresAt).toLocaleString("uk-UA") : "—"}</p>}
         <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={(event) => { event.preventDefault(); setCursor(null); setFilters((current) => ({ ...current, query: query.trim(), author: current.authorId ? "" : author.trim().replace(/^@/, "") })); }}>
           <Input aria-label="Автор, назва або тег" placeholder="Автор, назва або тег" value={query} maxLength={160} onChange={(event) => setQuery(event.target.value)} />
           <div className="flex min-w-0 gap-2"><Input aria-label="Username автора" placeholder="Username автора" disabled={!!filters.authorId}

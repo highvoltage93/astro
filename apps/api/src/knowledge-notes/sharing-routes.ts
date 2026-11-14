@@ -24,8 +24,8 @@ const availableTo = (userId: string): Prisma.KnowledgePublicationWhereInput => (
   published: true, note: { archived: false, ownerUserId: { not: userId } }
 });
 const accessFor = async (db: Pick<Prisma.TransactionClient, "user">, id: string) => {
-  const user = await db.user.findUnique({ where: { id }, select: { sharedKnowledgeUntil: true } });
-  return sharedKnowledgeAccess(user?.sharedKnowledgeUntil);
+  const user = await db.user.findUnique({ where: { id }, select: { sharedKnowledgeUntil: true, role: true } });
+  return sharedKnowledgeAccess(user?.sharedKnowledgeUntil, new Date(), user?.role);
 };
 const accessMessage = "Доступ до спостережень інших астрологів не активний або завершився.";
 

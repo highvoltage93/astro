@@ -32,6 +32,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
   }, [pathname]);
   const items = isAdmin ? [...navigation,
     { href: "/admin/astrologers", label: "Топ астрологів", icon: Trophy },
+    { href: "/admin/observations", label: "Усі спостереження", icon: NotebookPen },
     { href: "/admin", label: "Адміністрування", icon: ShieldCheck }
   ] : navigation;
   if (["/login", "/consultations/print", "/terms", "/privacy"].includes(pathname)) return <>{children}</>;

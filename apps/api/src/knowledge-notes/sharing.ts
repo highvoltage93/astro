@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-export const sharedKnowledgeAccess = (until: Date | null | undefined, now = new Date()) => ({
+export const sharedKnowledgeAccess = (until: Date | null | undefined, now = new Date(), role?: string) => role === "ADMIN"
+  ? { enabled: true, expiresAt: null, administrator: true as const }
+  : ({
   enabled: !!until && until.getTime() > now.getTime(), expiresAt: until?.toISOString() ?? null
 });
 
