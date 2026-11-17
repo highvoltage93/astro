@@ -6,6 +6,7 @@ import { recordUserActivity } from "./activity";
 import { registrationPasswordError } from "./password-policy";
 import { createAuthToken, getOptionalAuthUser, hashPassword, verifyPassword } from "./service";
 import { consumeAuthLimit, enforceAuthLimit, type ConsumeLimit } from "./rate-limit";
+import { defaultAccessSettings, trialEnd } from "../access/policy";
 
 const dummyPasswordHash = hashPassword("not-a-user-password");
 
@@ -32,7 +33,7 @@ const authUserSelect = {
 } satisfies Prisma.UserSelect;
 
 export const registerAuthRoutes = async (app: FastifyInstance, deps: {
-  database: Pick<typeof prisma, "user">; consume: ConsumeLimit; recordLogin?: typeof recordUserActivity;
+  database: Pick<typeof prisma, "user" | "$transaction">; consume: ConsumeLimit; recordLogin?: typeof recordUserActivity;
 } = { database: prisma, consume: consumeAuthLimit }): Promise<void> => {
   app.post("/auth/register", { bodyLimit: 4096, preHandler: async (request, reply) => {
     reply.header("Cache-Control", "no-store");
@@ -48,15 +49,21 @@ export const registerAuthRoutes = async (app: FastifyInstance, deps: {
     }
 
     try {
-      const user = await deps.database.user.create({
-        data: {
-          email: parsed.data.email,
-          username: parsed.data.username,
-          passwordHash: hashPassword(parsed.data.password),
-          lastLoginAt: new Date(),
-          lastActiveAt: new Date()
-        },
-        select: authUserSelect
+      const user = await deps.database.$transaction(async (tx) => {
+        const settings = await tx.accessSettings.findUnique({ where: { id: "default" } }) ?? defaultAccessSettings;
+        const now = new Date();
+        return tx.user.create({
+          data: {
+            email: parsed.data.email,
+            username: parsed.data.username,
+            passwordHash: hashPassword(parsed.data.password),
+            lastLoginAt: now,
+            lastActiveAt: now,
+            ...(settings.trialEnabled ? { accessGrants: { create: { plan: "TRIAL", source: "registration",
+              reason: "Пробний період при реєстрації", startsAt: now, endsAt: trialEnd(now, settings.trialDays) } } } : {})
+          },
+          select: authUserSelect
+        });
       });
 
       return reply.code(201).send({

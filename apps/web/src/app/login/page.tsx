@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AuthRequestError, getCurrentUser, getPasswordRecoveryConfig, loginUser, registerUser } from "@/lib/api";
+import { AuthRequestError, getCurrentUser, loginUser, registerUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { REGISTRATION_PASSWORD_HINT, registrationPasswordError } from "@/lib/password-policy";
 import { LegalLinks } from "@/components/legal-links";
@@ -142,13 +142,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [recoveryEnabled, setRecoveryEnabled] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void getPasswordRecoveryConfig().then(({ enabled }) => { if (active) setRecoveryEnabled(enabled); }).catch(() => {});
-    return () => { active = false; };
-  }, []);
 
   useEffect(() => {
     const storedToken = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
@@ -458,7 +451,7 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {mode === "login" && recoveryEnabled ? (
+            {mode === "login" ? (
               <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4">Забули пароль?</Link>
             ) : null}
 

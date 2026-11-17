@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { AdminFeedback } from "@/components/admin-feedback";
+import { AdminAccessSettings, AdminUserAccess } from "@/components/admin-access";
 
 type Role = "USER" | "CONSULTANT" | "ADMIN";
 type User = { id: string; username: string; email: string; role: Role; createdAt: string; updatedAt: string;
@@ -105,6 +106,7 @@ export default function AdminPage() {
       {error ? <p role="alert" className="rounded-lg border border-destructive/40 bg-card p-4 text-destructive">{error}</p> : null}
       {notice ? <p role="status" className="text-primary">{notice}</p> : null}
       {list ? <AdminFeedback onSaved={() => setRevision((value) => value + 1)} /> : null}
+      {list ? <AdminAccessSettings /> : null}
       {loading ? <p role="status" className="text-muted-foreground">Завантаження…</p> : null}
       {!loading && !list ? <Button asChild variant="secondary"><a href="/login">Увійти</a></Button> : null}
       {editing ? <Card id="admin-user-details" className="scroll-mt-4">
@@ -125,7 +127,9 @@ export default function AdminPage() {
           </div>
           <div className="space-y-2"><Label htmlFor="admin-password">Новий пароль (необов’язково)</Label><Input id="admin-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={password} disabled={saving} aria-describedby="admin-password-help" onChange={(event) => setPassword(event.target.value)} /><p id="admin-password-help" className="text-xs text-muted-foreground">Від 8 символів: велика й мала літери, цифра та спецсимвол. Порожнє поле залишає пароль без змін.</p></div>
           <div className="flex flex-wrap items-end gap-2"><Button type="submit" disabled={saving}>{saving ? <RefreshCw className="animate-spin" /> : <Save />}Зберегти</Button><Button type="button" variant="secondary" disabled={saving} onClick={() => setEditing(null)}><X />Скасувати</Button></div>
-        </form></CardContent>
+        </form>
+        <AdminUserAccess key={editing.id} userId={editing.id} />
+        </CardContent>
       </Card> : null}
       {list ? <Card>
         <CardHeader><CardTitle>Користувачі ({list.total})</CardTitle></CardHeader>

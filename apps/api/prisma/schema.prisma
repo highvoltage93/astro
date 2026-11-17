@@ -47,6 +47,7 @@ model User {
   authVersion    Int             @default(0)
   passwordChangedAt DateTime?
   passwordReset  PasswordResetToken?
+  accessGrants   AccessGrant[]
   locale         String          @default("uk")
   role           UserRole        @default(USER)
   lastLoginAt    DateTime?
@@ -68,6 +69,36 @@ model User {
   updatedAt      DateTime        @updatedAt
 
   @@map("users")
+}
+
+enum AccessPlan {
+  TRIAL
+  PRO
+}
+
+model AccessGrant {
+  id        String @id @default(cuid())
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan      AccessPlan
+  source    String
+  reason    String
+  startsAt  DateTime @default(now())
+  endsAt    DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, endsAt])
+  @@map("access_grants")
+}
+
+model AccessSettings {
+  id           String @id @default("default")
+  trialEnabled Boolean @default(true)
+  trialDays    Int @default(7)
+  revision     Int @default(0)
+
+  @@map("access_settings")
 }
 
 model PasswordResetToken {

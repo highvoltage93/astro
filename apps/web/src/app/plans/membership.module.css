@@ -1,0 +1,29 @@
+.surface {
+  --background: 210 20% 98%;
+  --foreground: 220 14% 17%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 14% 17%;
+  --primary: 220 14% 22%;
+  --primary-hover: 220 14% 32%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 94%;
+  --secondary-foreground: 220 14% 22%;
+  --muted: 220 14% 94%;
+  --muted-foreground: 220 8% 42%;
+  --border: 220 14% 85%;
+  --accent: 220 14% 92%;
+  --accent-foreground: 220 14% 17%;
+  --ring: 220 14% 40%;
+  color: #282c34;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fff 0%, #f1f3f6 55%, #e8edf2 100%);
+}
+.plan {
+  border: 1px solid #d6dbe2;
+  border-radius: 8px;
+  background: linear-gradient(150deg, #fff, #f5f6f8);
+  box-shadow: 0 6px 20px #242b3610;
+}
+.trial { background: linear-gradient(150deg, #fff, #eef0f6 70%, #f4f0f1); }
+.pro { background: linear-gradient(150deg, #fff, #e7edf3); border-color: #a4afbf; }
+.price { font-size: 44px; line-height: 1.15; font-weight: 600; font-variant-numeric: tabular-nums; }

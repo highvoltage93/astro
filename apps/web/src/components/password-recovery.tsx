@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Eye, EyeOff, LoaderCircle, Mail, KeyRound } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LoaderCircle, Mail, KeyRound, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LegalLinks } from "@/components/legal-links";
-import { AuthRequestError, requestPasswordReset, resetPassword } from "@/lib/api";
+import { AuthRequestError, getPasswordRecoveryConfig, requestPasswordReset, resetPassword } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
 import { registrationPasswordError, REGISTRATION_PASSWORD_HINT } from "@/lib/password-policy";
 
@@ -22,7 +22,18 @@ export function PasswordRecovery({ mode }: { mode: "request" | "reset" }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<"loading" | "enabled" | "disabled" | "error">("loading");
+  const [configAttempt, setConfigAttempt] = useState(0);
   const initialized = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    setAvailability("loading");
+    void getPasswordRecoveryConfig()
+      .then(({ enabled }) => { if (active) setAvailability(enabled ? "enabled" : "disabled"); })
+      .catch(() => { if (active) setAvailability("error"); });
+    return () => { active = false; };
+  }, [configAttempt]);
 
   useEffect(() => {
     if (mode !== "reset" || initialized.current) return;
@@ -35,7 +46,7 @@ export function PasswordRecovery({ mode }: { mode: "request" | "reset" }) {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (busy) return;
+    if (busy || availability !== "enabled") return;
     setError(null);
     if (mode === "reset") {
       const problem = registrationPasswordError(password);
@@ -63,11 +74,18 @@ export function PasswordRecovery({ mode }: { mode: "request" | "reset" }) {
           <CardHeader className="space-y-3">
             {mode === "request" ? <Mail className="h-6 w-6 text-primary" /> : <KeyRound className="h-6 w-6 text-primary" />}
             <CardTitle className="text-xl">{mode === "request" ? "Відновлення доступу" : "Новий пароль"}</CardTitle>
-            <CardDescription>{mode === "request" ? "Вкажіть email вашого профілю." : "Після зміни пароля потрібно буде увійти знову на всіх пристроях."}</CardDescription>
+            <CardDescription>{mode === "request" ? "Відновлення доступу до вашого профілю через email." : "Після зміни пароля потрібно буде увійти знову на всіх пристроях."}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {success ? <p role="status" className="text-sm leading-6">{success}</p> : !ready ? (
+            {success ? <p role="status" className="text-sm leading-6">{success}</p> : !ready || availability === "loading" ? (
               <LoaderCircle className="h-5 w-5 animate-spin" aria-label="Завантаження" />
+            ) : availability === "disabled" ? (
+              <p role="status" className="text-sm leading-6 text-muted-foreground">Відновлення пароля через email ще не підключене. Для зміни пароля зверніться до адміністратора ZORIA.</p>
+            ) : availability === "error" ? (
+              <div className="space-y-3">
+                <p role="alert" className="text-sm text-destructive">Не вдалося перевірити доступність відновлення. Спробуйте ще раз.</p>
+                <Button type="button" variant="outline" onClick={() => setConfigAttempt((value) => value + 1)}><RefreshCw />Повторити</Button>
+              </div>
             ) : mode === "reset" && !token ? (
               <p role="alert" className="text-sm text-destructive">Посилання відсутнє або недійсне. Відкрийте його з листа або запитайте новий.</p>
             ) : (
@@ -106,7 +124,7 @@ export function PasswordRecovery({ mode }: { mode: "request" | "reset" }) {
                 </Button>
               </form>
             )}
-            {mode === "reset" && !success ? <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4">Запитати нове посилання</Link> : null}
+            {mode === "reset" && availability === "enabled" && !success ? <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4">Запитати нове посилання</Link> : null}
             <Link href="/login" className="flex min-h-11 items-center gap-2 text-sm text-primary"><ArrowLeft className="h-4 w-4" />До входу</Link>
             <LegalLinks />
           </CardContent>

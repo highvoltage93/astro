@@ -2,6 +2,7 @@
 
 import { Archive, ChevronDown, FolderOpen, LockKeyhole, LogOut, MapPin, RefreshCw, Search, UnlockKeyhole } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { AccountMenuLinks } from "./account-menu-links";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -607,6 +608,7 @@ function DashboardAccountMenu({
             </Badge>
           </div>
           <Separator className="my-1" />
+          <AccountMenuLinks />
           <button
             className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             role="menuitem" type="button" onClick={onOpenSavedForecasts}

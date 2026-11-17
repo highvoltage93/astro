@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { registerAuthRoutes } from "./auth/routes";
+import { registerAccessRoutes } from "./access/routes";
 import { registerRecoveryRoutes } from "./auth/recovery-routes";
 import { startMailWorker } from "./mail/worker";
 import { registerAdminRoutes } from "./admin/routes";
@@ -52,6 +53,7 @@ const start = async (): Promise<void> => {
 
   await registerHealthRoutes(app);
   await registerAuthRoutes(app);
+  await registerAccessRoutes(app);
   await registerRecoveryRoutes(app);
   await registerAdminRoutes(app);
   await registerAstrologerRankingRoutes(app);

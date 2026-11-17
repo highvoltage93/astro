@@ -1,4 +1,5 @@
 "use client";
+import { AccountMenuLinks } from "./account-menu-links";
 
 import { EventSearch } from "@/components/event-search";
 import { KnowledgeMatches } from "@/components/knowledge-matches";
@@ -2140,6 +2141,7 @@ function HeaderAccountMenu({
             </Badge>
           </div>
           <Separator className="my-1" />
+          <AccountMenuLinks />
           <button
             className="flex min-h-10 w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             role="menuitem"

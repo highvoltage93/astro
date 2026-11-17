@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy } from "lucide-react";
+import { CalendarDays, CircleUserRound, Crown, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -16,7 +16,9 @@ const navigation = [
   { href: "/workspace", label: "Робоча зона", icon: Orbit },
   { href: "/consultations", label: "Консультації", icon: FileText },
   { href: "/knowledge", label: "Спостереження", icon: NotebookPen },
-  { href: "/astro-events", label: "Астроподії", icon: CalendarDays }
+  { href: "/astro-events", label: "Астроподії", icon: CalendarDays },
+  { href: "/plans", label: "Плани та переваги", icon: Crown },
+  { href: "/profile", label: "Мій профіль", icon: CircleUserRound }
 ];
 
 export function ZoriaShell({ children }: { children: ReactNode }) {
@@ -43,7 +45,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
       <a href="#zoria-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-primary focus:p-3 focus:text-primary-foreground">
         До вмісту
       </a>
-      <aside className="zoria-sidebar border-b lg:sticky lg:top-0 lg:h-dvh lg:border-b-0 lg:border-r">
+      <aside className="zoria-sidebar border-b lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto lg:border-b-0 lg:border-r">
         <Link href="/" aria-label="ZORIA ASTROPROCESSOR: дешборд" className="flex items-center gap-3 px-4 py-4 lg:justify-center lg:px-3 lg:py-8 min-[1440px]:justify-start min-[1440px]:px-6">
           <Orbit aria-hidden="true" className="size-7 shrink-0 text-primary" />
           <span className="min-w-0 lg:hidden min-[1440px]:block"><span className="zoria-brand block text-[28px] leading-none text-primary">ZORIA</span><span className="mt-1 block text-[10px] text-muted-foreground">ASTROPROCESSOR</span></span>
