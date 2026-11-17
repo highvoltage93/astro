@@ -77,7 +77,9 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
             if (target.id === actor.id) return { status: 400, message: "Не можна зняти власні права адміністратора." } as const;
             if (await tx.user.count({ where: { role: "ADMIN" } }) <= 1) return { status: 400, message: "Потрібно залишити хоча б одного адміністратора." } as const;
           }
-          const user = await tx.user.update({ where: { id: target.id }, data: { ...data, ...(passwordHash ? { passwordHash } : {}) }, select });
+          const user = await tx.user.update({ where: { id: target.id }, data: { ...data,
+            ...(passwordHash ? { passwordHash, authVersion: { increment: 1 }, passwordChangedAt: new Date() } : {}) }, select });
+          if (passwordHash || target.email !== data.email) await tx.passwordResetToken.deleteMany({ where: { userId: target.id } });
           await tx.auditEvent.create({ data: {
             userId: actor.id, action: "admin.user.update", entity: "User", entityId: target.id,
             metadata: { before: { username: target.username, email: target.email, role: target.role, sharedKnowledgeUntil: target.sharedKnowledgeUntil?.toISOString() ?? null }, after: data, passwordChanged: password !== undefined }

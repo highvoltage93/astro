@@ -16,6 +16,7 @@ type JwtPayload = {
   locale: string;
   role: UserRole;
   exp: number;
+  ver?: number;
 };
 
 export type AuthUser = {
@@ -59,7 +60,7 @@ export const verifyPassword = (password: string, passwordHash: string): boolean 
   return actualHash.length === expectedHashBuffer.length && timingSafeEqual(actualHash, expectedHashBuffer);
 };
 
-export const createAuthToken = (user: AuthUser): string => {
+export const createAuthToken = (user: AuthUser, authVersion = 0): string => {
   const header = encodeBase64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const payload = encodeBase64Url(
     JSON.stringify({
@@ -68,6 +69,7 @@ export const createAuthToken = (user: AuthUser): string => {
       username: user.username,
       locale: user.locale,
       role: user.role,
+      ver: authVersion,
       exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS
     } satisfies JwtPayload)
   );
@@ -79,7 +81,7 @@ export const createAuthToken = (user: AuthUser): string => {
 export const verifyAuthToken = (token: string): JwtPayload | null => {
   const [header, payload, signature] = token.split(".");
 
-  if (!header || !payload || !signature) {
+  if (token.split(".").length !== 3 || !header || !payload || !signature) {
     return null;
   }
 
@@ -96,12 +98,16 @@ export const verifyAuthToken = (token: string): JwtPayload | null => {
 
   const parsedPayload = decodeBase64UrlJson<JwtPayload>(payload);
 
-  if (!parsedPayload || parsedPayload.exp < Math.floor(Date.now() / 1000)) {
+  if (!parsedPayload || !Number.isFinite(parsedPayload.exp) || parsedPayload.exp <= Math.floor(Date.now() / 1000)
+    || typeof parsedPayload.sub !== "string" || !parsedPayload.sub
+    || (parsedPayload.ver !== undefined && (!Number.isSafeInteger(parsedPayload.ver) || parsedPayload.ver < 0))) {
     return null;
   }
 
   return parsedPayload;
 };
+
+export const tokenVersionMatches = (version: number | undefined, currentVersion: number) => (version ?? 0) === currentVersion;
 
 const bearerTokenFromRequest = (request: FastifyRequest): string | null => {
   const authorization = request.headers.authorization;
@@ -135,9 +141,11 @@ export const getOptionalAuthUser = async (request: FastifyRequest): Promise<Auth
       email: true,
       username: true,
       locale: true,
-      role: true
+      role: true,
+      authVersion: true
     }
   });
+  if (!user || !tokenVersionMatches(payload.ver, user.authVersion)) return null;
   if (user) {
     try {
       await recordUserActivity(user.id);
@@ -145,5 +153,6 @@ export const getOptionalAuthUser = async (request: FastifyRequest): Promise<Auth
       request.log.warn("Unable to record user activity");
     }
   }
-  return user;
+  const { authVersion: _authVersion, ...authUser } = user;
+  return authUser;
 };

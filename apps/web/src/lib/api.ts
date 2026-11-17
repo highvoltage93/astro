@@ -25,6 +25,38 @@ import type { CalculationProfile, CalculationProfileConfig, CalculationProfilesR
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+export class AuthRequestError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
+const readAuthResponse = async <Result>(response: Response, fallback: string): Promise<Result> => {
+  if (response.ok) return response.json() as Promise<Result>;
+  const body = await response.json().catch(() => null) as { message?: string; retryAfter?: number } | null;
+  const retryAfter = Number(body?.retryAfter ?? response.headers.get("Retry-After"));
+  const message = response.status === 429
+    ? `Забагато спроб. Спробуйте через ${Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter / 60) : 15} хв.`
+    : response.status === 503 ? (body?.message ?? "Сервіс тимчасово недоступний. Спробуйте пізніше.") : fallback;
+  throw new AuthRequestError(message, response.status);
+};
+
+export const getPasswordRecoveryConfig = async (): Promise<{ enabled: boolean }> => {
+  const response = await fetch(`${API_URL}/auth/password-reset/config`, { cache: "no-store" });
+  if (!response.ok) throw new Error("Recovery unavailable");
+  return response.json() as Promise<{ enabled: boolean }>;
+};
+
+export const requestPasswordReset = async (email: string): Promise<{ message: string }> => readAuthResponse(
+  await fetch(`${API_URL}/auth/forgot-password`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email })
+  }), "Не вдалося прийняти запит. Перевірте email та спробуйте пізніше."
+);
+
+export const resetPassword = async (token: string, password: string): Promise<{ message: string }> => readAuthResponse(
+  await fetch(`${API_URL}/auth/reset-password`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, password })
+  }), "Посилання використане або втратило чинність. Запитайте новий лист."
+);
+
 const jsonHeaders = (token?: string | null): HeadersInit => ({
   "Content-Type": "application/json",
   ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -102,11 +134,7 @@ export const registerUser = async (payload: AuthPayload): Promise<AuthResponse> 
     body: JSON.stringify(payload)
   });
 
-  if (!response.ok) {
-    throw new Error(`API responded with ${response.status}`);
-  }
-
-  return response.json() as Promise<AuthResponse>;
+  return readAuthResponse(response, "Не вдалося створити профіль. Email або username уже можуть використовуватися.");
 };
 
 export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> => {
@@ -116,11 +144,7 @@ export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> =>
     body: JSON.stringify(payload)
   });
 
-  if (!response.ok) {
-    throw new Error(`API responded with ${response.status}`);
-  }
-
-  return response.json() as Promise<AuthResponse>;
+  return readAuthResponse(response, "Не вдалося увійти. Перевір ім’я користувача та пароль.");
 };
 
 export const getCurrentUser = async (token: string): Promise<MeResponse> => {

@@ -26,5 +26,6 @@ export const env = {
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET ?? "astroprocessor-dev-secret",
   swissEphEphePath: process.env.SWISSEPH_EPHE_PATH,
+  trustedProxyCidrs: (process.env.AUTH_TRUST_PROXY_CIDRS ?? "").split(",").map((value) => value.trim()).filter(Boolean),
   geocodingApiUrl: process.env.GEOCODING_API_URL ?? "https://geocoding-api.open-meteo.com/v1"
 };

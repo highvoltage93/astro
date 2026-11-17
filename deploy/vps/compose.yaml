@@ -42,6 +42,16 @@ services:
       ALLOW_PRIVATE_DATABASE: "true"
       CORS_ORIGIN: https://${SITE_HOST:?Set SITE_HOST}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      AUTH_TRUST_PROXY_CIDRS: ${AUTH_TRUST_PROXY_CIDRS:-uniquelocal}
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-disabled}
+      APP_ORIGIN: https://${SITE_HOST}
+      MAIL_FROM: ${MAIL_FROM:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_REQUIRE_TLS: "true"
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SWISSEPH_EPHE_PATH: /app/ephemeris
     networks: [database, edge]
     depends_on:

@@ -1,6 +1,8 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { registerAuthRoutes } from "./auth/routes";
+import { registerRecoveryRoutes } from "./auth/recovery-routes";
+import { startMailWorker } from "./mail/worker";
 import { registerAdminRoutes } from "./admin/routes";
 import { registerAstrologerRankingRoutes } from "./admin/astrologer-ranking";
 import { registerAdminKnowledgeRoutes } from "./admin/knowledge";
@@ -21,7 +23,9 @@ import { registerKnowledgeSharingRoutes } from "./knowledge-notes/sharing-routes
 import { registerAstroEventRoutes } from "./astro-events/routes";
 
 const app = Fastify({
+  trustProxy: env.trustedProxyCidrs.length ? env.trustedProxyCidrs : false,
   logger: {
+    redact: ["req.headers.authorization", "req.headers.cookie", "req.body.password", "req.body.token"],
     level: env.nodeEnv === "development" ? "info" : "warn"
   }
 });
@@ -48,6 +52,7 @@ const start = async (): Promise<void> => {
 
   await registerHealthRoutes(app);
   await registerAuthRoutes(app);
+  await registerRecoveryRoutes(app);
   await registerAdminRoutes(app);
   await registerAstrologerRankingRoutes(app);
   await registerAdminKnowledgeRoutes(app);
@@ -64,7 +69,9 @@ const start = async (): Promise<void> => {
   await registerAstroEventRoutes(app);
   await registerInterpretationRoutes(app);
 
+  const stopMailWorker = startMailWorker(app);
   app.addHook("onClose", async () => {
+    await stopMailWorker();
     await prisma.$disconnect();
   });
 

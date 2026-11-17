@@ -5,6 +5,9 @@ import { prisma } from "../prisma/client";
 import { recordUserActivity } from "./activity";
 import { registrationPasswordError } from "./password-policy";
 import { createAuthToken, getOptionalAuthUser, hashPassword, verifyPassword } from "./service";
+import { consumeAuthLimit, enforceAuthLimit, type ConsumeLimit } from "./rate-limit";
+
+const dummyPasswordHash = hashPassword("not-a-user-password");
 
 const authSchema = z.object({
   email: z.string().trim().email().max(160),
@@ -28,8 +31,13 @@ const authUserSelect = {
   role: true
 } satisfies Prisma.UserSelect;
 
-export const registerAuthRoutes = async (app: FastifyInstance): Promise<void> => {
-  app.post("/auth/register", async (request, reply) => {
+export const registerAuthRoutes = async (app: FastifyInstance, deps: {
+  database: Pick<typeof prisma, "user">; consume: ConsumeLimit; recordLogin?: typeof recordUserActivity;
+} = { database: prisma, consume: consumeAuthLimit }): Promise<void> => {
+  app.post("/auth/register", { bodyLimit: 4096, preHandler: async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    await enforceAuthLimit(request, reply, "register-ip", request.ip, 5, 3600, deps.consume);
+  } }, async (request, reply) => {
     const parsed = authSchema.safeParse(request.body);
 
     if (!parsed.success) {
@@ -40,7 +48,7 @@ export const registerAuthRoutes = async (app: FastifyInstance): Promise<void> =>
     }
 
     try {
-      const user = await prisma.user.create({
+      const user = await deps.database.user.create({
         data: {
           email: parsed.data.email,
           username: parsed.data.username,
@@ -67,7 +75,10 @@ export const registerAuthRoutes = async (app: FastifyInstance): Promise<void> =>
     }
   });
 
-  app.post("/auth/login", async (request, reply) => {
+  app.post("/auth/login", { bodyLimit: 4096, preHandler: async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    await enforceAuthLimit(request, reply, "login-ip", request.ip, 30, 900, deps.consume);
+  } }, async (request, reply) => {
     const parsed = loginSchema.safeParse(request.body);
 
     if (!parsed.success) {
@@ -77,38 +88,43 @@ export const registerAuthRoutes = async (app: FastifyInstance): Promise<void> =>
       });
     }
 
-    const user = await prisma.user.findUnique({
+    if (!await enforceAuthLimit(request, reply, "login-username", parsed.data.username, 10, 900, deps.consume)) return;
+
+    const user = await deps.database.user.findUnique({
       where: {
         username: parsed.data.username
       },
       select: {
         ...authUserSelect,
+        authVersion: true,
         passwordHash: true
       }
     });
 
-    if (!user || !verifyPassword(parsed.data.password, user.passwordHash)) {
+    const validPassword = verifyPassword(parsed.data.password, user?.passwordHash ?? dummyPasswordHash);
+    if (!user || !validPassword) {
       return reply.code(401).send({
         code: "INVALID_CREDENTIALS",
         message: "Invalid username or password"
       });
     }
 
-    const { passwordHash: _passwordHash, ...authUser } = user;
+    const { passwordHash: _passwordHash, authVersion, ...authUser } = user;
 
     try {
-      await recordUserActivity(user.id, true);
+      await (deps.recordLogin ?? recordUserActivity)(user.id, true);
     } catch {
       request.log.warn("Unable to record successful login time");
     }
 
     return {
       user: authUser,
-      token: createAuthToken(authUser)
+      token: createAuthToken(authUser, authVersion)
     };
   });
 
   app.get("/auth/me", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
     const user = await getOptionalAuthUser(request);
 
     if (!user) {

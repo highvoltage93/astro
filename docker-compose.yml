@@ -1,4 +1,13 @@
 services:
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+    environment:
+      MP_MAX_MESSAGES: 100
+      MP_MAX_AGE: 24h
+
   postgres:
     image: postgres:16-alpine
     container_name: astroprocessor-postgres
@@ -29,6 +38,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-astroprocessor}:${POSTGRES_PASSWORD:-astroprocessor_dev}@postgres:5432/${POSTGRES_DB:-astroprocessor}?schema=public
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       JWT_SECRET: ${JWT_SECRET:-astroprocessor_dev_jwt_secret}
+      EMAIL_TRANSPORT: smtp
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      MAIL_FROM: noreply@zoria.test
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_REQUIRE_TLS: "false"
       SWISSEPH_EPHE_PATH: ${SWISSEPH_EPHE_PATH:-/app/ephemeris}
       GEOCODING_API_URL: ${GEOCODING_API_URL:-https://geocoding-api.open-meteo.com/v1}
       AI_PROVIDER: ${AI_PROVIDER:-claude}
@@ -42,6 +58,8 @@ services:
       - /app/packages/astrology-core/node_modules
       - /app/packages/consultation-format/node_modules
     depends_on:
+      mailpit:
+        condition: service_started
       postgres:
         condition: service_healthy
     command: >

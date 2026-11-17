@@ -26,7 +26,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
     let active = true;
     setIsAdmin(false);
     const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-    if (token && !["/login", "/terms", "/privacy"].includes(pathname)) {
+    if (token && !["/login", "/forgot-password", "/reset-password", "/terms", "/privacy"].includes(pathname)) {
       void getCurrentUser(token).then(({ user }) => { if (active) setIsAdmin(user.role === "ADMIN"); }).catch(() => { if (active) setIsAdmin(false); });
     }
     return () => { active = false; };
@@ -36,7 +36,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
     { href: "/admin/observations", label: "Усі спостереження", icon: NotebookPen },
     { href: "/admin", label: "Адміністрування", icon: ShieldCheck }
   ] : navigation;
-  if (["/login", "/consultations/print", "/terms", "/privacy"].includes(pathname)) return <>{children}</>;
+  if (["/login", "/forgot-password", "/reset-password", "/consultations/print", "/terms", "/privacy"].includes(pathname)) return <>{children}</>;
 
   return (
     <div className="zoria-shell-background min-h-screen lg:grid lg:grid-cols-[76px_minmax(0,1fr)] min-[1440px]:grid-cols-[220px_minmax(0,1fr)]">
