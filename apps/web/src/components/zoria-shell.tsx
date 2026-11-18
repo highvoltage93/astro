@@ -17,7 +17,6 @@ const navigation = [
   { href: "/consultations", label: "Консультації", icon: FileText },
   { href: "/knowledge", label: "Спостереження", icon: NotebookPen },
   { href: "/astro-events", label: "Астроподії", icon: CalendarDays },
-  { href: "/plans", label: "Плани та переваги", icon: Crown },
   { href: "/profile", label: "Мій профіль", icon: CircleUserRound }
 ];
 
@@ -46,13 +45,19 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
         До вмісту
       </a>
       <aside className="zoria-sidebar border-b lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto lg:border-b-0 lg:border-r">
+        <header className="flex flex-wrap items-center justify-between gap-2 pb-3 pr-4 lg:flex-col lg:px-3">
         <Link href="/" aria-label="ZORIA ASTROPROCESSOR: дешборд" className="flex items-center gap-3 px-4 py-4 lg:justify-center lg:px-3 lg:py-8 min-[1440px]:justify-start min-[1440px]:px-6">
           <Orbit aria-hidden="true" className="size-7 shrink-0 text-primary" />
           <span className="min-w-0 lg:hidden min-[1440px]:block"><span className="zoria-brand block text-[28px] leading-none text-primary">ZORIA</span><span className="mt-1 block text-[10px] text-muted-foreground">ASTROPROCESSOR</span></span>
         </Link>
+        <Link href="/plans" title="Плани та переваги" aria-label="Плани та переваги" aria-current={pathname === "/plans" ? "page" : undefined}
+          className={cn("inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-full lg:px-2", pathname === "/plans" ? "border-primary/50 bg-primary/15 text-primary" : "border-border bg-secondary/60 text-foreground hover:bg-secondary")}>
+          <Crown aria-hidden="true" className="size-4 shrink-0" /><span className="lg:hidden min-[1440px]:inline">Плани</span>
+        </Link>
+        </header>
         <nav aria-label="Головна навігація" className="grid grid-cols-2 gap-1 px-2 pb-2 sm:grid-cols-3 lg:grid-cols-1 lg:gap-2 lg:px-3">
           {items.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
+            const active = pathname === href || (href === "/admin" && pathname.startsWith("/admin/users/"));
             const beta = ["/knowledge", "/astro-events", "/admin/astrologers", "/admin/observations"].includes(href);
             return <Link key={href} href={href} title={`${label}${beta ? " · Beta" : ""}`} aria-label={`${label}${beta ? " · Beta" : ""}`} aria-current={active ? "page" : undefined}
               className={cn("flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border border-transparent px-2 py-3 text-xs transition-colors hover:bg-secondary sm:flex-row sm:gap-2 lg:flex-col lg:px-1 lg:text-sm min-[1440px]:flex-row min-[1440px]:justify-start min-[1440px]:px-3", active ? "border-primary/30 bg-primary/10 text-primary" : "text-muted-foreground")}>

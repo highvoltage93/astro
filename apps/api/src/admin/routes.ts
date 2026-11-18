@@ -56,6 +56,12 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       return { users, total, page, pageSize: 25 };
     });
 
+    admin.get<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
+      const user = await prisma.user.findUnique({ where: { id: request.params.id }, select });
+      if (!user) return reply.code(404).send({ message: "Користувача не знайдено." });
+      return { user };
+    });
+
     admin.patch<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
       const parsed = updateSchema.safeParse(request.body);
       if (!parsed.success) return reply.code(400).send({ message: parsed.error.issues.find((issue) => issue.path[0] === "password")?.message ?? "Перевірте email, username (3–50 символів) та роль." });
