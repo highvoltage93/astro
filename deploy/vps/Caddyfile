@@ -3,6 +3,11 @@
     admin off
 }
 
+# The old IP entry only redirects; application traffic belongs on HTTPS.
+http://185.126.114.180 {
+    redir https://{$SITE_HOST}{uri} 308
+}
+
 {$SITE_HOST} {
     encode zstd gzip
     header {
