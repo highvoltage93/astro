@@ -28,3 +28,34 @@ export function displayBirthDate(value: string): string {
 export function displayBirthTime(value: string): string {
   return parseBirthTimeText(value) ?? value;
 }
+
+export function maskBirthInput(kind: "date" | "time", raw: string, caret = raw.length,
+  previous = "", inputType = ""): { text: string; caret: number } {
+  const value = raw.trim();
+  const iso = kind === "date" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+  if (iso) return { text: `${iso[3]}.${iso[2]}.${iso[1]}`, caret: 10 };
+  const allowed = kind === "date" ? /^[0-9.]*$/ : /^[0-9:]*$/;
+  const limit = kind === "date" ? 8 : 6;
+  let digits = raw.replace(/\D/g, "");
+  let before = raw.slice(0, caret).replace(/\D/g, "").length;
+  if (!allowed.test(value) || digits.length > limit) {
+    return { text: previous, caret: Math.min(caret, previous.length) };
+  }
+  // Mobile keyboards may delete a separator without emitting a keydown event.
+  // Remove its adjacent digit as well, so Backspace/Delete cannot get stuck.
+  if (raw.length < previous.length && digits === previous.replace(/\D/g, "") &&
+    (inputType === "deleteContentBackward" || inputType === "deleteContentForward")) {
+    const index = inputType === "deleteContentBackward" ? Math.max(0, before - 1) : before;
+    digits = digits.slice(0, index) + digits.slice(index + 1);
+    before = index;
+  }
+  const separator = kind === "date" ? "." : ":";
+  const text = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)].filter(Boolean).join(separator);
+  let position = 0, count = 0;
+  while (position < text.length && count < before) {
+    if (/[0-9]/.test(text[position]!)) count++;
+    position++;
+  }
+  if (text[position] === separator && raw.slice(0, caret).endsWith(separator)) position++;
+  return { text, caret: position };
+}

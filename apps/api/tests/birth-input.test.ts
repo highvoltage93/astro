@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { displayBirthDate, displayBirthTime, parseBirthDateText, parseBirthTimeText } from "../../web/src/lib/birth-input";
+import { displayBirthDate, displayBirthTime, maskBirthInput, parseBirthDateText, parseBirthTimeText } from "../../web/src/lib/birth-input";
 
 test("birth date accepts Ukrainian text, numeric mobile input and existing ISO values", () => {
   for (const input of ["20.06.1997", "20061997", "1997-06-20", " 20.06.1997 "]) {
@@ -47,4 +47,34 @@ test("display conversion roundtrips without changing a local birth date or secon
   for (const value of ["00:00:00", "04:32:57", "12:00:18", "23:59:59"]) {
     assert.equal(parseBirthTimeText(displayBirthTime(value)), value);
   }
+});
+
+test("input masks insert separators as digits are typed", () => {
+  assert.equal(maskBirthInput("date", "2").text, "2");
+  assert.equal(maskBirthInput("date", "200").text, "20.0");
+  assert.equal(maskBirthInput("date", "20061").text, "20.06.1");
+  assert.equal(maskBirthInput("date", "20061997").text, "20.06.1997");
+  assert.equal(maskBirthInput("date", "1997-06-20").text, "20.06.1997");
+  assert.equal(maskBirthInput("time", "043").text, "04:3");
+  assert.equal(maskBirthInput("time", "043257").text, "04:32:57");
+  assert.equal(maskBirthInput("time", "12:00:18").text, "12:00:18");
+});
+
+test("mask rejects letters, negative and overlong input instead of silently changing its meaning", () => {
+  for (const raw of ["abc", "abc20061997", "-20061997", "200619970"]) {
+    assert.equal(maskBirthInput("date", raw, raw.length, "20.06.1997").text, "20.06.1997");
+  }
+  for (const raw of ["noon", "-12:00:00", "12:00:18Z", "1200180"]) {
+    assert.equal(maskBirthInput("time", raw, raw.length, "12:00:18").text, "12:00:18");
+  }
+  assert.equal(parseBirthDateText(maskBirthInput("date", "31022026").text), null);
+  assert.equal(parseBirthTimeText(maskBirthInput("time", "246060").text), null);
+});
+
+test("mask keeps the caret in place and allows deletion at separators and full clearing", () => {
+  assert.deepEqual(maskBirthInput("date", "21.06.1997", 2, "20.06.1997"), { text: "21.06.1997", caret: 2 });
+  assert.deepEqual(maskBirthInput("time", "1234:56", 2, "12:34:56", "deleteContentBackward"), { text: "13:45:6", caret: 1 });
+  assert.deepEqual(maskBirthInput("time", "1234:56", 2, "12:34:56", "deleteContentForward"), { text: "12:45:6", caret: 2 });
+  assert.deepEqual(maskBirthInput("date", "", 0, "20.06.1997", "deleteContentBackward"), { text: "", caret: 0 });
+  assert.deepEqual(maskBirthInput("date", "20.061", 6, "20.06"), { text: "20.06.1", caret: 7 });
 });

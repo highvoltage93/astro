@@ -96,6 +96,7 @@ export function ReturnPlaceSearch({ name, onSelect, onPendingChange, label = "М
           ) : results.length ? results.map((place) => (
             <button key={`${place.provider}-${place.providerId}`} type="button"
               className="flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => { close(); setQuery(place.displayName); onPendingChange(false); onSelect(place); }}>
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0 break-words">{place.displayName}</span>
             </button>

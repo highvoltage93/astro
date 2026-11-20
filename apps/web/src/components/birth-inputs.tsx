@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { displayBirthDate, displayBirthTime, parseBirthDateText, parseBirthTimeText } from "@/lib/birth-input";
+import { displayBirthDate, displayBirthTime, maskBirthInput, parseBirthDateText, parseBirthTimeText } from "@/lib/birth-input";
 
 type BirthInputProps = { value: string; onValueChange: (value: string) => void; disabled?: boolean; required?: boolean };
 
@@ -28,17 +28,25 @@ function BirthTextInput({ kind, value, onValueChange, disabled = false, required
     <Input ref={input} type="text" inputMode="numeric" autoComplete="off" spellCheck={false}
       aria-label={kind === "date" ? "Дата народження, ДД.ММ.РРРР" : "Час народження, години:хвилини:секунди"}
       aria-invalid={touched && invalid || undefined} aria-describedby={touched && invalid ? errorId : undefined}
-      placeholder={kind === "date" ? "ДД.ММ.РРРР" : "ГГ:ХХ:СС"} maxLength={kind === "date" ? 10 : 8}
+      placeholder={kind === "date" ? "ДД.ММ.РРРР" : "ГГ:ХХ:СС"}
       required={required} disabled={disabled} value={text}
       onInvalid={() => setTouched(true)}
       onChange={(event) => {
-        const next = event.target.value;
+        const masked = maskBirthInput(kind, event.target.value, event.target.selectionStart ?? event.target.value.length,
+          text, (event.nativeEvent as InputEvent).inputType);
+        const next = masked.text;
+        // Restore the caret immediately, including edits rejected without a state change.
+        event.target.value = next;
+        event.target.setSelectionRange(masked.caret, masked.caret);
         const parsed = parse(next);
         setText(next);
         event.target.setCustomValidity(!disabled && (next.trim() ? !parsed : required) ? message : "");
         // Publish empty on partial input so a button outside a form cannot reuse an old date/time.
-        published.current = parsed ?? "";
-        onValueChange(published.current);
+        const nextValue = parsed ?? "";
+        if (nextValue !== published.current) {
+          published.current = nextValue;
+          onValueChange(nextValue);
+        }
       }}
       onBlur={() => {
         setTouched(true);

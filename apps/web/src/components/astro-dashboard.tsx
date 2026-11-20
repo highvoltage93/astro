@@ -137,6 +137,25 @@ export function AstroDashboard() {
   };
 
   useEffect(() => {
+    if (placeQuery === null) return;
+    // Safari does not necessarily focus a suggestion button before firing blur.
+    const dismissOutside = (event: Event) => {
+      if (!(event.target instanceof Node) || !placeField.current || placeField.current.contains(event.target)) return;
+      placeRequest.current?.abort();
+      setPlaceQuery(null);
+      setPlaceResults([]);
+      setPlaceError(null);
+      setPlaceSearchStatus("idle");
+    };
+    document.addEventListener("pointerdown", dismissOutside, true);
+    document.addEventListener("focusin", dismissOutside, true);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside, true);
+      document.removeEventListener("focusin", dismissOutside, true);
+    };
+  }, [placeQuery]);
+
+  useEffect(() => {
     if (!authToken || !authUser) return;
     let active = true;
     setProfilesStatus("loading"); setProfilesError(null);
@@ -399,9 +418,6 @@ export function AstroDashboard() {
                 </DashboardField>
                 <DashboardField className="sm:col-span-2 lg:col-span-3" label="Місце">
                   <div className="relative" ref={placeField}
-                    onBlur={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closePlaceSuggestions();
-                    }}
                     onKeyDown={(event) => {
                       if (event.key === "Escape") {
                         event.preventDefault();
@@ -689,6 +705,7 @@ function DashboardPlaceSearchPanel({
           className="grid gap-1 rounded-md px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           key={`${place.provider}-${place.providerId}`}
           type="button"
+          onMouseDown={(event) => event.preventDefault()}
           onClick={() => onSelect(place)}
         >
           <span className="flex items-center gap-2 text-sm font-medium">
