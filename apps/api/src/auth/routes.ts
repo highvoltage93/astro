@@ -37,7 +37,7 @@ export const registerAuthRoutes = async (app: FastifyInstance, deps: {
 } = { database: prisma, consume: consumeAuthLimit }): Promise<void> => {
   app.post("/auth/register", { bodyLimit: 4096, preHandler: async (request, reply) => {
     reply.header("Cache-Control", "no-store");
-    await enforceAuthLimit(request, reply, "register-ip", request.ip, 5, 3600, deps.consume);
+    await enforceAuthLimit(request, reply, "register-ip", request.ip, 150, 1800, deps.consume);
   } }, async (request, reply) => {
     const parsed = authSchema.safeParse(request.body);
 
@@ -84,7 +84,7 @@ export const registerAuthRoutes = async (app: FastifyInstance, deps: {
 
   app.post("/auth/login", { bodyLimit: 4096, preHandler: async (request, reply) => {
     reply.header("Cache-Control", "no-store");
-    await enforceAuthLimit(request, reply, "login-ip", request.ip, 30, 900, deps.consume);
+    await enforceAuthLimit(request, reply, "login-ip", request.ip, 900, 450, deps.consume);
   } }, async (request, reply) => {
     const parsed = loginSchema.safeParse(request.body);
 
@@ -95,7 +95,7 @@ export const registerAuthRoutes = async (app: FastifyInstance, deps: {
       });
     }
 
-    if (!await enforceAuthLimit(request, reply, "login-username", parsed.data.username, 10, 900, deps.consume)) return;
+    if (!await enforceAuthLimit(request, reply, "login-username", parsed.data.username, 300, 450, deps.consume)) return;
 
     const user = await deps.database.user.findUnique({
       where: {

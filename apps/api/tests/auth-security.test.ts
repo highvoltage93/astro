@@ -29,13 +29,13 @@ test("username limiter stops guessing across IPs before password lookup", async 
     }
   });
   try {
-    for (let i = 0; i < 11; i++) {
-      const response = await app.inject({ method: "POST", url: "/auth/login", remoteAddress: `192.0.2.${i + 1}`,
+    for (let i = 0; i < 301; i++) {
+      const response = await app.inject({ method: "POST", url: "/auth/login", remoteAddress: `192.0.${2 + Math.floor(i / 254)}.${i % 254 + 1}`,
         payload: { username: i % 2 ? "ADMIN" : "admin", password: "wrong" } });
-      assert.equal(response.statusCode, i < 10 ? 401 : 429);
-      if (i === 10) assert.equal(response.headers["retry-after"], "700");
+      assert.equal(response.statusCode, i < 300 ? 401 : 429);
+      if (i === 300) assert.equal(response.headers["retry-after"], "700");
     }
-    assert.equal(lookups, 10);
+    assert.equal(lookups, 300);
   } finally { await app.close(); }
 });
 
