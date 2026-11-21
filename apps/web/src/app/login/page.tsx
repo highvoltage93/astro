@@ -59,8 +59,8 @@ const validateAuthForm = (form: AuthFormState, mode: AuthMode): AuthFieldErrors 
 
   if (username.length < 3) {
     errors.username = "Введи щонайменше 3 символи.";
-  } else if (username.length > 50) {
-    errors.username = "Максимальна довжина — 50 символів.";
+  } else if (username.length > (mode === "login" ? 160 : 50)) {
+    errors.username = `Максимальна довжина — ${mode === "login" ? 160 : 50} символів.`;
   }
 
   if (mode === "register") {
@@ -216,7 +216,7 @@ export default function LoginPage() {
       setStatus("error");
       setError(
         error instanceof AuthRequestError ? error.message : mode === "login"
-          ? "Не вдалося увійти. Перевір ім’я користувача та пароль."
+          ? "Не вдалося увійти. Перевір email або ім’я користувача та пароль."
           : "Не вдалося створити профіль. Email або username уже можуть використовуватися."
       );
     }
@@ -371,14 +371,16 @@ export default function LoginPage() {
               ) : null}
 
               <div className="space-y-2">
-                <Label htmlFor="auth-username">Ім’я користувача</Label>
+                <Label htmlFor="auth-username">{mode === "login" ? "Email або ім’я користувача" : "Ім’я користувача"}</Label>
                 <Input
                   id="auth-username"
                   aria-describedby={fieldErrors.username ? "auth-username-error" : undefined}
                   aria-invalid={Boolean(fieldErrors.username)}
                   autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   className="bg-secondary"
-                  placeholder="username"
+                  placeholder={mode === "login" ? "name@example.com або username" : "username"}
                   value={form.username}
                   onChange={(event) => updateForm("username", event.target.value)}
                 />

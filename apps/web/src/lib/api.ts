@@ -144,7 +144,7 @@ export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> =>
     body: JSON.stringify(payload)
   });
 
-  return readAuthResponse(response, "Не вдалося увійти. Перевір ім’я користувача та пароль.");
+  return readAuthResponse(response, "Не вдалося увійти. Перевір email або ім’я користувача та пароль.");
 };
 
 export const getCurrentUser = async (token: string): Promise<MeResponse> => {

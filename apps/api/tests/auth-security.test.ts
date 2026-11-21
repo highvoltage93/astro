@@ -79,6 +79,38 @@ test("existing short passwords can still log in and tokens carry the current ver
   } finally { await app.close(); }
 });
 
+test("email login is case-insensitive and shares the account username limit", async () => {
+  const account = { id: "email-user", email: "Admin@Test.com", username: "admin", locale: "uk",
+    role: "USER", passwordHash: hashPassword("admin"), authVersion: 0 };
+  for (const scenario of ["valid", "blocked", "missing", "ambiguous", "wrong-password"]) {
+    const app = Fastify();
+    const identities: string[] = [];
+    await registerAuthRoutes(app, {
+      database: { user: {
+        findUnique: async () => null,
+        findMany: async (args: { where: { email: { equals: string; mode: string } }; take: number }) => {
+          assert.deepEqual(args.where.email, { equals: "ADMIN@test.com", mode: "insensitive" });
+          assert.equal(args.take, 2);
+          return scenario === "missing" ? [] : scenario === "ambiguous" ? [account, { ...account, id: "other" }] : [account];
+        }
+      } } as unknown as AuthDependencies["database"],
+      consume: async (scope, identity) => {
+        if (scope === "login-username") identities.push(identity);
+        return { allowed: !(scenario === "blocked" && identity === "admin"), retryAfter: 60 };
+      }, recordLogin: async () => { assert.equal(scenario, "valid"); }
+    });
+    try {
+      const response = await app.inject({ method: "POST", url: "/auth/login",
+        payload: { username: "  ADMIN@test.com  ", password: scenario === "wrong-password" ? "wrong" : "admin" } });
+      assert.equal(response.statusCode, scenario === "valid" ? 200 : scenario === "blocked" ? 429 : 401);
+      if (scenario === "valid") {
+        assert.equal(response.json().user.id, account.id);
+        assert.deepEqual(identities, ["ADMIN@test.com", "admin"]);
+      }
+    } finally { await app.close(); }
+  }
+});
+
 test("recovery gives the same response for queued addresses and email throttling", async () => {
   const app = Fastify();
   const queued: string[] = [];

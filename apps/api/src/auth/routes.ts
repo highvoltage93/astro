@@ -20,7 +20,7 @@ const authSchema = z.object({
 });
 
 const loginSchema = z.object({
-  username: z.string().trim().min(3).max(50),
+  username: z.string().trim().min(3).max(160),
   password: z.string().min(4).max(128)
 });
 
@@ -97,22 +97,33 @@ export const registerAuthRoutes = async (app: FastifyInstance, deps: {
 
     if (!await enforceAuthLimit(request, reply, "login-username", parsed.data.username, 300, 450, deps.consume)) return;
 
-    const user = await deps.database.user.findUnique({
+    const select = { ...authUserSelect, authVersion: true, passwordHash: true };
+    // Preserve existing usernames, including usernames that look like email addresses.
+    let user = await deps.database.user.findUnique({
       where: {
         username: parsed.data.username
       },
-      select: {
-        ...authUserSelect,
-        authVersion: true,
-        passwordHash: true
-      }
+      select
     });
+
+    if (!user && z.string().email().safeParse(parsed.data.username).success) {
+      const matches = await deps.database.user.findMany({
+        where: { email: { equals: parsed.data.username, mode: "insensitive" } },
+        select,
+        take: 2
+      });
+      // Legacy emails may differ only in case; do not select an arbitrary account.
+      if (matches.length === 1) user = matches[0]!;
+    }
+
+    if (user && user.username.trim().toLowerCase() !== parsed.data.username.toLowerCase() &&
+      !await enforceAuthLimit(request, reply, "login-username", user.username, 300, 450, deps.consume)) return;
 
     const validPassword = verifyPassword(parsed.data.password, user?.passwordHash ?? dummyPasswordHash);
     if (!user || !validPassword) {
       return reply.code(401).send({
         code: "INVALID_CREDENTIALS",
-        message: "Invalid username or password"
+        message: "Invalid email, username or password"
       });
     }
 
