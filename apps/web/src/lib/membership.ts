@@ -11,6 +11,19 @@ export type AccessHistory = { access: AccessSummary; history: { id: string; plan
   reason: string; startsAt: string; endsAt: string; revokedAt: string | null; createdAt: string }[] };
 export const planNames = { FREE: "Без активної підписки", TRIAL: "Trial", PRO: "Pro" };
 export const membershipDate = (value: string) => new Date(value).toLocaleString("uk-UA");
+export const accessEndDate = (value: string) => new Date(value).toLocaleString("uk-UA", {
+  day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  timeZone: "Europe/Kyiv"
+}) + " (Київ)";
+
+export function accessTimeLeft(endsAt: string, now: number) {
+  const milliseconds = Date.parse(endsAt) - now;
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return "Строк завершився";
+  const hours = Math.ceil(milliseconds / 3600000);
+  if (hours < 24) return hours === 1 ? "Залишилося до 1 год" : `Залишилося ${hours} год`;
+  const days = Math.floor(hours / 24), remainder = hours % 24;
+  return `Залишилося ${days} дн${remainder ? ` ${remainder} год` : ""}`;
+}
 
 export class MembershipError extends Error {
   constructor(message: string, readonly status: number) { super(message); }

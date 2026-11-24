@@ -211,7 +211,8 @@ export default function LoginPage() {
 
       window.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, response.token);
       setStatus("ready");
-      router.replace(getSafeNextPath());
+      const next = getSafeNextPath();
+      router.replace(mode === "register" ? `/plans?welcome=1&next=${encodeURIComponent(next)}` : next);
     } catch (error) {
       setStatus("error");
       setError(

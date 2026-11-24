@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, CircleUserRound, Crown, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Account, MembershipError, membershipDate, membershipRequest, planNames } from "@/lib/membership";
+import { Account, MembershipError, accessEndDate, accessTimeLeft, membershipDate, membershipRequest, planNames } from "@/lib/membership";
 import styles from "@/app/plans/membership.module.css";
 
 export function MembershipPage({ profile = false }: { profile?: boolean }) {
@@ -13,6 +13,20 @@ export function MembershipPage({ profile = false }: { profile?: boolean }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [welcome, setWelcome] = useState(false);
+  const [nextPath, setNextPath] = useState("/");
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setWelcome(!profile && params.get("welcome") === "1");
+    const next = params.get("next");
+    if (next?.startsWith("/") && !next.startsWith("//")) {
+      const url = new URL(next, window.location.origin);
+      if (url.origin === window.location.origin) setNextPath(`${url.pathname}${url.search}${url.hash}`);
+    }
+    const interval = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(interval);
+  }, [profile]);
   useEffect(() => {
     const controller = new AbortController();
     setError(""); setAccount(null);
@@ -38,11 +52,11 @@ export function MembershipPage({ profile = false }: { profile?: boolean }) {
         <p role="status" className="flex items-center gap-2"><LoaderCircle className="size-5 animate-spin" />Завантаження…</p> : <>
         <section className="space-y-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">ZORIA / {profile ? "Акаунт" : "Плани"}</p>
-          <h1 className="break-words text-3xl font-semibold">{profile ? account.user.username : "Ваш простір для астрології"}</h1>
+          <h1 className="break-words text-3xl font-semibold">{profile ? account.user.username : welcome ? "Вітаємо в ZORIA" : "Ваш простір для астрології"}</h1>
           <p className="max-w-2xl text-base leading-7 text-muted-foreground">{profile ? account.user.email : `${account.trialDays} днів безкоштовного знайомства, потім одна місячна підписка. Усі інструменти в одному плані.`}</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-border py-4 text-sm">
             <span>Поточний план: <strong>{planNames[account.access.plan]}</strong></span>
-            {account.access.endsAt ? <span>До {membershipDate(account.access.endsAt)}</span> : null}
+            {account.access.endsAt ? <span>До {accessEndDate(account.access.endsAt)} · {accessTimeLeft(account.access.endsAt, now)}</span> : null}
             {account.access.administrator ? <span className="font-medium">Адміністратор</span> : null}
           </div>
           <p className="text-sm leading-6 text-muted-foreground">{account.access.mode === "preview"
@@ -50,6 +64,21 @@ export function MembershipPage({ profile = false }: { profile?: boolean }) {
             : account.access.canWork ? "Доступ активний. Після його завершення ваші матеріали залишаться доступними для перегляду."
             : "Доступ завершився. Архів збережено та доступний для перегляду. Для нових розрахунків і редагування потрібно продовжити підписку."}</p>
         </section>
+        {welcome ? <section className="space-y-4 border-b border-border pb-6" aria-label="Початок роботи та умови доступу">
+          <h2 className="text-xl font-semibold">{account.access.plan === "TRIAL" ? "Ваш пробний період уже почався" : "Ваш акаунт готовий"}</h2>
+          <p className="max-w-3xl leading-7">{account.access.plan === "TRIAL" && account.access.endsAt
+            ? `Повний доступ безкоштовний до ${accessEndDate(account.access.endsAt)}. Можна будувати карти, розраховувати прогнози, працювати з календарями, консультаціями та спостереженнями.`
+            : account.access.mode === "preview" ? "Зараз діє бета-доступ без тарифних обмежень."
+            : account.access.canWork ? "Повний доступ активний; його строк показано вище." : "Активного пробного періоду немає. Для доступу до розрахунків зверніться до адміністратора."}</p>
+          <ul className="space-y-2 text-sm leading-6 text-muted-foreground">
+            <li>Після пробного періоду передбачена одна місячна підписка з усім функціоналом.</li>
+            <li>Картка для Trial не потрібна. Автоматичних списань немає.</li>
+            <li>Після завершення доступу ваші карти, прогнози й тексти не видаляються.</li>
+            <li>{account.access.mode === "preview" ? "Поки тарифні обмеження вимкнені, можна продовжувати роботу й після Trial." : "Без активної підписки залишаться вхід до акаунта та читання власного архіву."}</li>
+            <li>Онлайн-оплата ще готується. З питаннями доступу допоможе адміністратор через зворотний зв’язок.</li>
+          </ul>
+          <Button onClick={() => router.replace(nextPath)}><ArrowRight />Перейти до роботи</Button>
+        </section> : null}
         {profile ? <>
           <section className="border-b border-border pb-6">
             <h2 className="mb-5 text-xl font-semibold">Профіль</h2>
