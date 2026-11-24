@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { FeedbackButton } from "./feedback-button";
 import { LegalLinks } from "./legal-links";
 import { BetaBadge } from "./ui/beta-badge";
+import { MembershipAccess } from "./membership-access";
 
 const navigation = [
   { href: "/", label: "Дешборд", icon: LayoutDashboard },
@@ -67,7 +68,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="border-t px-3 py-2"><FeedbackButton /></div>
       </aside>
-      <div id="zoria-content" tabIndex={-1} className="min-w-0 outline-none">{children}<footer className="border-t px-4 py-3"><LegalLinks /></footer></div>
+      <div id="zoria-content" tabIndex={-1} className="min-w-0 outline-none"><MembershipAccess>{children}</MembershipAccess><footer className="border-t px-4 py-3"><LegalLinks /></footer></div>
     </div>
   );
 }

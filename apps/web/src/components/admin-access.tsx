@@ -30,21 +30,26 @@ export function AdminAccessSettings() {
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!settings || busy) return;
+    if (settings.enforcementEnabled && !window.confirm("Увімкнути тарифні обмеження? Без активного доступу залишиться перегляд архіву. Переконайтеся, що користувачам доступний спосіб продовження підписки.")) return;
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await membershipRequest<AccessSettings>("/admin/access/settings", { method: "PUT", body: JSON.stringify({
-        trialEnabled: settings.trialEnabled, trialDays: settings.trialDays, revision: settings.revision
+        trialEnabled: settings.trialEnabled, trialDays: settings.trialDays, revision: settings.revision,
+        enforcementEnabled: settings.enforcementEnabled, transitionDays: settings.transitionDays
       }) });
-      setSettings(result); setNotice("Збережено. Нові правила діють лише для наступних реєстрацій.");
+      setSettings(result); setNotice("Збережено. Тривалість trial діє для нових реєстрацій; перемикач обмежень застосовується одразу.");
     } catch (cause) { setError(message(cause)); } finally { setBusy(false); }
   }
   return <Card><CardHeader><CardTitle>Плани та пробний період</CardTitle></CardHeader><CardContent className="space-y-4">
-    <p className="text-sm leading-6 text-muted-foreground">Попередній режим: тарифні обмеження не застосовуються. Trial і Pro не змінюють роль користувача або поточний доступ до чужих спостережень.</p>
+    <p className="text-sm leading-6 text-muted-foreground">Trial і місячна підписка відкривають однаковий функціонал. До підключення оплати залишайте обмеження вимкненими. При першому запуску чинні користувачі отримають перехідний доступ лише один раз.</p>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     {notice ? <p role="status" className="text-sm">{notice}</p> : null}
     {settings ? <form onSubmit={save} className="flex flex-wrap items-end gap-4">
       <div className="flex min-h-11 items-center gap-2"><Checkbox id="trial-enabled" checked={settings.trialEnabled} disabled={busy} onCheckedChange={(checked) => setSettings({ ...settings, trialEnabled: checked === true })} /><Label htmlFor="trial-enabled">Trial для нових акаунтів</Label></div>
       <div className="w-40 space-y-2"><Label htmlFor="trial-days">Тривалість, днів</Label><Input id="trial-days" type="number" min={1} max={365} required disabled={busy} value={settings.trialDays} onChange={(event) => setSettings({ ...settings, trialDays: Number(event.target.value) })} /></div>
+      <div className="flex min-h-11 items-center gap-2"><Checkbox id="access-enforced" checked={settings.enforcementEnabled} disabled={busy} onCheckedChange={(checked) => setSettings({ ...settings, enforcementEnabled: checked === true })} /><Label htmlFor="access-enforced">Тарифні обмеження</Label></div>
+      <div className="w-48 space-y-2"><Label htmlFor="transition-days">Перехідний строк, днів</Label><Input id="transition-days" type="number" min={1} max={365} required disabled={busy || !!settings.launchedAt} value={settings.transitionDays} onChange={(event) => setSettings({ ...settings, transitionDays: Number(event.target.value) })} /></div>
+      {settings.launchedAt ? <p className="w-full text-sm text-muted-foreground">Перший запуск: {membershipDate(settings.launchedAt)}. Перемикання не видає повторний перехідний доступ.</p> : null}
       <Button type="submit" disabled={busy}><Save />Зберегти</Button>
     </form> : !error ? <p role="status">Завантаження…</p> : null}
     <Button variant="outline" disabled={busy} onClick={() => { setNotice(""); setRevision((value) => value + 1); }}><RefreshCw />Оновити налаштування</Button>
@@ -87,7 +92,7 @@ export function AdminUserAccess({ userId }: { userId: string }) {
   return <section className="space-y-4 border-t pt-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold">Тарифний доступ</h3><Button type="button" variant="outline" disabled={busy} onClick={() => setRevision((value) => value + 1)}><RefreshCw />Оновити</Button></div>
     {data ? <p className="text-sm">План: <strong>{planNames[data.access.plan]}</strong>{data.access.endsAt ? ` до ${membershipDate(data.access.endsAt)}` : ""}{data.access.administrator ? " · Адміністратор" : ""}</p> : !error ? <p role="status">Завантаження…</p> : null}
-    <p className="text-sm text-muted-foreground">Щоб продовжити доступ, видайте новий строк. Щоб повернути Free, відкличте всі активні Trial/Pro. Збережені матеріали не видаляються. Тарифні блокування поки вимкнені.</p>
+    <p className="text-sm text-muted-foreground">Щоб продовжити доступ, видайте новий строк. Для припинення роботи відкличте всі активні записи, включно з перехідними. Архів не видаляється. Обмеження діють лише після глобального запуску.</p>
     <form onSubmit={(event) => { event.preventDefault(); void mutate(); }} className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2"><Label htmlFor="access-plan">План</Label><Select value={plan} disabled={busy} onValueChange={(value: "TRIAL" | "PRO") => setPlan(value)}><SelectTrigger id="access-plan"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="TRIAL">Trial</SelectItem><SelectItem value="PRO">Pro</SelectItem></SelectContent></Select></div>
       <div className="space-y-2"><Label htmlFor="access-end">Доступ до (час Києва)</Label><Input id="access-end" type="datetime-local" step={1} required value={endsAt} disabled={busy} onChange={(event) => setEndsAt(event.target.value)} /></div>
@@ -103,7 +108,7 @@ export function AdminUserAccess({ userId }: { userId: string }) {
           <div className="min-w-0 flex-1 space-y-1"><p className="font-medium">{planNames[grant.plan]} · {grant.revokedAt ? "Відкликано" : active ? "Активний" : "Завершено"}</p>
             <p>{membershipDate(grant.startsAt)} – {membershipDate(grant.endsAt)}</p>
             <p className="break-words text-muted-foreground">{grant.reason}</p>
-            <p className="text-xs text-muted-foreground">{grant.source === "registration" ? "Реєстрація" : "Адміністратор"} · створено {membershipDate(grant.createdAt)}</p>
+            <p className="text-xs text-muted-foreground">{grant.source === "registration" ? "Реєстрація" : grant.source === "transition" ? "Перехідний доступ" : "Адміністратор"} · створено {membershipDate(grant.createdAt)}</p>
           </div>
           {active ? <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void mutate(grant.id)}><Ban />Відкликати</Button> : null}
         </article>;

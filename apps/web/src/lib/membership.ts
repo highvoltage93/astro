@@ -1,14 +1,15 @@
 import { AUTH_TOKEN_STORAGE_KEY } from "./auth-storage";
 
 export type AccessSummary = { plan: "FREE" | "TRIAL" | "PRO"; endsAt: string | null; administrator: boolean;
-  mode: "preview"; proposed: Record<string, boolean> };
+  mode: "preview" | "enforced"; canWork: boolean; proposed: Record<string, boolean> };
 export type Account = { user: { id: string; username: string; email: string; role: string; createdAt: string; lastLoginAt: string | null;
   _count: { birthProfiles: number; savedForecasts: number; consultations: number } };
   access: AccessSummary; trialDays: number; trialEnabled: boolean };
-export type AccessSettings = { trialEnabled: boolean; trialDays: number; revision: number };
+export type AccessSettings = { trialEnabled: boolean; trialDays: number; revision: number;
+  enforcementEnabled: boolean; transitionDays: number; launchedAt: string | null };
 export type AccessHistory = { access: AccessSummary; history: { id: string; plan: "TRIAL" | "PRO"; source: string;
   reason: string; startsAt: string; endsAt: string; revokedAt: string | null; createdAt: string }[] };
-export const planNames = { FREE: "Free", TRIAL: "Trial", PRO: "Pro" };
+export const planNames = { FREE: "Без активної підписки", TRIAL: "Trial", PRO: "Pro" };
 export const membershipDate = (value: string) => new Date(value).toLocaleString("uk-UA");
 
 export class MembershipError extends Error {

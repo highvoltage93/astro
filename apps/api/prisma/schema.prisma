@@ -96,6 +96,9 @@ model AccessSettings {
   id           String @id @default("default")
   trialEnabled Boolean @default(true)
   trialDays    Int @default(7)
+  enforcementEnabled Boolean @default(false)
+  transitionDays Int @default(14)
+  launchedAt DateTime?
   revision     Int @default(0)
 
   @@map("access_settings")

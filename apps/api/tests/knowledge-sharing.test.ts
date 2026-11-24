@@ -14,18 +14,19 @@ const record = { noteId: id, title: "Public title", body: "Public body", tags: [
   revision: 2, sourceRevision: 3, published: true, createdAt: new Date(), updatedAt: new Date(), note: { owner: { username: "author" } } };
 const until = () => new Date(Date.now() + 3600000);
 const unexpected = () => assert.fail("Unexpected database access");
+const accessMocks = { accessSettings: { findUnique: async () => null }, accessGrant: { findMany: async () => [] } };
 const createApp = async (t: TestContext, database: unknown = {}) => {
   const app = Fastify();
   await registerKnowledgeSharingRoutes(app, {
     authenticate: async (request) => request.headers.authorization === headers.authorization ? { id: "reader" } : null,
-    database: database as KnowledgeSharingDependencies["database"]
+    database: { ...accessMocks, ...(database as object) } as KnowledgeSharingDependencies["database"]
   });
   t.after(() => app.close());
   return app;
 };
 const transaction = (tx: unknown) => async (work: (client: unknown) => Promise<unknown>, options: unknown) => {
   assert.deepEqual(options, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-  return work(tx);
+  return work({ ...accessMocks, ...(tx as object) });
 };
 
 test("sharing endpoints require authentication before accessing any data", async (t) => {
@@ -41,6 +42,20 @@ test("access expires at the exact boundary and missing access is free", () => {
   const now = new Date("2026-11-14T12:00:00Z");
   for (const date of [null, undefined, now, new Date(now.getTime() - 1)]) assert.equal(sharedKnowledgeAccess(date, now).enabled, false);
   assert.equal(sharedKnowledgeAccess(new Date(now.getTime() + 1), now).enabled, true);
+});
+
+test("trial and pro include shared observations; enforcement replaces legacy-only access", async (t) => {
+  const accessSettings = { findUnique: async () => ({ enforcementEnabled: true }) };
+  for (const plan of ["TRIAL", "PRO", null]) {
+    const app = await createApp(t, {
+      user: { findUnique: async () => ({ role: "USER", sharedKnowledgeUntil: until() }) },
+      accessSettings,
+      accessGrant: { findMany: async () => plan ? [{ plan, startsAt: new Date(0), endsAt: until(), revokedAt: null }] : [] }
+    });
+    const response = await app.inject({ method: "GET", url: "/knowledge-library/access", headers });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().enabled, plan !== null);
+  }
 });
 
 test("administrators have unlimited catalog access based on their current database role", async (t) => {

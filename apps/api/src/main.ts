@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify from "fastify";
 import { registerAuthRoutes } from "./auth/routes";
 import { registerAccessRoutes } from "./access/routes";
+import { registerWorkAccessGuard } from "./access/guard";
 import { registerRecoveryRoutes } from "./auth/recovery-routes";
 import { startMailWorker } from "./mail/worker";
 import { registerAdminRoutes } from "./admin/routes";
@@ -60,16 +61,19 @@ const start = async (): Promise<void> => {
   await registerAdminKnowledgeRoutes(app);
   await registerFeedbackRoutes(app);
   await registerPlaceRoutes(app);
-  await registerBirthProfileRoutes(app);
-  await registerChartRoutes(app);
-  await registerSavedForecastRoutes(app);
-  await registerCalculationProfileRoutes(app);
-  await registerConsultationRoutes(app);
-  await registerConsultationTemplateRoutes(app);
-  await registerKnowledgeNoteRoutes(app);
-  await registerKnowledgeSharingRoutes(app);
-  await registerAstroEventRoutes(app);
-  await registerInterpretationRoutes(app);
+  await app.register(async (work) => {
+    registerWorkAccessGuard(work);
+    await registerBirthProfileRoutes(work);
+    await registerChartRoutes(work);
+    await registerSavedForecastRoutes(work);
+    await registerCalculationProfileRoutes(work);
+    await registerConsultationRoutes(work);
+    await registerConsultationTemplateRoutes(work);
+    await registerKnowledgeNoteRoutes(work);
+    await registerKnowledgeSharingRoutes(work);
+    await registerAstroEventRoutes(work);
+    await registerInterpretationRoutes(work);
+  });
 
   const stopMailWorker = startMailWorker(app);
   app.addHook("onClose", async () => {

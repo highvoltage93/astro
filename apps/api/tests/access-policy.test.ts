@@ -3,6 +3,7 @@ import test from "node:test";
 import Fastify from "fastify";
 import { accessDecision, trialEnd, type Grant } from "../src/access/policy";
 import { registerAuthRoutes } from "../src/auth/routes";
+import { registerWorkAccessGuard } from "../src/access/guard";
 
 const now = new Date("2030-01-01T00:00:00.000Z");
 const grant = (change: Partial<Grant> = {}): Grant => ({ plan: "TRIAL", startsAt: now,
@@ -15,10 +16,46 @@ test("existing users without grants stay Free in preview, administrators remain 
   assert.equal(free.endsAt, null);
   assert.equal(free.proposed.natal, true);
   assert.equal(free.proposed.ownObservations, true);
-  assert.equal(free.proposed.sharedObservations, false);
+  assert.equal(free.canWork, true);
   assert.equal(accessDecision("ADMIN", [], now).plan, "FREE");
   assert.equal(accessDecision("ADMIN", [], now).administrator, true);
   assert.ok(Object.values(accessDecision("ADMIN", [], now).proposed).every(Boolean));
+});
+
+test("enforcement allows archive reads but requires an active grant for all work", () => {
+  const expired = accessDecision("USER", [grant({ endsAt: now, startsAt: trialEnd(now, -7) })], now, true);
+  assert.equal(expired.canWork, false);
+  assert.equal(expired.proposed.archive, true);
+  for (const feature of ["natal", "forecast", "consultation", "ownObservations", "sharedObservations", "profiles"] as const) {
+    assert.equal(expired.proposed[feature], false);
+  }
+  assert.equal(accessDecision("USER", [grant()], now, true).canWork, true);
+  assert.equal(accessDecision("ADMIN", [], now, true).canWork, true);
+  assert.equal(accessDecision("USER", [], now, false).canWork, true);
+});
+
+test("work guard blocks expired writes without blocking archive reads or deleting data", async () => {
+  for (const scenario of ["expired", "active", "anonymous", "preview"] as const) {
+    const app = Fastify();
+    let writes = 0;
+    registerWorkAccessGuard(app, {
+      authenticate: async () => scenario === "anonymous" ? null : { id: "user", role: "USER" },
+      settings: async () => ({ enforcementEnabled: scenario !== "preview" }),
+      access: async () => ({ canWork: scenario === "active" })
+    });
+    app.post("/charts/natal/preview", async () => { writes++; return { ok: true }; });
+    app.put("/consultations/:id", async () => { writes++; return { ok: true }; });
+    app.get("/consultations/:id", async () => ({ title: "Saved document" }));
+    try {
+      for (const [method, url] of [["POST", "/charts/natal/preview"], ["PUT", "/consultations/one"]] as const) {
+        const response = await app.inject({ method, url });
+        assert.equal(response.statusCode, scenario === "expired" ? 403 : scenario === "anonymous" ? 401 : 200);
+        if (scenario === "expired") assert.equal(response.json().code, "SUBSCRIPTION_REQUIRED");
+      }
+      assert.equal(writes, scenario === "active" || scenario === "preview" ? 2 : 0);
+      assert.equal((await app.inject("/consultations/one")).statusCode, 200);
+    } finally { await app.close(); }
+  }
 });
 
 test("grant starts inclusively, expires exclusively, and revoked or future grants never apply", () => {

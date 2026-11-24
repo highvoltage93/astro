@@ -3,9 +3,10 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../prisma/client";
 import { getOptionalAuthUser } from "../auth/service";
-import { accessDecision, defaultAccessSettings } from "./policy";
+import { accessDecision, defaultAccessSettings, trialEnd } from "./policy";
 
-const settingsInput = z.object({ trialEnabled: z.boolean(), trialDays: z.number().int().min(1).max(365), revision: z.number().int().min(0) }).strict();
+const settingsInput = z.object({ trialEnabled: z.boolean(), trialDays: z.number().int().min(1).max(365),
+  enforcementEnabled: z.boolean(), transitionDays: z.number().int().min(1).max(365), revision: z.number().int().min(0) }).strict();
 const grantInput = z.object({ plan: z.enum(["TRIAL", "PRO"]), endsAt: z.string().datetime({ offset: true }), reason: z.string().trim().min(3).max(500) }).strict();
 const revokeInput = z.object({ reason: z.string().trim().min(3).max(500) }).strict();
 
@@ -21,7 +22,7 @@ export async function registerAccessRoutes(app: FastifyInstance) {
     if (!user) return reply.code(401).send({ message: "Сесія завершилась." });
     const grants = await prisma.accessGrant.findMany({ where: { userId: actor.id, revokedAt: null, endsAt: { gt: new Date() } } });
     const settings = await prisma.accessSettings.findUnique({ where: { id: "default" } }) ?? defaultAccessSettings;
-    return { user, access: accessDecision(actor.role, grants), trialDays: settings.trialDays, trialEnabled: settings.trialEnabled };
+    return { user, access: accessDecision(actor.role, grants, new Date(), settings.enforcementEnabled), trialDays: settings.trialDays, trialEnabled: settings.trialEnabled };
   });
 
   await app.register(async (admin) => {
@@ -40,7 +41,8 @@ export async function registerAccessRoutes(app: FastifyInstance) {
         prisma.accessGrant.findMany({ where: { userId: request.params.id, revokedAt: null, endsAt: { gt: now } } }),
         prisma.accessGrant.findMany({ where: { userId: request.params.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100 })
       ]);
-      return { access: accessDecision(user.role, active, now), history };
+      const settings = await prisma.accessSettings.findUnique({ where: { id: "default" } }) ?? defaultAccessSettings;
+      return { access: accessDecision(user.role, active, now, settings.enforcementEnabled), history };
     });
 
     // Role recheck and audit belong to the same transaction as every administrative write.
@@ -66,10 +68,24 @@ export async function registerAccessRoutes(app: FastifyInstance) {
       return change(request, reply, async (tx, actorId) => {
         const before = await tx.accessSettings.upsert({ where: { id: "default" }, create: { id: "default" }, update: {} });
         if (before.revision !== parsed.data.revision) throw new AccessError(409, "Налаштування змінилися. Оновіть сторінку.");
+        const launch = parsed.data.enforcementEnabled && !before.launchedAt;
+        const now = new Date();
+        if (launch) {
+          const users = await tx.user.findMany({ where: { role: { not: "ADMIN" }, createdAt: { lt: now } }, select: { id: true } });
+          for (let offset = 0; offset < users.length; offset += 1000) {
+            await tx.accessGrant.createMany({ data: users.slice(offset, offset + 1000).map(user => ({ userId: user.id, plan: "PRO" as const,
+              source: "transition", reason: "Перехідний доступ при запуску підписок", startsAt: now,
+              endsAt: trialEnd(now, parsed.data.transitionDays) })) });
+          }
+        }
         const after = await tx.accessSettings.update({ where: { id: "default" }, data: {
-          trialEnabled: parsed.data.trialEnabled, trialDays: parsed.data.trialDays, revision: { increment: 1 }
+          trialEnabled: parsed.data.trialEnabled, trialDays: parsed.data.trialDays,
+          enforcementEnabled: parsed.data.enforcementEnabled, transitionDays: parsed.data.transitionDays,
+          ...(launch ? { launchedAt: now } : {}), revision: { increment: 1 }
         } });
-        await tx.auditEvent.create({ data: { userId: actorId, action: "admin.access.settings", entity: "AccessSettings", entityId: "default", metadata: { before, after } } });
+        await tx.auditEvent.create({ data: { userId: actorId, action: "admin.access.settings", entity: "AccessSettings", entityId: "default",
+          metadata: { before: { ...before, launchedAt: before.launchedAt?.toISOString() ?? null },
+            after: { ...after, launchedAt: after.launchedAt?.toISOString() ?? null } } } });
         return after;
       });
     });

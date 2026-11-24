@@ -2,13 +2,14 @@ import { Prisma } from "@prisma/client";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { getOptionalAuthUser } from "../auth/service";
 import { prisma } from "../prisma/client";
+import { accessDecision, defaultAccessSettings } from "../access/policy";
 import { matchingConditions } from "./matching";
 import { matchNotesSchema, noteConditionsSchema, noteIdSchema } from "./schemas";
 import { authorActivationSchema, libraryQuerySchema, publicationRevisionSchema, publicationSchema, sharedKnowledgeAccess } from "./sharing";
 
 export type KnowledgeSharingDependencies = {
   authenticate: (request: FastifyRequest) => Promise<{ id: string } | null>;
-  database: Pick<typeof prisma, "user" | "knowledgeNote" | "knowledgePublication" | "knowledgeActivation" | "$transaction">;
+  database: Pick<typeof prisma, "user" | "accessSettings" | "accessGrant" | "knowledgeNote" | "knowledgePublication" | "knowledgeActivation" | "$transaction">;
 };
 const publicSelect = {
   noteId: true, title: true, tags: true, conditionsJson: true, revision: true, createdAt: true, updatedAt: true,
@@ -23,8 +24,15 @@ export const publicationView = (record: PublicRecord) => ({
 const availableTo = (userId: string): Prisma.KnowledgePublicationWhereInput => ({
   published: true, note: { archived: false, ownerUserId: { not: userId } }
 });
-const accessFor = async (db: Pick<Prisma.TransactionClient, "user">, id: string) => {
+const accessFor = async (db: Pick<Prisma.TransactionClient, "user" | "accessSettings" | "accessGrant">, id: string) => {
   const user = await db.user.findUnique({ where: { id }, select: { sharedKnowledgeUntil: true, role: true } });
+  if (user?.role === "ADMIN") return sharedKnowledgeAccess(null, new Date(), user.role);
+  const settings = await db.accessSettings.findUnique({ where: { id: "default" } }) ?? defaultAccessSettings;
+  const grants = await db.accessGrant.findMany({ where: { userId: id, revokedAt: null, endsAt: { gt: new Date() } } });
+  const access = accessDecision(user?.role ?? "USER", grants, new Date(), settings.enforcementEnabled);
+  if (settings.enforcementEnabled || access.plan !== "FREE") {
+    return { enabled: !!user && access.canWork, expiresAt: access.endsAt?.toISOString() ?? null };
+  }
   return sharedKnowledgeAccess(user?.sharedKnowledgeUntil, new Date(), user?.role);
 };
 const accessMessage = "Доступ до спостережень інших астрологів не активний або завершився.";

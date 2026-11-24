@@ -1,3 +1,4 @@
+import { AUTH_TOKEN_STORAGE_KEY } from "./auth-storage";
 import type {
   AuthPayload,
   AuthResponse,
@@ -63,6 +64,12 @@ const jsonHeaders = (token?: string | null): HeadersInit => ({
 });
 
 const authHeaders = (token?: string | null): HeadersInit => (token ? { Authorization: `Bearer ${token}` } : {});
+
+const workHeaders = (): HeadersInit => jsonHeaders(typeof window === "undefined" ? null : window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY));
+const workError = async (response: Response): Promise<Error> => {
+  const body = await response.json().catch(() => null) as { message?: string } | null;
+  return new Error(body?.message ?? `API responded with ${response.status}`);
+};
 
 const profileResponse = async <Result>(response: Response): Promise<Result> => {
   if (!response.ok) {
@@ -162,12 +169,12 @@ export const getCurrentUser = async (token: string): Promise<MeResponse> => {
 export const requestNatalPreview = async (payload: NatalPreviewPayload): Promise<ChartResult> => {
   const response = await fetch(`${API_URL}/charts/natal/preview`, {
     method: "POST",
-    headers: jsonHeaders(),
+    headers: workHeaders(),
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
-    throw new Error(`API responded with ${response.status}`);
+    throw await workError(response);
   }
 
   return response.json() as Promise<ChartResult>;
@@ -178,12 +185,12 @@ export const requestNatalInterpretation = async (
 ): Promise<NatalInterpretationPreview> => {
   const response = await fetch(`${API_URL}/interpretations/natal/preview`, {
     method: "POST",
-    headers: jsonHeaders(),
+    headers: workHeaders(),
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
-    throw new Error(`API responded with ${response.status}`);
+    throw await workError(response);
   }
 
   return response.json() as Promise<NatalInterpretationPreview>;
@@ -192,12 +199,12 @@ export const requestNatalInterpretation = async (
 export const requestTransitPreview = async (payload: TransitPreviewPayload): Promise<TransitPreviewResult> => {
   const response = await fetch(`${API_URL}/charts/transits/preview`, {
     method: "POST",
-    headers: jsonHeaders(),
+    headers: workHeaders(),
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
-    throw new Error(`API responded with ${response.status}`);
+    throw await workError(response);
   }
 
   return response.json() as Promise<TransitPreviewResult>;
@@ -206,12 +213,12 @@ export const requestTransitPreview = async (payload: TransitPreviewPayload): Pro
 export const requestForecastPreview = async (payload: ForecastPreviewPayload): Promise<ForecastPreviewResult> => {
   const response = await fetch(`${API_URL}/charts/forecast/preview`, {
     method: "POST",
-    headers: jsonHeaders(),
+    headers: workHeaders(),
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
-    throw new Error(`API responded with ${response.status}`);
+    throw await workError(response);
   }
 
   return response.json() as Promise<ForecastPreviewResult>;
@@ -219,9 +226,9 @@ export const requestForecastPreview = async (payload: ForecastPreviewPayload): P
 
 export const requestProgressionCalendar = async (payload: ForecastPreviewPayload): Promise<NonNullable<ForecastPreviewResult["secondaryProgression"]>> => {
   const response = await fetch(`${API_URL}/charts/progression/calendar`, {
-    method: "POST", headers: jsonHeaders(), body: JSON.stringify(payload)
+    method: "POST", headers: workHeaders(), body: JSON.stringify(payload)
   });
-  if (!response.ok) throw new Error("Не вдалося розрахувати календар прогресій. Спробуйте ще раз.");
+  if (!response.ok) throw await workError(response);
   const result = await response.json() as { progression: ForecastPreviewResult["secondaryProgression"] };
   if (!result.progression) throw new Error("API не повернув календар прогресій.");
   return result.progression;
@@ -230,12 +237,12 @@ export const requestProgressionCalendar = async (payload: ForecastPreviewPayload
 export const requestSynastryPreview = async (payload: SynastryPreviewPayload): Promise<SynastryPreviewResult> => {
   const response = await fetch(`${API_URL}/charts/synastry/preview`, {
     method: "POST",
-    headers: jsonHeaders(),
+    headers: workHeaders(),
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
-    throw new Error(`API responded with ${response.status}`);
+    throw await workError(response);
   }
 
   return response.json() as Promise<SynastryPreviewResult>;

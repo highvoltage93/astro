@@ -19,11 +19,13 @@ import { appendTextTemplate } from "@/lib/consultation-templates";
 import { consultationDraft, ConsultationError, isConsultationDraft, restoreConsultationDraft, updateConsultation } from "@/lib/consultations";
 import { ConsultationHistory } from "@/components/consultation-history";
 import type { Consultation, ConsultationDraft, ConsultationMutation } from "@/lib/consultations";
+import { useMembershipAccess } from "@/components/membership-access";
 
 type Recovery = { draft: ConsultationDraft; revision: number; pending: ConsultationMutation | null };
 const textareaClass = "w-full min-h-40 resize-y rounded-md border bg-background p-3 text-base leading-7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm";
 
 export function ConsultationEditor({ record, token, userId }: { record: Consultation; token: string; userId: string }) {
+  const { canWork } = useMembershipAccess();
   const [draft, setDraft] = useState<ConsultationDraft>(() => consultationDraft(record));
   const [saved, setSaved] = useState(() => JSON.stringify(consultationDraft(record)));
   const savedDraft = useMemo(() => JSON.parse(saved) as ConsultationDraft, [saved]);
@@ -88,6 +90,7 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
   }, [unsaved]);
 
   const save = async () => {
+    if (!canWork) return;
     if (inFlight.current || recovery || !initialized || phase === "conflict") return;
     if (!latest.current.title.trim()) { setError("Додай назву консультації."); setPhase("error"); return; }
     inFlight.current = true;
@@ -130,6 +133,7 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
   }, [draft, dirty, initialized, recovery, phase]);
 
   const edit = (next: ConsultationDraft) => {
+    if (!canWork) return;
     if (!consultationContentSchema.safeParse(next.content).success) {
       setContentError("Документ перевищує допустимий розмір. Зміна не застосована; попередній текст збережено в редакторі.");
       return;
@@ -155,6 +159,17 @@ export function ConsultationEditor({ record, token, userId }: { record: Consulta
     const link = document.createElement("a"); link.href = url; link.download = `consultation-${record.id}-private-backup.json`; link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
+
+  if (!canWork) return <section className="min-w-0 space-y-5">
+    <h1 className="break-words text-2xl font-semibold">{record.title}</h1>
+    <p className="text-sm text-muted-foreground">Режим читання. Серверна версія збережена; локальну чернетку можна завантажити окремо.</p>
+    <Button variant="outline" onClick={downloadDraft}><Download />Завантажити копію</Button>
+    {upgradeContent(record.content).sections.map(section => <section key={section.id} className="space-y-3 border-t pt-4">
+      <h2 className="break-words text-xl font-semibold">{section.title}</h2>
+      <ConsultationRichPreview body={section.body} />
+    </section>)}
+    <section className="space-y-2 border-t pt-4"><h2 className="text-lg font-semibold">Приватні нотатки</h2><p className="whitespace-pre-wrap break-words">{record.privateNotes}</p></section>
+  </section>;
 
   return <section className="min-w-0 space-y-4">
     <div className="space-y-2 border-b pb-3">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, CircleUserRound, Crown, LoaderCircle, RefreshCw, Sparkles, Sprout } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CircleUserRound, Crown, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Account, MembershipError, membershipDate, membershipRequest, planNames } from "@/lib/membership";
 import styles from "@/app/plans/membership.module.css";
@@ -39,13 +39,16 @@ export function MembershipPage({ profile = false }: { profile?: boolean }) {
         <section className="space-y-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">ZORIA / {profile ? "Акаунт" : "Плани"}</p>
           <h1 className="break-words text-3xl font-semibold">{profile ? account.user.username : "Ваш простір для астрології"}</h1>
-          <p className="max-w-2xl text-base leading-7 text-muted-foreground">{profile ? account.user.email : "Від першої натальної карти до щоденної практики та консультацій. Оберіть можливості, які відповідають вашій роботі."}</p>
+          <p className="max-w-2xl text-base leading-7 text-muted-foreground">{profile ? account.user.email : `${account.trialDays} днів безкоштовного знайомства, потім одна місячна підписка. Усі інструменти в одному плані.`}</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-border py-4 text-sm">
             <span>Поточний план: <strong>{planNames[account.access.plan]}</strong></span>
             {account.access.endsAt ? <span>До {membershipDate(account.access.endsAt)}</span> : null}
             {account.access.administrator ? <span className="font-medium">Адміністратор</span> : null}
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">Бета-період: тарифні обмеження ще не ввімкнені. Ваші поточні можливості й матеріали зберігаються; окремі дозволи адміністратора залишаються чинними.</p>
+          <p className="text-sm leading-6 text-muted-foreground">{account.access.mode === "preview"
+            ? "Бета-період: тарифні обмеження ще не ввімкнені. Перед запуском чинні користувачі отримають перехідний доступ."
+            : account.access.canWork ? "Доступ активний. Після його завершення ваші матеріали залишаться доступними для перегляду."
+            : "Доступ завершився. Архів збережено та доступний для перегляду. Для нових розрахунків і редагування потрібно продовжити підписку."}</p>
         </section>
         {profile ? <>
           <section className="border-b border-border pb-6">
@@ -60,28 +63,27 @@ export function MembershipPage({ profile = false }: { profile?: boolean }) {
             {[["Карти", account.user._count.birthProfiles], ["Прогнози", account.user._count.savedForecasts], ["Консультації", account.user._count.consultations]].map(([label, value]) =>
               <div key={label} className="border-l border-border pl-3"><dt className="break-words text-sm text-muted-foreground">{label}</dt><dd className="mt-2 text-2xl font-semibold">{value}</dd></div>)}
           </dl></section>
-          <Button asChild><Link href="/plans"><Crown />Порівняти плани</Link></Button>
+          <Button asChild><Link href="/plans"><Crown />Підписка</Link></Button>
         </> : <>
-          <section aria-label="Порівняння планів" className="grid items-stretch gap-4 lg:grid-cols-3">
+          <section aria-label="Trial та місячна підписка" className="grid items-stretch gap-4 md:grid-cols-2">
             {[
-              { key: "FREE", name: "Free", price: 0, icon: Sprout, tagline: "Для знайомства з платформою", style: "", items: ["Натальна карта та базові таблиці", "Власні спостереження", "Перегляд збережених матеріалів", "Базові можливості архіву"] },
-              { key: "TRIAL", name: "Trial", price: 5, icon: Sparkles, tagline: account.trialEnabled ? `${account.trialDays} днів для знайомства з Pro` : "Пробний період тимчасово вимкнено", style: styles.trial,
-                items: ["Можливості Pro на пробний строк", "Прогностика та календарі", "Робота з консультаціями", "Без автоматичного списання"] },
+              { key: "TRIAL", name: "Trial", price: 0, icon: Sparkles, tagline: account.trialEnabled ? `${account.trialDays} днів повного доступу після реєстрації` : "Пробний період для нових акаунтів тимчасово вимкнено", style: styles.trial,
+                items: ["Усі інструменти місячної підписки", "Один раз після реєстрації", "Без платіжної картки", "Без автоматичного списання"] },
               { key: "PRO", name: "Pro", price: 10, icon: Crown, tagline: "Для регулярної професійної роботи", style: styles.pro,
-                items: ["Розширений архів карт і прогнозів", "Прогностичні методи та календарі", "Консультації й експорт", "Спостереження інших астрологів", "Профілі налаштувань"] }
+                items: ["Натальні карти, таблиці та синастрія", "Соляр, лунар, прогресії та транзити", "Календарі, пошук подій та релокація", "Консультації, експорт і спостереження", "Профілі налаштувань", "Архів зберігається після завершення доступу"] }
             ].map(({ key, name, price, icon: Icon, tagline, style, items }) => <article key={key} className={`${styles.plan} ${style} flex min-w-0 flex-col p-6`}>
               <div className="mb-5 flex min-h-7 items-center justify-between gap-2"><Icon className="size-6 text-muted-foreground" />
                 {account.access.plan === key ? <span className="rounded-full border border-border px-2 py-1 text-xs font-medium">Ваш план</span> : null}</div>
               <h2 className="text-2xl font-semibold">{name}</h2><p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">{tagline}</p>
-              <div className="my-6 flex flex-wrap items-baseline gap-2"><span className={styles.price}>${price}</span><span className="text-sm text-muted-foreground">USD / місяць</span></div>
-              <p className="mb-5 text-xs text-muted-foreground">Демонстраційна ціна. Оплата недоступна.</p>
+              <div className="my-6 flex flex-wrap items-baseline gap-2"><span className={styles.price}>${price}</span><span className="text-sm text-muted-foreground">{key === "TRIAL" ? "за пробний період" : "USD / місяць"}</span></div>
+              <p className="mb-5 text-xs text-muted-foreground">{key === "TRIAL" ? "Безкоштовно. Повторна активація не передбачена." : "Попередня ціна. Онлайн-оплата ще не підключена."}</p>
               <ul className="flex-1 space-y-4 border-t border-border pt-5">{items.map((item) => <li key={item} className="flex items-start gap-2 text-sm leading-6"><Check className="mt-1 size-4 shrink-0" /><span>{item}</span></li>)}</ul>
-              <p className="mt-7 border-t border-border pt-4 text-sm font-medium">{account.access.plan === key ? "Поточний план" : "Підключення оплати незабаром"}</p>
+              <p className="mt-7 border-t border-border pt-4 text-sm font-medium">{account.access.plan === key ? "Поточний план" : key === "TRIAL" ? "Надається при реєстрації" : "Підключення оплати незабаром"}</p>
             </article>)}
           </section>
           <section className="border-t border-border pt-6 text-sm leading-6 text-muted-foreground">
             <h2 className="mb-2 text-base font-semibold text-foreground">До запуску підписок</h2>
-            <p>Це попереднє порівняння планів. Ціни $0 / $5 / $10 є заглушками, не офертою. Trial не потребує оплати. Остаточні ліміти та умови повідомимо перед запуском; зараз купівля й автоматичне продовження відсутні.</p>
+            <p>Trial безкоштовний, $10 за місяць поки є заглушкою, не офертою. На старті плануємо разову оплату місяця без автосписання; оплату на 3 місяці та рік додамо пізніше. Поки онлайн-оплата недоступна, питання продовження доступу можна надіслати через зворотний зв’язок адміністратору.</p>
           </section>
         </>}
       </>}
