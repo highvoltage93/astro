@@ -63,6 +63,7 @@ model User {
   auditEvents    AuditEvent[]
   feedback       FeedbackReport[]
   knowledgeNotes KnowledgeNote[]
+  clients        Client[]
   sharedKnowledgeUntil DateTime?
   knowledgeActivations KnowledgeActivation[]
   createdAt      DateTime        @default(now())
@@ -74,6 +75,23 @@ model User {
 enum AccessPlan {
   TRIAL
   PRO
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  ownerUserId String
+  owner       User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  name        String
+  email       String   @default("")
+  phone       String   @default("")
+  tags        String[] @default([])
+  notes       String   @default("")
+  revision    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerUserId, updatedAt, id])
+  @@map("clients")
 }
 
 model AccessGrant {

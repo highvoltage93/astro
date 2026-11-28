@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy } from "lucide-react";
+import { CalendarDays, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy, Users } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { FeedbackButton } from "./feedback-button";
 import { LegalLinks } from "./legal-links";
 import { BetaBadge } from "./ui/beta-badge";
+import { NewBadge } from "./ui/new-badge";
 import { MembershipAccess } from "./membership-access";
 
 const navigation = [
@@ -33,6 +34,7 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
     return () => { active = false; };
   }, [pathname]);
   const items = isAdmin ? [...navigation,
+    { href: "/clients", label: "Клієнти", icon: Users },
     { href: "/admin/astrologers", label: "Топ астрологів", icon: Trophy },
     { href: "/admin/observations", label: "Усі спостереження", icon: NotebookPen },
     { href: "/admin", label: "Адміністрування", icon: ShieldCheck }
@@ -53,11 +55,11 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
         </header>
         <nav aria-label="Головна навігація" className="grid grid-cols-2 gap-1 px-2 pb-2 sm:grid-cols-3 lg:grid-cols-1 lg:gap-2 lg:px-3">
           {items.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || (href === "/admin" && pathname.startsWith("/admin/users/"));
+            const active = pathname === href || (href === "/clients" && pathname.startsWith("/clients/")) || (href === "/admin" && pathname.startsWith("/admin/users/"));
             const beta = ["/knowledge", "/astro-events", "/admin/astrologers", "/admin/observations"].includes(href);
             return <Link key={href} href={href} title={`${label}${beta ? " · Beta" : ""}`} aria-label={`${label}${beta ? " · Beta" : ""}`} aria-current={active ? "page" : undefined}
               className={cn("flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border border-transparent px-2 py-3 text-xs transition-colors hover:bg-secondary sm:flex-row sm:gap-2 lg:flex-col lg:px-1 lg:text-sm min-[1440px]:flex-row min-[1440px]:justify-start min-[1440px]:px-3", active ? "border-primary/30 bg-primary/10 text-primary" : "text-muted-foreground")}>
-              <Icon aria-hidden="true" className="size-4 shrink-0" /><span className={cn("min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-1 min-[1440px]:justify-start", beta ? "flex" : "flex lg:hidden min-[1440px]:flex")}><span className="min-w-0 break-words lg:hidden min-[1440px]:block">{label}</span>{beta ? <BetaBadge /> : null}</span>
+              <Icon aria-hidden="true" className="size-4 shrink-0" /><span className={cn("min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-1 min-[1440px]:justify-start", beta || href === "/clients" ? "flex" : "flex lg:hidden min-[1440px]:flex")}><span className="min-w-0 break-words lg:hidden min-[1440px]:block">{label}</span>{beta ? <BetaBadge /> : null}{href === "/clients" ? <NewBadge /> : null}</span>
             </Link>;
           })}
         </nav>

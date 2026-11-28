@@ -36,6 +36,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      CLIENTS_PILOT_ENABLED: ${CLIENTS_PILOT_ENABLED:-true}
       PORT: "4000"
       NODE_OPTIONS: --max-old-space-size=1024
       DATABASE_URL: postgresql://astro_app:${APP_DB_PASSWORD}@postgres:5432/astroprocessor?sslmode=disable&connection_limit=5&pool_timeout=20
