@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, CalendarDays, Pencil, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, GitCompareArrows, Pencil, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { NewBadge } from "@/components/ui/new-badge";
 import { displayBirthDate, maskBirthInput, parseBirthDateText } from "@/lib/birth-input";
 import { membershipRequest } from "@/lib/membership";
+import { ClientEventComparison } from "@/components/client-event-comparison";
 
 const categories = { relocation: "Переїзд", work: "Робота", relationships: "Стосунки", family: "Сім’я", health: "Здоров’я", education: "Освіта", other: "Інше" };
 type Category = keyof typeof categories;
@@ -18,6 +19,7 @@ const message = (cause: unknown) => cause instanceof Error ? cause.message : "Н
 
 export function ClientEvents({ clientId }: { clientId: string }) {
   const [editor, setEditor] = useState<LifeEvent | "new" | null>(null);
+  const [comparison, setComparison] = useState<LifeEvent | null>(null);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -44,7 +46,7 @@ export function ClientEvents({ clientId }: { clientId: string }) {
     setBusy(true); setError(""); setNotice("");
     try {
       await membershipRequest(`${path}/${encodeURIComponent(event.id)}`, { method: "DELETE", body: JSON.stringify({ revision: event.revision }) });
-      setNotice("Подію видалено.");
+      setNotice("Подію видалено."); setComparison(null);
       if (page > 1 && result?.events.length === 1) setPage((value) => value - 1);
       else setRevision((value) => value + 1);
     } catch (cause) { setError(message(cause)); } finally { setBusy(false); }
@@ -53,8 +55,9 @@ export function ClientEvents({ clientId }: { clientId: string }) {
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold"><CalendarDays className="size-5" />Історія подій<NewBadge /></h2>
       <Button type="button" disabled={!!editor || busy} onClick={() => { setEditor("new"); setNotice(""); }}><Plus />Додати подію</Button></div>
     {editor ? <EventEditor key={editor === "new" ? "new" : editor.id} event={editor === "new" ? null : editor} path={path} onClose={() => setEditor(null)} onSaved={() => {
-      setEditor(null); setNotice("Подію збережено."); setPage(1); setRevision((value) => value + 1);
+      setEditor(null); setComparison(null); setNotice("Подію збережено."); setPage(1); setRevision((value) => value + 1);
     }} /> : null}
+    {comparison ? <ClientEventComparison key={`${comparison.id}:${comparison.revision}`} clientId={clientId} event={comparison} onClose={() => setComparison(null)} /> : null}
     <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => { event.preventDefault(); setQuery(search.trim()); setPage(1); }}>
       <div className="min-w-0 flex-1 basis-48 space-y-2"><Label htmlFor="event-search">Назва або нотатки</Label><Input id="event-search" maxLength={160} value={search} onChange={(event) => setSearch(event.target.value)} /></div>
       <div className="w-full space-y-2 sm:w-48"><Label htmlFor="event-filter">Категорія</Label><Select value={category} onValueChange={(value) => { setCategory(value); setPage(1); }}><SelectTrigger id="event-filter"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Усі категорії</SelectItem>{Object.entries(categories).map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select></div>
@@ -68,6 +71,7 @@ export function ClientEvents({ clientId }: { clientId: string }) {
         <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-sm text-muted-foreground"><time dateTime={event.date.slice(0, 10)}>{event.approximate ? "Приблизно " : ""}{displayBirthDate(event.date.slice(0, 10))}</time> · {categories[event.category]}</p><h3 className="mt-1 break-words font-semibold">{event.title}</h3></div>
           <div className="flex gap-2"><Button type="button" variant="outline" size="icon" disabled={busy || !!editor} title="Редагувати подію" aria-label={`Редагувати ${event.title}`} onClick={() => setEditor(event)}><Pencil /></Button><Button type="button" variant="outline" size="icon" disabled={busy || !!editor} title="Видалити подію" aria-label={`Видалити ${event.title}`} onClick={() => void remove(event)}><Trash2 /></Button></div>
         </div>
+        <Button type="button" variant="ghost" size="sm" className="mt-2" disabled={busy || !!editor} onClick={() => setComparison(event)}><GitCompareArrows />Зіставити з прогнозом<NewBadge /></Button>
         {event.notes ? <details className="mt-3 text-sm"><summary className="cursor-pointer text-primary">Нотатки</summary><p className="mt-2 whitespace-pre-wrap break-words leading-6">{event.notes}</p></details> : null}
       </li>)}</ol>
       {!result.events.length ? <p className="py-4 text-sm text-muted-foreground">{query || category !== "all" ? "Подій за цим запитом не знайдено." : "Подій ще немає."}</p> : null}
