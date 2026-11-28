@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Archive, ChevronRight, Copy, History, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BetaBadge } from "@/components/ui/beta-badge";
+import { NewBadge } from "@/components/ui/new-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -134,6 +135,9 @@ export function KnowledgeNotesPage({ source, noteId, seed }: { source?: string; 
     if (!editor.draft.title.trim() || !editor.draft.body.trim()) {
       setError("Заповніть назву та текст спостереження."); return;
     }
+    if (!editor.draft.conditions.items.length) {
+      setError("Додайте хоча б одну натальну умову. Аспект прогнозу залишається контекстом у тексті, а не натальною умовою."); return;
+    }
     if (editor.draft.tags.length > 10 || editor.draft.tags.some((tag) => tag.length > 40)) {
       setError("Додайте до 10 тегів, не більше 40 символів у кожному."); return;
     }
@@ -186,6 +190,7 @@ export function KnowledgeNotesPage({ source, noteId, seed }: { source?: string; 
         <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-semibold">{editor.record ? `Спостереження · v${editor.record.revision}` : "Нове спостереження"}</h2>
           <Button size="icon" variant="ghost" title="Закрити" aria-label="Закрити редактор" disabled={busy} onClick={() => { if (canLeave()) { setEditor(null); setHistory(null); setEntry(null); } }}><X /></Button></div>
         <form onSubmit={save}><fieldset disabled={busy} className="min-w-0 space-y-4">
+          {!editor.record && seed && knowledgeSeedDraft(seed)?.conditions.items.length === 0 ? <div className="space-y-2 border-l-2 border-amber-300 pl-3 text-sm"><p className="flex flex-wrap items-center gap-2 font-medium">Чернетка зі збереженого прогнозу<NewBadge /></p><p>Аспект прогнозу є контекстом, не натальною умовою. Для автопідказок оберіть натальні умови окремо. Початково вибрано «В архіві»; публікація виконується окремо. Дані клієнта не перенесені.</p></div> : null}
           <div className="space-y-2"><Label htmlFor="note-title">Назва</Label><Input id="note-title" value={editor.draft.title} maxLength={160} required onChange={(event) => edit({ title: event.target.value })} /></div>
           <div className="space-y-2"><Label htmlFor="note-body">Спостереження</Label><textarea id="note-body" className="min-h-48 w-full rounded-md border bg-secondary p-3 text-base leading-7 focus-visible:ring-2 focus-visible:ring-ring sm:text-sm" value={editor.draft.body} maxLength={20000} required onChange={(event) => edit({ body: event.target.value })} /></div>
           <div className="space-y-2"><Label htmlFor="note-tags">Теги через кому</Label><Input id="note-tags" value={tagsText} maxLength={409} onChange={(event) => { setTagsText(event.target.value); edit({ tags: event.target.value.split(",").map((tag) => tag.trim()).filter(Boolean) }); }} /></div>

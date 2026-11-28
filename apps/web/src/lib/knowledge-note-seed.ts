@@ -1,11 +1,40 @@
 import type { Aspect, ChartPoint } from "./chart-types";
 import { emptyKnowledgeDraft, knowledgeConditionText, type KnowledgeDraft, type NoteCondition } from "./knowledge-notes";
+import { aspectLabels, planetLabelsUk } from "./astrology-labels";
 
 const planets = new Set(["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto", "chiron", "lilith", "north-node", "south-node"]);
 const signs = new Set(["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"]);
 const aspects = new Set(["conjunction", "sextile", "square", "trine", "opposition"]);
 export type KnowledgeSeed = { version: 1; items: NoteCondition[] };
 export type KnowledgeSourceContext = { sourceProfileId?: string; birthTimeKnown: boolean };
+
+const forecastSources: Record<string, string> = {
+  transit: "Транзит", "secondary-progression": "Повільна прогресія", "solar-return": "Соляр", "lunar-return": "Лунар", "solar-arc": "Сонячна дуга"
+};
+type ForecastSeedSource = { source: string; exactAt: string; bodyA?: string; bodyB?: string; aspect?: string };
+
+// Only astronomical facts enter the URL, never client names, event notes or chart details.
+export function forecastKnowledgeSeedHref(row: ForecastSeedSource): string | undefined {
+  const raw = JSON.stringify({ version: 2, kind: "forecast-context", source: row.source, exactAt: row.exactAt,
+    ...(row.bodyA ? { bodyA: row.bodyA } : {}), ...(row.bodyB ? { bodyB: row.bodyB } : {}), ...(row.aspect ? { aspect: row.aspect } : {}) });
+  return knowledgeSeedDraft(raw) ? `/knowledge?${new URLSearchParams({ seed: raw })}` : undefined;
+}
+
+function forecastSeedDraft(value: Record<string, unknown>): KnowledgeDraft | null {
+  if (Object.keys(value).some((key) => !["version", "kind", "source", "exactAt", "bodyA", "bodyB", "aspect"].includes(key)) || value.kind !== "forecast-context") return null;
+  if (typeof value.source !== "string" || !Object.hasOwn(forecastSources, value.source) || typeof value.exactAt !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value.exactAt) || !Number.isFinite(Date.parse(value.exactAt))) return null;
+  for (const key of ["bodyA", "bodyB"] as const) {
+    const point = value[key];
+    if (point !== undefined && (typeof point !== "string" || (!planets.has(point) && !/^house-(?:[1-9]|1[0-2])$/.test(point) && !["asc", "mc", "ic", "dsc"].includes(point)))) return null;
+  }
+  if (value.aspect !== undefined && (typeof value.aspect !== "string" || ![...aspects, "semisextile", "quincunx"].includes(value.aspect))) return null;
+  const label = (point: unknown) => typeof point === "string" ? planetLabelsUk[point] ?? point : "";
+  const title = [forecastSources[value.source], label(value.bodyA), typeof value.aspect === "string" ? aspectLabels[value.aspect] ?? value.aspect : "", label(value.bodyB)].filter(Boolean).join(" · ");
+  return { ...emptyKnowledgeDraft(), title: title.slice(0, 160), archived: true,
+    body: `${title}\nЕкзакт: ${new Date(value.exactAt).toISOString()} (UTC).\n\nРезультат спостереження:\n`,
+    conditions: { version: 1, scope: "natal", match: "all", items: [] } };
+}
 
 export function pointKnowledgeSeed(point: ChartPoint, birthTimeKnown: boolean): KnowledgeSeed | null {
   if (!planets.has(point.key)) return null;
@@ -37,6 +66,7 @@ export function knowledgeSeedDraft(raw: string): KnowledgeDraft | null {
     const seed: unknown = JSON.parse(raw);
     if (!seed || typeof seed !== "object" || Array.isArray(seed)) return null;
     const value = seed as Record<string, unknown>;
+    if (value.version === 2) return forecastSeedDraft(value);
     if (Object.keys(value).some((key) => !["version", "items"].includes(key)) || value.version !== 1 || !Array.isArray(value.items) || value.items.length < 1 || value.items.length > 10) return null;
     const items: NoteCondition[] = [];
     for (const candidate of value.items) {

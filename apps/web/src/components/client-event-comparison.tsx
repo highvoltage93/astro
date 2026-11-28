@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, ExternalLink, RefreshCw, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, NotebookPen, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { membershipRequest } from "@/lib/membership";
 import type { SavedForecast } from "@/lib/forecast-archive";
 import { compareEventDates, savedForecastExacts } from "@/lib/client-event-comparison";
 import { displayBirthDate } from "@/lib/birth-input";
+import { forecastKnowledgeSeedHref } from "@/lib/knowledge-note-seed";
 
 export function ClientEventComparison({ clientId, event, onClose }: {
   clientId: string; event: { title: string; date: string; approximate: boolean; notes: string }; onClose: () => void;
@@ -64,7 +65,12 @@ export function ClientEventComparison({ clientId, event, onClose }: {
           {forecast.kind === "synastry" ? <p className="text-sm text-muted-foreground">Синастрія не містить календаря екзактів.</p> : <>
             <div className="grid gap-3 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="compare-days">Екзакти відносно дати події</Label><Select value={days} onValueChange={setDays}><SelectTrigger id="compare-days"><SelectValue /></SelectTrigger><SelectContent>{[0, 7, 30, 90].map((value) => <SelectItem key={value} value={String(value)}>{value ? `±${value} днів` : "У день події"}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="compare-zone">Часовий пояс дат</Label><Select value={timezone} onValueChange={setTimezone}><SelectTrigger id="compare-zone"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Europe/Kyiv">Київ</SelectItem><SelectItem value="UTC">UTC</SelectItem></SelectContent></Select></div></div>
             <p className="text-xs text-muted-foreground">Джерело: збережений прогноз. Збіг дат не встановлює причинного зв’язку.</p>
-            {rows.length ? <><ol className="divide-y">{rows.slice((rowPage - 1) * 20, rowPage * 20).map((row, index) => <li key={`${rowPage}:${index}`} className="space-y-1 py-3 text-sm"><p className="break-words font-medium">{row.title}</p><p>{row.localDate} · {row.offset === 0 ? "У день події" : row.offset < 0 ? `За ${-row.offset} дн. до події` : `Через ${row.offset} дн. після події`}</p></li>)}</ol><div className="flex items-center justify-between"><Button variant="ghost" size="icon" title="Попередні екзакти" aria-label="Попередні екзакти" disabled={rowPage === 1} onClick={() => setRowPage((value) => value - 1)}><ArrowLeft /></Button><span className="text-sm">{rowPage} / {Math.ceil(rows.length / 20)}</span><Button variant="ghost" size="icon" title="Наступні екзакти" aria-label="Наступні екзакти" disabled={rowPage * 20 >= rows.length} onClick={() => setRowPage((value) => value + 1)}><ArrowRight /></Button></div></> : <p className="text-sm text-muted-foreground">У збереженому прогнозі немає екзактів у вибраному проміжку. Незбережені календарі тут не враховані.</p>}
+            {rows.length ? <><ol className="divide-y">{rows.slice((rowPage - 1) * 20, rowPage * 20).map((row, index) => {
+              const noteHref = forecastKnowledgeSeedHref(row);
+              return <li key={`${rowPage}:${index}`} className="space-y-2 py-3 text-sm"><p className="break-words font-medium">{row.title}</p><p>{row.localDate} · {row.offset === 0 ? "У день події" : row.offset < 0 ? `За ${-row.offset} дн. до події` : `Через ${row.offset} дн. після події`}</p>
+                {noteHref ? <Button asChild variant="outline" size="sm" className="h-auto min-h-9 max-w-full whitespace-normal"><a href={noteHref} target="_blank" rel="noopener noreferrer" title="Відкрити чернетку спостереження в новій вкладці"><NotebookPen />Чернетка спостереження<NewBadge /></a></Button> : null}
+              </li>;
+            })}</ol><div className="flex items-center justify-between"><Button variant="ghost" size="icon" title="Попередні екзакти" aria-label="Попередні екзакти" disabled={rowPage === 1} onClick={() => setRowPage((value) => value - 1)}><ArrowLeft /></Button><span className="text-sm">{rowPage} / {Math.ceil(rows.length / 20)}</span><Button variant="ghost" size="icon" title="Наступні екзакти" aria-label="Наступні екзакти" disabled={rowPage * 20 >= rows.length} onClick={() => setRowPage((value) => value + 1)}><ArrowRight /></Button></div></> : <p className="text-sm text-muted-foreground">У збереженому прогнозі немає екзактів у вибраному проміжку. Незбережені календарі тут не враховані.</p>}
           </>}
         </> : null}
       </div>
