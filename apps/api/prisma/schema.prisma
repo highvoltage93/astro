@@ -78,6 +78,8 @@ enum AccessPlan {
 }
 
 model Client {
+  events      ClientEvent[]
+  materials   ClientMaterial[]
   id          String   @id @default(cuid())
   ownerUserId String
   owner       User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
@@ -157,6 +159,7 @@ model AuthMailJob {
 }
 
 model BirthProfile {
+  clientLinks     ClientMaterial[]
   id              String                 @id @default(cuid())
   ownerUserId     String?
   owner           User?                  @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
@@ -222,6 +225,7 @@ model CalculationProfile {
 }
 
 model Consultation {
+  clientLinks         ClientMaterial[]
   id                  String   @id
   ownerUserId         String
   owner               User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
@@ -274,6 +278,7 @@ model ConsultationTemplate {
 }
 
 model SavedForecast {
+  clientLinks        ClientMaterial[]
   id                 String   @id @default(cuid())
   ownerUserId        String
   owner              User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
@@ -454,4 +459,42 @@ model FeedbackReport {
   @@index([status, createdAt, id])
   @@index([userId, createdAt])
   @@map("feedback_reports")
+}
+
+model ClientMaterial {
+  id             String @id @default(cuid())
+  clientId       String
+  client         Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  birthProfileId String?
+  birthProfile   BirthProfile? @relation(fields: [birthProfileId], references: [id], onDelete: Cascade)
+  forecastId     String?
+  forecast       SavedForecast? @relation(fields: [forecastId], references: [id], onDelete: Cascade)
+  consultationId String?
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@unique([clientId, birthProfileId])
+  @@unique([clientId, forecastId])
+  @@unique([clientId, consultationId])
+  @@index([birthProfileId])
+  @@index([forecastId])
+  @@index([consultationId])
+  @@map("client_materials")
+}
+
+model ClientEvent {
+  id          String @id
+  clientId    String
+  client      Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title       String
+  date        DateTime @db.Date
+  approximate Boolean @default(false)
+  category    String @default("other")
+  notes       String @default("")
+  revision    Int @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId, date, id])
+  @@map("client_events")
 }

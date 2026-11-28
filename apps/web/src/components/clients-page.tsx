@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NewBadge } from "@/components/ui/new-badge";
+import { ClientMaterials } from "@/components/client-materials";
+import { ClientEvents } from "@/components/client-events";
 import { membershipRequest, type Account } from "@/lib/membership";
 
 type Client = { id: string; name: string; email: string; phone: string; tags: string[]; notes: string; revision: number; updatedAt: string };
@@ -53,6 +55,8 @@ export function ClientsPage({ clientId }: { clientId?: string }) {
     {loading ? <p role="status" className="flex items-center gap-2"><RefreshCw className="size-4 animate-spin" />Завантаження…</p> : null}
     {error ? <div role="alert" className="space-y-3"><p className="text-destructive">{error}</p><Button variant="outline" onClick={() => setRevision((value) => value + 1)}><RefreshCw />Повторити</Button><Button asChild variant="ghost"><Link href={clientId ? "/clients" : "/"}><ArrowLeft />Назад</Link></Button></div> : null}
     {!loading && !error && allowed && clientId && (clientId === "new" || client) ? <ClientForm key={`${clientId}:${revision}`} client={client} /> : null}
+    {!loading && !error && allowed && client ? <ClientMaterials key={client.id} clientId={client.id} /> : null}
+    {!loading && !error && allowed && client ? <ClientEvents key={client.id} clientId={client.id} /> : null}
     {!clientId && allowed ? <>
       <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); setPage(1); setQuery(search.trim()); }}>
         <div className="min-w-0 flex-1 space-y-2"><Label htmlFor="client-search">Ім’я, email, телефон або точний тег</Label><Input id="client-search" maxLength={160} value={search} onChange={(event) => setSearch(event.target.value)} /></div>

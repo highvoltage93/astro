@@ -3,6 +3,8 @@ import type { Prisma } from "@prisma/client";
 import { getOptionalAuthUser } from "../auth/service";
 import { prisma } from "../prisma/client";
 import { clientInput, clientQuery, clientUpdate } from "./schema";
+import { registerClientMaterialRoutes } from "./materials";
+import { registerClientEventRoutes } from "./events";
 
 export async function registerClientRoutes(app: FastifyInstance, deps = { database: prisma, authenticate: getOptionalAuthUser }) {
   await app.register(async (clients) => {
@@ -13,6 +15,8 @@ export async function registerClientRoutes(app: FastifyInstance, deps = { databa
       if (user.role !== "ADMIN") return reply.code(403).send({ message: "Клієнти поки доступні лише адміністраторам." });
       if (process.env.CLIENTS_PILOT_ENABLED === "false") return reply.code(503).send({ message: "Розділ клієнтів тимчасово вимкнено." });
     });
+    await registerClientMaterialRoutes(clients, deps);
+    await registerClientEventRoutes(clients, deps);
     clients.get("/", async (request, reply) => {
       const user = await deps.authenticate(request);
       if (!user || user.role !== "ADMIN") return reply.code(403).send({ message: "Доступ заборонено." });
