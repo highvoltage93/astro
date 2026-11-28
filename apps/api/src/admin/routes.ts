@@ -103,6 +103,44 @@ export async function registerAdminRoutes(app: FastifyInstance): Promise<void> {
       }
     });
 
+    admin.delete<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
+      const parsed = z.object({ username: z.string().min(1).max(50), updatedAt: z.string().datetime() }).strict().safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ message: "Введіть username для підтвердження видалення." });
+      const actor = await getOptionalAuthUser(request);
+      if (!actor) return reply.code(401).send({ message: "Сесія завершилась." });
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const currentActor = await tx.user.findUnique({ where: { id: actor.id } });
+          if (currentActor?.role !== "ADMIN") return { status: 403, message: "Доступ лише для адміністратора." };
+          if (request.params.id === actor.id) return { status: 400, message: "Не можна видалити власний акаунт адміністратора." };
+          const target = await tx.user.findUnique({ where: { id: request.params.id } });
+          if (!target) return { status: 404, message: "Користувача не знайдено." };
+          if (target.updatedAt.toISOString() !== parsed.data.updatedAt) return { status: 409, message: "Дані змінилися. Оновіть сторінку та повторіть підтвердження." };
+          if (target.username !== parsed.data.username) return { status: 400, message: "Username не збігається. Видалення скасовано." };
+          if (target.role === "ADMIN" && await tx.user.count({ where: { role: "ADMIN" } }) <= 1) return { status: 400, message: "Потрібно залишити хоча б одного адміністратора." };
+
+          // These relations use SetNull, so delete the owned data before deleting its owner.
+          await tx.aiSession.deleteMany({ where: { OR: [
+            { userId: target.id }, { birthProfile: { ownerUserId: target.id } },
+            { chartCalculation: { birthProfile: { ownerUserId: target.id } } }
+          ] } });
+          await tx.chartCalculation.deleteMany({ where: { birthProfile: { ownerUserId: target.id } } });
+          await tx.birthProfile.deleteMany({ where: { ownerUserId: target.id } });
+          await tx.authMailJob.deleteMany({ where: { email: { equals: target.email, mode: "insensitive" } } });
+          await tx.auditEvent.deleteMany({ where: { OR: [{ userId: target.id }, { entity: "User", entityId: target.id }] } });
+          // Cascades remove forecasts, consultations/revisions, notes/publications/activations,
+          // calculation profiles, feedback, access grants and password-reset tokens.
+          await tx.user.delete({ where: { id: target.id } });
+          await tx.auditEvent.create({ data: { userId: actor.id, action: "admin.user.delete", entity: "User", entityId: target.id } });
+          return { status: 200, message: "Користувача та його дані видалено." };
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        return reply.code(result.status).send({ message: result.message });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return reply.code(409).send({ message: "Одночасна зміна даних. Оновіть сторінку й повторіть." });
+        throw error;
+      }
+    });
+
     admin.get("/audit", async () => ({ events: await prisma.auditEvent.findMany({
       where: { action: { startsWith: "admin." } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 50,
       select: { id: true, action: true, entityId: true, createdAt: true, metadata: true,

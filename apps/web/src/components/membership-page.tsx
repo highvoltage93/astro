@@ -53,7 +53,7 @@ export function MembershipPage({ profile = false }: { profile?: boolean }) {
         <section className="space-y-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground">ZORIA / {profile ? "Акаунт" : "Плани"}</p>
           <h1 className="break-words text-3xl font-semibold">{profile ? account.user.username : welcome ? "Вітаємо в ZORIA" : "Ваш простір для астрології"}</h1>
-          <p className="max-w-2xl text-base leading-7 text-muted-foreground">{profile ? account.user.email : `${account.trialDays} днів безкоштовного знайомства, потім одна місячна підписка. Усі інструменти в одному плані.`}</p>
+          <p className="max-w-2xl text-base leading-7 text-muted-foreground">{profile ? account.user.email : account.trialEnabled ? `${account.trialDays} днів безкоштовного повного доступу, потім $3 на місяць. Від першої натальної карти до готової консультації: весь функціонал ZORIA в одній підписці.` : "Весь функціонал ZORIA за $3 на місяць. Від першої натальної карти до готової консультації, без поділу інструментів на дорожчі пакети."}</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-border py-4 text-sm">
             <span>Поточний план: <strong>{planNames[account.access.plan]}</strong></span>
             {account.access.endsAt ? <span>До {accessEndDate(account.access.endsAt)} · {accessTimeLeft(account.access.endsAt, now)}</span> : null}
@@ -71,7 +71,7 @@ export function MembershipPage({ profile = false }: { profile?: boolean }) {
             : account.access.mode === "preview" ? "Зараз діє бета-доступ без тарифних обмежень."
             : account.access.canWork ? "Повний доступ активний; його строк показано вище." : "Активного пробного періоду немає. Для доступу до розрахунків зверніться до адміністратора."}</p>
           <ul className="space-y-2 text-sm leading-6 text-muted-foreground">
-            <li>Після пробного періоду передбачена одна місячна підписка з усім функціоналом.</li>
+            <li>Після пробного періоду повний доступ коштує $3 на місяць. Усі інструменти входять у підписку, без доплати за окремі модулі.</li>
             <li>Картка для Trial не потрібна. Автоматичних списань немає.</li>
             <li>Після завершення доступу ваші карти, прогнози й тексти не видаляються.</li>
             <li>{account.access.mode === "preview" ? "Поки тарифні обмеження вимкнені, можна продовжувати роботу й після Trial." : "Без активної підписки залишаться вхід до акаунта та читання власного архіву."}</li>
@@ -97,22 +97,23 @@ export function MembershipPage({ profile = false }: { profile?: boolean }) {
           <section aria-label="Trial та місячна підписка" className="grid items-stretch gap-4 md:grid-cols-2">
             {[
               { key: "TRIAL", name: "Trial", price: 0, icon: Sparkles, tagline: account.trialEnabled ? `${account.trialDays} днів повного доступу після реєстрації` : "Пробний період для нових акаунтів тимчасово вимкнено", style: styles.trial,
-                items: ["Усі інструменти місячної підписки", "Один раз після реєстрації", "Без платіжної картки", "Без автоматичного списання"] },
-              { key: "PRO", name: "Pro", price: 10, icon: Crown, tagline: "Для регулярної професійної роботи", style: styles.pro,
-                items: ["Натальні карти, таблиці та синастрія", "Соляр, лунар, прогресії та транзити", "Календарі, пошук подій та релокація", "Консультації, експорт і спостереження", "Профілі налаштувань", "Архів зберігається після завершення доступу"] }
+                items: ["Весь функціонал Pro без обмежень за модулями", "Карти, прогнози, календарі та консультації", "Власні спостереження та підключення опублікованих спостережень інших астрологів", "Один пробний період після реєстрації", "Без платіжної картки та автоматичних списань", "Ваші матеріали зберігаються після Trial"] },
+              { key: "PRO", name: "Pro", price: 3, icon: Crown, tagline: "Одна підписка. Усі інструменти для вашої астрологічної практики.", style: styles.pro,
+                items: ["Натальні карти, аспекти, зв’язки домів і синастрія", "Соляр, лунар, повільні прогресії та транзити", "Календарі прогнозів, пошук подій і релокація", "Астроподії: рух Місяця, ретроградність, затемнення та зміна знаків", "Редактор консультацій і експорт матеріалів", "Особиста база спостережень і підказки за збігами в картах", "Підключення опублікованих спостережень інших астрологів", "Збережені профілі налаштувань для роботи з картами", "Усі доступні користувачам модулі без окремої доплати"] }
             ].map(({ key, name, price, icon: Icon, tagline, style, items }) => <article key={key} className={`${styles.plan} ${style} flex min-w-0 flex-col p-6`}>
               <div className="mb-5 flex min-h-7 items-center justify-between gap-2"><Icon className="size-6 text-muted-foreground" />
                 {account.access.plan === key ? <span className="rounded-full border border-border px-2 py-1 text-xs font-medium">Ваш план</span> : null}</div>
               <h2 className="text-2xl font-semibold">{name}</h2><p className="mt-2 min-h-12 text-sm leading-6 text-muted-foreground">{tagline}</p>
               <div className="my-6 flex flex-wrap items-baseline gap-2"><span className={styles.price}>${price}</span><span className="text-sm text-muted-foreground">{key === "TRIAL" ? "за пробний період" : "USD / місяць"}</span></div>
-              <p className="mb-5 text-xs text-muted-foreground">{key === "TRIAL" ? "Безкоштовно. Повторна активація не передбачена." : "Попередня ціна. Онлайн-оплата ще не підключена."}</p>
+              <p className="mb-5 text-xs text-muted-foreground">{key === "TRIAL" ? "Безкоштовно. Повторна активація не передбачена." : "Повний доступ на місяць. Онлайн-оплата ще не підключена."}</p>
               <ul className="flex-1 space-y-4 border-t border-border pt-5">{items.map((item) => <li key={item} className="flex items-start gap-2 text-sm leading-6"><Check className="mt-1 size-4 shrink-0" /><span>{item}</span></li>)}</ul>
               <p className="mt-7 border-t border-border pt-4 text-sm font-medium">{account.access.plan === key ? "Поточний план" : key === "TRIAL" ? "Надається при реєстрації" : "Підключення оплати незабаром"}</p>
             </article>)}
           </section>
           <section className="border-t border-border pt-6 text-sm leading-6 text-muted-foreground">
-            <h2 className="mb-2 text-base font-semibold text-foreground">До запуску підписок</h2>
-            <p>Trial безкоштовний, $10 за місяць поки є заглушкою, не офертою. На старті плануємо разову оплату місяця без автосписання; оплату на 3 місяці та рік додамо пізніше. Поки онлайн-оплата недоступна, питання продовження доступу можна надіслати через зворотний зв’язок адміністратору.</p>
+            <h2 className="mb-2 text-base font-semibold text-foreground">Прості умови, ваші матеріали під рукою</h2>
+            <p>Trial і Pro відкривають однаковий повний функціонал: відрізняється лише строк доступу. Після пробного періоду підписка коштує $3 на місяць. Після завершення активного доступу ваші карти, прогнози та консультації не видаляються: архів залишається доступним для перегляду.</p>
+            <p className="mt-3">Онлайн-оплата ще не підключена. На старті передбачена разова оплата місяця без автоматичного списання. Поки що з питань активації та продовження доступу звертайтеся до адміністратора через зворотний зв’язок.</p>
           </section>
         </>}
       </>}

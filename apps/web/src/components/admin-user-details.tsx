@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { DateTime } from "luxon";
-import { ArrowLeft, RefreshCw, Save, ShieldCheck, Undo2 } from "lucide-react";
+import { ArrowLeft, RefreshCw, Save, ShieldCheck, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,8 @@ import { AdminError, adminDate as date, adminRequest, roles, type AdminUser, typ
 const localExpiry = (value: string | null) => value ? DateTime.fromISO(value).setZone("Europe/Kyiv").toFormat("yyyy-MM-dd'T'HH:mm:ss") : "";
 
 export function AdminUserDetails({ userId, backHref }: { userId: string; backHref: string }) {
+  const router = useRouter();
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [original, setOriginal] = useState<AdminUser | null>(null);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [password, setPassword] = useState("");
@@ -29,6 +32,7 @@ export function AdminUserDetails({ userId, backHref }: { userId: string; backHre
   const path = `/users/${encodeURIComponent(userId)}`;
 
   function accept(user: AdminUser) {
+    setDeleteConfirmation("");
     setOriginal(user); setEditing(user); setPassword(""); setSharedUntil(localExpiry(user.sharedKnowledgeUntil));
   }
   function handleError(cause: unknown) {
@@ -68,6 +72,18 @@ export function AdminUserDetails({ userId, backHref }: { userId: string; backHre
     } catch (cause) { handleError(cause); } finally { setSaving(false); }
   }
 
+  async function deleteUser(event: FormEvent) {
+    event.preventDefault();
+    if (!original || saving || deleteConfirmation !== original.username) return;
+    if (!window.confirm(`Назавжди видалити ${original.username} (${original.email}) та всі його дані? Цю дію неможливо скасувати.`)) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      await adminRequest<{ message: string }>(path, { method: "DELETE", body: JSON.stringify({ username: deleteConfirmation, updatedAt: original.updatedAt }) });
+      setOriginal(null); setEditing(null); setPassword(""); setDeleteConfirmation("");
+      router.replace(backHref); router.refresh();
+    } catch (cause) { handleError(cause); } finally { setSaving(false); }
+  }
+
   return <main className="app-shell-background min-h-screen p-3 sm:p-6"><div className="mx-auto max-w-5xl space-y-6">
     <header className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
       <Link href={backHref} className="inline-flex min-h-11 items-center gap-2 text-sm text-primary" onClick={(event) => {
@@ -102,6 +118,15 @@ export function AdminUserDetails({ userId, backHref }: { userId: string; backHre
         </form>
       </section>
       <AdminUserAccess key={`${editing.id}:${original?.role}`} userId={editing.id} />
+      <section className="space-y-4 border-t border-destructive/40 pt-5">
+        <h2 className="text-lg font-semibold text-destructive">Видалення користувача</h2>
+        <p className="text-sm leading-6 text-muted-foreground">Акаунт, карти, розрахунки, прогнози, консультації, спостереження, налаштування та звернення буде видалено назавжди. Опубліковані спостереження також зникнуть у тих, хто їх підключив. Запис про дію адміністратора залишиться в журналі. Резервні копії зберігаються до завершення строку їх зберігання.</p>
+        <form onSubmit={deleteUser} className="max-w-lg space-y-3">
+          <Label htmlFor="admin-delete-confirmation">Для підтвердження введіть username: {original?.username}</Label>
+          <Input id="admin-delete-confirmation" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} disabled={saving} autoComplete="off" spellCheck={false} />
+          <Button type="submit" variant="destructive" disabled={saving || !original || deleteConfirmation !== original.username}><Trash2 />Видалити користувача та всі дані</Button>
+        </form>
+      </section>
     </> : null}
   </div></main>;
 }

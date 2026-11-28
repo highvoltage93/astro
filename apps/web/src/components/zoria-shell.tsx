@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, CircleUserRound, Crown, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy } from "lucide-react";
+import { CalendarDays, Crown, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -17,8 +17,7 @@ const navigation = [
   { href: "/workspace", label: "Робоча зона", icon: Orbit },
   { href: "/consultations", label: "Консультації", icon: FileText },
   { href: "/knowledge", label: "Спостереження", icon: NotebookPen },
-  { href: "/astro-events", label: "Астроподії", icon: CalendarDays },
-  { href: "/profile", label: "Мій профіль", icon: CircleUserRound }
+  { href: "/astro-events", label: "Астроподії", icon: CalendarDays }
 ];
 
 export function ZoriaShell({ children }: { children: ReactNode }) {

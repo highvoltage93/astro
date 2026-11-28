@@ -3736,6 +3736,33 @@ function SecondaryProgressionPanel({ progression, onLoadCalendar }: { progressio
 
         {visibleAspects.length > 0 ? (
           <div className="rounded-lg border bg-background">
+            <ul className="divide-y sm:hidden" aria-label="Прогресивні аспекти до наталу">
+              {visibleAspects.map((aspect) => {
+                const progressedPoint = progressedPoints.get(aspect.bodyA) ?? null;
+                const natalPoint = natalPoints.get(aspect.bodyB) ?? null;
+                return <li key={`mobile-progression-${aspect.bodyA}-${aspect.type}-${aspect.bodyB}`} className="min-w-0 space-y-2 px-3 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                    <div className="grid grid-cols-[2rem_2rem_2rem] items-center text-center text-xl leading-8">
+                      <span title={`${referenceLabel(aspect.bodyA, aspect.progressedPointLabel)} · ${formatPointPosition(progressedPoint)}`} aria-label={`Прогресія: ${referenceLabel(aspect.bodyA, aspect.progressedPointLabel)}`}>{calendarPoint(aspect.bodyA)}</span>
+                      <span className={getAspectTextClass(aspect.type)} title={`${aspectLabels[aspect.type]} ${aspect.exactAngle}°`} aria-label={`${aspectLabels[aspect.type]} ${aspect.exactAngle}°`}>{progressionGlyphs[aspect.type]}</span>
+                      <span title={`${referenceLabel(aspect.bodyB, aspect.natalPointLabel)} · ${formatPointPosition(natalPoint)}`} aria-label={`Натал: ${referenceLabel(aspect.bodyB, aspect.natalPointLabel)}`}>{calendarPoint(aspect.bodyB)}</span>
+                    </div>
+                    <div className="min-w-0 text-right text-sm tabular-nums">
+                      <p className="text-muted-foreground">Екзакт</p>
+                      {aspect.exactAt ? <time dateTime={aspect.exactAt} className="font-medium">{calendarDate(aspect.exactAt)}</time> : <span>Не визначено</span>}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                    <span>Орб: {aspect.bodyA.startsWith("house-") ? `${(aspect.orb * 60).toFixed(2)}′` : `${aspect.orb.toFixed(2)}°`}</span>
+                    <span>{transitPhaseLabelsUk[aspect.phase] ?? aspect.phase}</span>
+                  </div>
+                  <p className="min-w-0 whitespace-normal text-sm leading-6 tabular-nums [overflow-wrap:anywhere]" aria-label="Формули домів">
+                    {calendarFormula(aspect.bodyA, aspect.formulaA)} <span className={getAspectTextClass(aspect.type)}>{formulaOperator(aspect.type)}</span> {calendarFormula(aspect.bodyB, aspect.formulaB)}
+                  </p>
+                </li>;
+              })}
+            </ul>
+            <div className="hidden sm:block">
             <Table className="progression-aspects-table">
               <TableHeader>
                 <TableRow>
@@ -3771,6 +3798,7 @@ function SecondaryProgressionPanel({ progression, onLoadCalendar }: { progressio
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">У заданих орбісах аспектів для вибраних пар не знайдено.</p>

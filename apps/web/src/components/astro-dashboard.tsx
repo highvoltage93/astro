@@ -370,8 +370,13 @@ export function AstroDashboard() {
                 <div className="grid min-w-0 gap-2 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:col-span-12">
                   <DashboardField label="Профіль розрахунку">
                     <Select value={calculationProfileId} disabled={profilesStatus === "loading" || calculationStatus === "loading"} onValueChange={(id) => {
+                      // Ignore an empty native-select synchronization event inside the form.
+                      if (!id) return;
                       const profile = calculationProfiles.find((item) => item.id === id);
-                      if (id !== "legacy" && (!profile || profile.schemaVersion !== 1)) {
+                      if (id !== "legacy" && !profile) {
+                        setProfilesError("Профіль недоступний. Онови список профілів або вибери інший."); setProfilesStatus("error"); return;
+                      }
+                      if (profile && profile.schemaVersion !== 1) {
                         setProfilesError("Ця версія профілю не підтримується."); setProfilesStatus("error"); return;
                       }
                       setCalculationProfileId(id);
