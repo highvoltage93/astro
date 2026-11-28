@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { DateTime } from "luxon";
-import { Ban, Plus, RefreshCw, Save } from "lucide-react";
+import { Ban, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -70,34 +70,41 @@ export function AdminUserAccess({ userId }: { userId: string }) {
     const controller = new AbortController();
     setData(null); setError("");
     void membershipRequest<AccessHistory>(path, { signal: controller.signal })
-      .then((result) => { if (!controller.signal.aborted) setData(result); })
+      .then((result) => { if (!controller.signal.aborted) {
+        setData(result);
+        const latest = result.history.find((grant) => !grant.revokedAt);
+        setPlan(result.access.plan === "FREE" ? latest?.plan ?? "PRO" : result.access.plan);
+        const end = result.access.endsAt ?? latest?.endsAt;
+        setEndsAt(end ? DateTime.fromISO(end).setZone("Europe/Kyiv").toFormat("yyyy-MM-dd'T'HH:mm:ss") : "");
+      } })
       .catch((cause: unknown) => { if (!controller.signal.aborted) setError(message(cause)); });
     return () => controller.abort();
   }, [path, revision]);
   async function mutate(grantId?: string) {
-    if (busy) return;
+    if (busy || !data) return;
     if (reason.trim().length < 3) { setError("Вкажіть причину зміни (щонайменше 3 символи)."); return; }
     const expiry = DateTime.fromISO(endsAt, { zone: "Europe/Kyiv" });
-    if (!grantId && (!expiry.isValid || expiry.toMillis() <= Date.now())) { setError("Вкажіть майбутню дату завершення."); return; }
+    if (!grantId && !expiry.isValid) { setError("Вкажіть коректну дату завершення."); return; }
+    if (!grantId && !window.confirm(`Замінити всі чинні та заплановані записи доступу на ${planNames[plan]} до ${expiry.toFormat("dd.MM.yyyy HH:mm:ss")} (Київ)?${expiry.toMillis() <= Date.now() ? " Дата вже минула: активного тарифного доступу не буде." : ""}`)) return;
     if (grantId && !window.confirm("Відкликати цей запис доступу? Інші активні записи залишаться чинними.")) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      await membershipRequest(`${path}/grants${grantId ? `/${encodeURIComponent(grantId)}/revoke` : ""}`, {
-        method: "POST", body: JSON.stringify(grantId ? { reason: reason.trim() } : { plan, endsAt: expiry.toUTC().toISO(), reason: reason.trim() })
+      await membershipRequest(grantId ? `${path}/grants/${encodeURIComponent(grantId)}/revoke` : `${path}/plan`, {
+        method: grantId ? "POST" : "PUT", body: JSON.stringify(grantId ? { reason: reason.trim() } : { plan, endsAt: expiry.toUTC().toISO(), reason: reason.trim(), expectedGrantIds: data.grantIds })
       });
-      setReason(""); setNotice(grantId ? "Запис відкликано." : "Доступ видано. Зміну записано в аудит.");
+      setReason(""); setNotice(grantId ? "Запис відкликано." : "План і строк змінено. Попередні записи відкликано, історію збережено.");
       setRevision((value) => value + 1);
     } catch (cause) { setError(message(cause)); } finally { setBusy(false); }
   }
   return <section className="space-y-4 border-t pt-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold">Тарифний доступ</h3><Button type="button" variant="outline" disabled={busy} onClick={() => setRevision((value) => value + 1)}><RefreshCw />Оновити</Button></div>
     {data ? <p className="text-sm">План: <strong>{planNames[data.access.plan]}</strong>{data.access.endsAt ? ` до ${membershipDate(data.access.endsAt)}` : ""}{data.access.administrator ? " · Адміністратор" : ""}</p> : !error ? <p role="status">Завантаження…</p> : null}
-    <p className="text-sm text-muted-foreground">Щоб продовжити доступ, видайте новий строк. Для припинення роботи відкличте всі активні записи, включно з перехідними. Архів не видаляється. Обмеження діють лише після глобального запуску.</p>
+    <p className="text-sm text-muted-foreground">Зміна замінює попередні записи доступу, включно з перехідними та запланованими. Дата в минулому завершує доступ. Архів та історія змін зберігаються. Обмеження діють лише після глобального запуску; адміністратори зберігають повний доступ.</p>
     <form onSubmit={(event) => { event.preventDefault(); void mutate(); }} className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2"><Label htmlFor="access-plan">План</Label><Select value={plan} disabled={busy} onValueChange={(value: "TRIAL" | "PRO") => setPlan(value)}><SelectTrigger id="access-plan"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="TRIAL">Trial</SelectItem><SelectItem value="PRO">Pro</SelectItem></SelectContent></Select></div>
       <div className="space-y-2"><Label htmlFor="access-end">Доступ до (час Києва)</Label><Input id="access-end" type="datetime-local" step={1} required value={endsAt} disabled={busy} onChange={(event) => setEndsAt(event.target.value)} /></div>
-      <div className="space-y-2 sm:col-span-2"><Label htmlFor="access-reason">Причина видачі / відкликання</Label><Input id="access-reason" minLength={3} maxLength={500} required value={reason} disabled={busy} onChange={(event) => setReason(event.target.value)} /></div>
-      <div><Button type="submit" disabled={busy || !data}><Plus />Видати доступ</Button></div>
+      <div className="space-y-2 sm:col-span-2"><Label htmlFor="access-reason">Причина зміни / відкликання</Label><Input id="access-reason" minLength={3} maxLength={500} required value={reason} disabled={busy} onChange={(event) => setReason(event.target.value)} /></div>
+      <div><Button type="submit" disabled={busy || !data}><Save />Зберегти план і строк</Button></div>
     </form>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     {notice ? <p role="status" className="text-sm">{notice}</p> : null}

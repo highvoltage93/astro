@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, Crown, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy } from "lucide-react";
+import { CalendarDays, FileText, LayoutDashboard, NotebookPen, Orbit, ShieldCheck, Trophy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { getCurrentUser } from "@/lib/api";
 import { AUTH_TOKEN_STORAGE_KEY } from "@/lib/auth-storage";
@@ -49,10 +49,6 @@ export function ZoriaShell({ children }: { children: ReactNode }) {
         <Link href="/" aria-label="ZORIA ASTROPROCESSOR: дешборд" className="flex items-center gap-3 px-4 py-4 lg:justify-center lg:px-3 lg:py-8 min-[1440px]:justify-start min-[1440px]:px-6">
           <Orbit aria-hidden="true" className="size-7 shrink-0 text-primary" />
           <span className="min-w-0 lg:hidden min-[1440px]:block"><span className="zoria-brand block text-[28px] leading-none text-primary">ZORIA</span><span className="mt-1 block text-[10px] text-muted-foreground">ASTROPROCESSOR</span></span>
-        </Link>
-        <Link href="/plans" title="Плани та переваги" aria-label="Плани та переваги" aria-current={pathname === "/plans" ? "page" : undefined}
-          className={cn("inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:w-full lg:px-2", pathname === "/plans" ? "border-primary/50 bg-primary/15 text-primary" : "border-border bg-secondary/60 text-foreground hover:bg-secondary")}>
-          <Crown aria-hidden="true" className="size-4 shrink-0" /><span className="lg:hidden min-[1440px]:inline">Плани</span>
         </Link>
         </header>
         <nav aria-label="Головна навігація" className="grid grid-cols-2 gap-1 px-2 pb-2 sm:grid-cols-3 lg:grid-cols-1 lg:gap-2 lg:px-3">

@@ -8,6 +8,7 @@ import { accessDecision, defaultAccessSettings, trialEnd } from "./policy";
 const settingsInput = z.object({ trialEnabled: z.boolean(), trialDays: z.number().int().min(1).max(365),
   enforcementEnabled: z.boolean(), transitionDays: z.number().int().min(1).max(365), revision: z.number().int().min(0) }).strict();
 const grantInput = z.object({ plan: z.enum(["TRIAL", "PRO"]), endsAt: z.string().datetime({ offset: true }), reason: z.string().trim().min(3).max(500) }).strict();
+const replaceInput = grantInput.extend({ expectedGrantIds: z.array(z.string().min(1)) });
 const revokeInput = z.object({ reason: z.string().trim().min(3).max(500) }).strict();
 
 export async function registerAccessRoutes(app: FastifyInstance) {
@@ -38,11 +39,11 @@ export async function registerAccessRoutes(app: FastifyInstance) {
       if (!user) return reply.code(404).send({ message: "Користувача не знайдено." });
       const now = new Date();
       const [active, history] = await prisma.$transaction([
-        prisma.accessGrant.findMany({ where: { userId: request.params.id, revokedAt: null, endsAt: { gt: now } } }),
+        prisma.accessGrant.findMany({ where: { userId: request.params.id, revokedAt: null } }),
         prisma.accessGrant.findMany({ where: { userId: request.params.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100 })
       ]);
       const settings = await prisma.accessSettings.findUnique({ where: { id: "default" } }) ?? defaultAccessSettings;
-      return { access: accessDecision(user.role, active, now, settings.enforcementEnabled), history };
+      return { access: accessDecision(user.role, active, now, settings.enforcementEnabled), history, grantIds: active.map((grant) => grant.id).sort() };
     });
 
     // Role recheck and audit belong to the same transaction as every administrative write.
@@ -87,6 +88,25 @@ export async function registerAccessRoutes(app: FastifyInstance) {
           metadata: { before: { ...before, launchedAt: before.launchedAt?.toISOString() ?? null },
             after: { ...after, launchedAt: after.launchedAt?.toISOString() ?? null } } } });
         return after;
+      });
+    });
+    admin.put<{ Params: { id: string } }>("/users/:id/plan", async (request, reply) => {
+      const parsed = replaceInput.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ message: "Оберіть план, дату завершення та причину (3–500 символів)." });
+      return change(request, reply, async (tx, actorId) => {
+        const now = new Date(), endsAt = new Date(parsed.data.endsAt);
+        if (Math.abs(endsAt.getTime() - now.getTime()) > 3660 * 86400000) throw new AccessError(400, "Оберіть дату в межах 10 років від сьогодні.");
+        if (!await tx.user.findUnique({ where: { id: request.params.id }, select: { id: true } })) throw new AccessError(404, "Користувача не знайдено.");
+        const before = await tx.accessGrant.findMany({ where: { userId: request.params.id, revokedAt: null } });
+        const ids = before.map((grant) => grant.id).sort();
+        if (JSON.stringify(ids) !== JSON.stringify([...parsed.data.expectedGrantIds].sort())) throw new AccessError(409, "Доступ уже змінився. Оновіть дані та повторіть.");
+        // Replace every outstanding grant, including scheduled ones, so Pro cannot mask Trial.
+        await tx.accessGrant.updateMany({ where: { userId: request.params.id, revokedAt: null }, data: { revokedAt: now } });
+        const grant = await tx.accessGrant.create({ data: { userId: request.params.id, plan: parsed.data.plan,
+          startsAt: endsAt < now ? endsAt : now, endsAt, source: "admin", reason: parsed.data.reason } });
+        await tx.auditEvent.create({ data: { userId: actorId, action: "admin.access.replace", entity: "User", entityId: request.params.id,
+          metadata: { revokedGrantIds: ids, grantId: grant.id, plan: grant.plan, endsAt: endsAt.toISOString(), reason: grant.reason } } });
+        return { grant };
       });
     });
     admin.post<{ Params: { id: string } }>("/users/:id/grants", async (request, reply) => {

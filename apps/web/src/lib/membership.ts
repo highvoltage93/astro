@@ -7,7 +7,7 @@ export type Account = { user: { id: string; username: string; email: string; rol
   access: AccessSummary; trialDays: number; trialEnabled: boolean };
 export type AccessSettings = { trialEnabled: boolean; trialDays: number; revision: number;
   enforcementEnabled: boolean; transitionDays: number; launchedAt: string | null };
-export type AccessHistory = { access: AccessSummary; history: { id: string; plan: "TRIAL" | "PRO"; source: string;
+export type AccessHistory = { access: AccessSummary; grantIds: string[]; history: { id: string; plan: "TRIAL" | "PRO"; source: string;
   reason: string; startsAt: string; endsAt: string; revokedAt: string | null; createdAt: string }[] };
 export const planNames = { FREE: "Без активної підписки", TRIAL: "Trial", PRO: "Pro" };
 export const membershipDate = (value: string) => new Date(value).toLocaleString("uk-UA");
